@@ -10,10 +10,10 @@ export default function PartsDatabasePage() {
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Parts Database</h1>
+        <h1 className="text-2xl font-bold text-txt-primary">Parts Database</h1>
         <Link
           href="/parts-database/upload"
-          className={cn(buttonVariants())}
+          className={cn(buttonVariants(), "bg-gradient-brand hover-lift")}
         >
           <Upload className="mr-2 size-4" />
           Upload Quote

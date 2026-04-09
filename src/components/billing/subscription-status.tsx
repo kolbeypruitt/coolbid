@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -36,6 +35,14 @@ const badgeVariantMap: Record<SubscriptionStatus, "secondary" | "default" | "des
   past_due: "destructive",
   canceled: "outline",
   expired: "outline",
+};
+
+const badgeClassMap: Record<SubscriptionStatus, string> = {
+  trialing: "bg-accent-glow text-accent-light border-none",
+  active: "bg-success-bg text-success border-none",
+  past_due: "bg-error-bg text-error border-none",
+  canceled: "bg-bg-elevated text-txt-tertiary border border-border",
+  expired: "bg-bg-elevated text-txt-tertiary border border-border",
 };
 
 export function SubscriptionStatus() {
@@ -79,9 +86,9 @@ export function SubscriptionStatus() {
 
   if (loading) {
     return (
-      <Card>
+      <Card className="bg-gradient-card border-b-accent">
         <CardHeader>
-          <CardTitle>Subscription</CardTitle>
+          <CardTitle className="text-txt-primary">Subscription</CardTitle>
           <CardDescription>Your current plan and billing details.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -94,31 +101,28 @@ export function SubscriptionStatus() {
   const status = profile?.subscription_status ?? null;
 
   return (
-    <Card>
+    <Card className="bg-gradient-card border-b-accent">
       <CardHeader>
-        <CardTitle>Subscription</CardTitle>
+        <CardTitle className="text-txt-primary">Subscription</CardTitle>
         <CardDescription>Your current plan and billing details.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {status && (
-          <Badge variant={badgeVariantMap[status]}>
+          <Badge variant={badgeVariantMap[status]} className={badgeClassMap[status]}>
             {status.charAt(0).toUpperCase() + status.slice(1).replace("_", " ")}
           </Badge>
         )}
 
         {status === "trialing" && (
           <>
-            <p className="text-sm">
+            <p className="text-sm text-txt-primary">
               Free trial active &middot;{" "}
-              <strong>
+              <strong className="text-txt-secondary">
                 {profile?.trial_ends_at ? daysLeft(profile.trial_ends_at) : 0} days remaining
               </strong>{" "}
-              &middot; {profile?.ai_actions_used ?? 0}/{TRIAL_AI_ACTION_LIMIT} AI actions used
+              &middot; <span className="text-txt-secondary">{profile?.ai_actions_used ?? 0}/{TRIAL_AI_ACTION_LIMIT} AI actions used</span>
             </p>
-            <Link
-              href="/upgrade"
-              className={cn(buttonVariants({ variant: "default", size: "sm" }))}
-            >
+            <Link href="/upgrade" className={cn(buttonVariants({ size: "sm" }), "bg-gradient-brand hover-lift")}>
               Upgrade to Pro
             </Link>
           </>
@@ -126,13 +130,13 @@ export function SubscriptionStatus() {
 
         {status === "active" && (
           <>
-            <p className="text-sm">
+            <p className="text-sm text-txt-primary">
               Pro subscription active
               {profile?.subscription_period_end
-                ? ` · Renews ${new Date(profile.subscription_period_end).toLocaleDateString()}`
+                ? <span className="text-txt-secondary">{` · Renews ${new Date(profile.subscription_period_end).toLocaleDateString()}`}</span>
                 : ""}
             </p>
-            <Button size="sm" onClick={openPortal} disabled={portalLoading}>
+            <Button size="sm" className="bg-gradient-brand hover-lift" onClick={openPortal} disabled={portalLoading}>
               {portalLoading ? "Loading..." : "Manage Billing"}
             </Button>
           </>
@@ -140,10 +144,10 @@ export function SubscriptionStatus() {
 
         {status === "past_due" && (
           <>
-            <p className="text-sm text-destructive">
+            <p className="text-sm text-error">
               Payment failed — retry in progress
             </p>
-            <Button size="sm" variant="destructive" onClick={openPortal} disabled={portalLoading}>
+            <Button size="sm" className="bg-gradient-brand hover-lift" onClick={openPortal} disabled={portalLoading}>
               {portalLoading ? "Loading..." : "Update Payment Method"}
             </Button>
           </>
@@ -151,13 +155,10 @@ export function SubscriptionStatus() {
 
         {(status === "canceled" || status === "expired") && (
           <>
-            <p className="text-sm">
+            <p className="text-sm text-txt-primary">
               Subscription {status}
             </p>
-            <Link
-              href="/upgrade"
-              className={cn(buttonVariants({ variant: "default", size: "sm" }))}
-            >
+            <Link href="/upgrade" className={cn(buttonVariants({ size: "sm" }), "bg-gradient-brand hover-lift")}>
               Resubscribe
             </Link>
           </>

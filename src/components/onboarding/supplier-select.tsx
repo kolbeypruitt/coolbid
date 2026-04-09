@@ -68,12 +68,12 @@ export function SupplierSelect({ onComplete }: Props) {
               className={cn(
                 "flex flex-col gap-1 rounded-xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 isSelected
-                  ? "border-primary bg-primary/5"
-                  : "border-border bg-card hover:bg-muted/50"
+                  ? "bg-gradient-card border-2 border-b-accent hover-lift"
+                  : "bg-gradient-card border-border hover-glow hover-lift cursor-pointer"
               )}
             >
-              <span className="text-sm font-medium">{supplier.name}</span>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-sm font-semibold text-txt-primary">{supplier.name}</span>
+              <span className="text-xs text-txt-tertiary">
                 {supplier.brands.join(", ")}
               </span>
             </button>
@@ -86,11 +86,11 @@ export function SupplierSelect({ onComplete }: Props) {
           className={cn(
             "flex flex-col gap-2 rounded-xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             otherActive
-              ? "border-primary bg-primary/5"
-              : "border-border bg-card hover:bg-muted/50"
+              ? "bg-gradient-card border-2 border-b-accent hover-lift"
+              : "bg-gradient-card border-border hover-glow hover-lift cursor-pointer"
           )}
         >
-          <span className="text-sm font-medium">Other</span>
+          <span className="text-sm font-semibold text-txt-primary">Other</span>
           {otherActive ? (
             <Input
               type="text"
@@ -98,21 +98,21 @@ export function SupplierSelect({ onComplete }: Props) {
               value={customName}
               onChange={(e) => setCustomName(e.target.value)}
               onClick={(e) => e.stopPropagation()}
-              className="h-7 text-xs"
+              className="h-7 text-xs focus-accent"
             />
           ) : (
-            <span className="text-xs text-muted-foreground">Enter a custom supplier</span>
+            <span className="text-xs text-txt-tertiary">Enter a custom supplier</span>
           )}
         </button>
       </div>
 
       <div className="flex items-center gap-4">
-        <Button onClick={handleContinue} disabled={!hasSelection}>
+        <Button onClick={handleContinue} disabled={!hasSelection} className="bg-gradient-brand hover-lift">
           Continue
         </Button>
         <Link
           href="/dashboard"
-          className={buttonVariants({ variant: "link" })}
+          className={cn(buttonVariants({ variant: "link" }), "text-txt-tertiary hover:text-txt-secondary")}
         >
           Skip for now
         </Link>

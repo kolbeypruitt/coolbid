@@ -25,9 +25,9 @@ export function Header({ email }: HeaderProps) {
   }
 
   return (
-    <header className="h-14 border-b flex items-center justify-end px-6">
+    <header className="glass-header sticky top-0 z-40 flex h-14 items-center justify-end border-b border-border px-6">
       <DropdownMenu>
-        <DropdownMenuTrigger className="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm hover:bg-muted transition-colors outline-none">
+        <DropdownMenuTrigger className="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm text-txt-secondary hover:bg-bg-card-hover hover:text-txt-primary transition-colors outline-none">
           <User className="h-4 w-4" />
           <span>{email}</span>
         </DropdownMenuTrigger>

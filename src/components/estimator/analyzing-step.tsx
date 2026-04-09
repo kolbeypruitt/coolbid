@@ -141,42 +141,47 @@ export function AnalyzingStep() {
     : Math.round(((visibleStep + 1) / STEPS.length) * 85);
 
   return (
-    <div className="mx-auto max-w-lg space-y-6 py-10 text-center">
-      <h2 className="text-xl font-semibold">Analyzing Floorplan...</h2>
+    <div className="max-w-[600px] mx-auto py-10">
+      <div className="space-y-6 text-center">
+        <div className="pulse-ring relative w-16 h-16 rounded-full flex items-center justify-center mx-auto">
+          <h2 className="sr-only">Analyzing Floorplan...</h2>
+        </div>
+        <h2 className="text-xl font-semibold">Analyzing Floorplan...</h2>
 
-      <Card>
-        <CardContent className="space-y-4 pt-6">
-          <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-primary transition-all duration-700 ease-out"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
+        <Card className="bg-gradient-card border-border">
+          <CardContent className="space-y-4 pt-6">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-bg-card">
+              <div
+                className="h-full rounded-full progress-fill transition-all duration-700 ease-out"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
 
-          <div className="space-y-3 text-left">
-            {STEPS.slice(0, visibleStep + 1).map((step, i) => {
-              const isDone = i < visibleStep || allDone;
-              const isCurrent = i === visibleStep && !allDone;
+            <div className="space-y-3 text-left">
+              {STEPS.slice(0, visibleStep + 1).map((step, i) => {
+                const isDone = i < visibleStep || allDone;
+                const isCurrent = i === visibleStep && !allDone;
 
-              return (
-                <div
-                  key={i}
-                  className="flex items-center gap-2.5 text-sm"
-                >
-                  {isDone ? (
-                    <Check className="h-4 w-4 shrink-0 text-primary" />
-                  ) : isCurrent ? (
-                    <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
-                  ) : null}
-                  <span className={isDone ? "text-muted-foreground" : "text-foreground"}>
-                    {step}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+                return (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2.5 text-sm"
+                  >
+                    {isDone ? (
+                      <Check className="h-4 w-4 shrink-0 text-success" />
+                    ) : isCurrent ? (
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-accent-light" />
+                    ) : null}
+                    <span className={isDone ? "text-txt-secondary" : isCurrent ? "text-txt-primary font-medium" : "text-txt-secondary"}>
+                      {step}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

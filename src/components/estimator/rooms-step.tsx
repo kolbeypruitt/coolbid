@@ -44,8 +44,8 @@ export function RoomsStep() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold">Room Analysis</h2>
-          <p className="text-sm text-muted-foreground">
+          <h2 className="text-xl font-semibold text-txt-primary">Room Analysis</h2>
+          <p className="text-sm text-txt-secondary">
             AI detected {rooms.length} rooms — {totalSqft.toLocaleString()} sq ft total.
             Edit anything that looks off.
           </p>
@@ -58,7 +58,7 @@ export function RoomsStep() {
             <Plus className="mr-1 h-4 w-4" />
             Add Room
           </Button>
-          <Button size="sm" onClick={generateBom} disabled={rooms.length === 0}>
+          <Button size="sm" onClick={generateBom} disabled={rooms.length === 0} className="bg-gradient-brand hover-lift">
             Generate Estimate →
           </Button>
         </div>
@@ -72,18 +72,18 @@ export function RoomsStep() {
           return (
             <div
               key={i}
-              className="rounded-xl border bg-card p-4 shadow-sm transition-shadow hover:shadow-md"
+              className="bg-gradient-card border-border hover:border-b-accent hover-glow hover-lift transition-all duration-[250ms] rounded-xl p-4 shadow-sm"
             >
               {/* Card header: name + delete */}
               <div className="mb-3 flex items-center justify-between gap-2">
                 <Input
                   value={room.name}
                   onChange={(e) => updateRoom(i, { name: e.target.value })}
-                  className="h-8 border-0 bg-transparent px-0 text-sm font-semibold shadow-none focus-visible:border-b focus-visible:border-primary focus-visible:ring-0"
+                  className="h-8 border-0 bg-transparent px-0 text-sm font-semibold shadow-none focus-visible:border-b focus-visible:border-primary focus-visible:ring-0 text-txt-primary"
                 />
                 <button
                   onClick={() => removeRoom(i)}
-                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                  className="shrink-0 text-txt-tertiary hover:text-error"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -92,7 +92,7 @@ export function RoomsStep() {
               {/* Fields: 2-column grid */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Type</Label>
+                  <Label className="text-xs text-txt-tertiary uppercase tracking-wider">Type</Label>
                   <Select
                     value={room.type}
                     onValueChange={(val) => updateRoom(i, { type: val as RoomType })}
@@ -110,7 +110,7 @@ export function RoomsStep() {
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Sq Ft</Label>
+                  <Label className="text-xs text-txt-tertiary uppercase tracking-wider">Sq Ft</Label>
                   <Input
                     type="number"
                     className="h-8 text-xs"
@@ -121,7 +121,7 @@ export function RoomsStep() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Windows</Label>
+                  <Label className="text-xs text-txt-tertiary uppercase tracking-wider">Windows</Label>
                   <Input
                     type="number"
                     className="h-8 text-xs"
@@ -133,7 +133,7 @@ export function RoomsStep() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Ext. Walls</Label>
+                  <Label className="text-xs text-txt-tertiary uppercase tracking-wider">Ext. Walls</Label>
                   <Input
                     type="number"
                     className="h-8 text-xs"
@@ -148,7 +148,7 @@ export function RoomsStep() {
               </div>
 
               {/* Footer meta */}
-              <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="mt-3 flex items-center gap-2 text-xs text-txt-tertiary">
                 <span>{room.width_ft || "?"}' × {room.length_ft || "?"}'</span>
                 <span>·</span>
                 <span>{estBtu.toLocaleString()} BTU</span>
@@ -162,7 +162,7 @@ export function RoomsStep() {
         <Button variant="outline" onClick={() => setStep("select_pages")}>
           Back
         </Button>
-        <Button onClick={generateBom} disabled={rooms.length === 0}>
+        <Button onClick={generateBom} disabled={rooms.length === 0} className="bg-gradient-brand hover-lift">
           Generate Bill of Materials
         </Button>
       </div>

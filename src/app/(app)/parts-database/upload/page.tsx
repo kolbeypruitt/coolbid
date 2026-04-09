@@ -62,7 +62,7 @@ export default function QuoteUploadPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-6">
       <div>
-        <h1 className="text-2xl font-semibold">Upload Quote</h1>
+        <h1 className="text-2xl font-bold text-txt-primary">Upload Quote</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Upload a supplier quote PDF to extract and save pricing to your catalog.
         </p>
@@ -83,7 +83,7 @@ export default function QuoteUploadPage() {
       )}
 
       {step === "saved" && (
-        <div className="flex flex-col items-center gap-6 rounded-xl border bg-muted/30 py-16 text-center">
+        <div className="flex flex-col items-center gap-6 rounded-xl border bg-success-bg border-success py-16 text-center text-success">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
             <CheckCircle2 className="h-8 w-8 text-primary" />
           </div>
@@ -97,7 +97,7 @@ export default function QuoteUploadPage() {
             <Button variant="outline" onClick={resetToUpload}>
               Upload Another
             </Button>
-            <Button onClick={() => router.push("/parts-database")}>
+            <Button className="text-accent-light" onClick={() => router.push("/parts-database")}>
               View Catalog
             </Button>
           </div>

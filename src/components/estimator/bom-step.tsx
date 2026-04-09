@@ -186,7 +186,7 @@ export function BomStep() {
     <div className="space-y-4">
       {/* Missing items warning banner */}
       {hasMissingItems && (
-        <div className="flex items-start gap-3 rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-200">
+        <div className="flex items-start gap-3 rounded-lg border p-3 text-sm bg-warning-bg border-warning text-warning">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
             Some equipment couldn&apos;t be found in your catalog. Upload a supplier quote or add items manually to get accurate pricing.
@@ -196,42 +196,42 @@ export function BomStep() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Card>
+        <Card className="bg-gradient-card border-b-accent shadow-[0_0_24px_rgba(6,182,212,0.06)]">
           <CardHeader>
-            <CardTitle className="text-xs text-muted-foreground">System Size</CardTitle>
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-txt-tertiary">System Size</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{bom.summary.tonnage}T</p>
+            <p className="text-2xl font-bold text-txt-primary">{bom.summary.tonnage}T</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-gradient-card border-b-accent shadow-[0_0_24px_rgba(6,182,212,0.06)]">
           <CardHeader>
-            <CardTitle className="text-xs text-muted-foreground">Design BTU</CardTitle>
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-txt-tertiary">Design BTU</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{bom.summary.designBTU.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-txt-primary">{bom.summary.designBTU.toLocaleString()}</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-gradient-card border-b-accent shadow-[0_0_24px_rgba(6,182,212,0.06)]">
           <CardHeader>
-            <CardTitle className="text-xs text-muted-foreground">Materials</CardTitle>
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-txt-tertiary">Materials</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">${materialCost.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+            <p className="text-2xl font-bold text-txt-primary">${materialCost.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-gradient-card border-b-accent shadow-[0_0_24px_rgba(6,182,212,0.06)]">
           <CardHeader>
-            <CardTitle className="text-xs text-muted-foreground">Total Price</CardTitle>
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-txt-tertiary">Total Price</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">${totalPrice.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+            <p className="text-3xl font-extrabold text-gradient-brand">${totalPrice.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Pricing Card */}
-      <Card>
+      <Card className="bg-gradient-card border-border">
         <CardHeader>
           <CardTitle>Pricing</CardTitle>
         </CardHeader>
@@ -275,22 +275,22 @@ export function BomStep() {
               />
             </div>
           </div>
-          <div className="rounded-lg bg-muted/50 p-3 text-sm">
+          <div className="rounded-lg bg-bg-card p-3 text-sm">
             <div className="flex justify-between py-0.5">
-              <span className="text-muted-foreground">
+              <span className="text-txt-secondary">
                 Materials{hasNullPrices && " (some items need pricing via RFQ)"}
               </span>
-              <span>${materialCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span className="text-txt-primary">${materialCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
             <div className="flex justify-between py-0.5">
-              <span className="text-muted-foreground">Labor ({laborHours} hrs @ ${laborRate}/hr)</span>
-              <span>${laborCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span className="text-txt-secondary">Labor ({laborHours} hrs @ ${laborRate}/hr)</span>
+              <span className="text-txt-primary">${laborCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
             <div className="flex justify-between py-0.5">
-              <span className="text-muted-foreground">Markup ({profitMargin}%)</span>
-              <span>${markup.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span className="text-txt-secondary">Markup ({profitMargin}%)</span>
+              <span className="text-txt-primary">${markup.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
-            <div className="mt-1.5 flex justify-between border-t pt-1.5 font-medium">
+            <div className="mt-1.5 flex justify-between border-t pt-1.5 text-xl font-bold text-txt-primary">
               <span>Total</span>
               <span>${totalPrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
@@ -300,42 +300,42 @@ export function BomStep() {
 
       {/* BOM Tables */}
       {categories.map(({ category, items }) => (
-        <Card key={category}>
+        <Card key={category} className="bg-gradient-card border-border">
           <CardHeader>
-            <CardTitle>{category}</CardTitle>
+            <CardTitle className="text-txt-primary">{category}</CardTitle>
           </CardHeader>
           <CardContent className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b text-left text-xs text-muted-foreground">
-                  <th className="pb-2 pr-4 font-medium">Description</th>
-                  <th className="pb-2 pr-4 font-medium">Brand</th>
-                  <th className="pb-2 pr-4 font-medium">SKU</th>
-                  <th className="pb-2 pr-4 text-right font-medium">Qty</th>
-                  <th className="pb-2 pr-4 font-medium">Unit</th>
-                  <th className="pb-2 pr-4 text-right font-medium">Price</th>
-                  <th className="pb-2 pr-4 text-right font-medium">Total</th>
-                  <th className="pb-2 font-medium">Source</th>
+                <tr className="border-b text-left">
+                  <th className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary pb-3 pr-4">Description</th>
+                  <th className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary pb-3 pr-4">Brand</th>
+                  <th className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary pb-3 pr-4">SKU</th>
+                  <th className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary pb-3 pr-4 text-right">Qty</th>
+                  <th className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary pb-3 pr-4">Unit</th>
+                  <th className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary pb-3 pr-4 text-right">Price</th>
+                  <th className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary pb-3 pr-4 text-right">Total</th>
+                  <th className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary pb-3">Source</th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((item, i) => (
-                  <tr key={i} className="border-b last:border-0">
-                    <td className="py-2 pr-4">{item.name}</td>
-                    <td className="py-2 pr-4 text-muted-foreground">{item.brand}</td>
-                    <td className="py-2 pr-4 font-mono text-xs text-muted-foreground">{item.sku}</td>
-                    <td className="py-2 pr-4 text-right">{item.qty}</td>
-                    <td className="py-2 pr-4 text-muted-foreground">{item.unit}</td>
-                    <td className="py-2 pr-4 text-right">
+                  <tr key={i} className="border-b last:border-0 hover:bg-[rgba(6,182,212,0.03)] transition-colors">
+                    <td className="text-txt-secondary py-2 pr-4">{item.name}</td>
+                    <td className="text-txt-secondary py-2 pr-4">{item.brand}</td>
+                    <td className="text-txt-secondary py-2 pr-4 font-mono text-xs">{item.sku}</td>
+                    <td className="tabular-nums text-txt-primary font-medium text-right py-2 pr-4">{item.qty}</td>
+                    <td className="text-txt-secondary py-2 pr-4">{item.unit}</td>
+                    <td className="tabular-nums text-txt-primary font-medium text-right py-2 pr-4">
                       {item.price === null ? (
-                        <span className="text-muted-foreground">RFQ</span>
+                        <span className="text-txt-secondary">RFQ</span>
                       ) : (
                         `$${item.price.toFixed(2)}`
                       )}
                     </td>
-                    <td className="py-2 pr-4 text-right">
+                    <td className="tabular-nums text-txt-primary font-medium text-right py-2 pr-4">
                       {item.price === null ? (
-                        <span className="text-muted-foreground">—</span>
+                        <span className="text-txt-secondary">—</span>
                       ) : (
                         `$${(item.price * item.qty).toFixed(2)}`
                       )}
@@ -382,7 +382,7 @@ export function BomStep() {
           <Download />
           Export CSV
         </Button>
-        <Button onClick={handleSave}>
+        <Button onClick={handleSave} className="bg-gradient-brand hover-lift">
           <Save />
           Save Estimate
         </Button>

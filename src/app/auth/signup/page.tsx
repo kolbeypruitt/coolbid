@@ -55,11 +55,11 @@ function SignupForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <Card className="w-full max-w-md">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-md bg-gradient-card border-b-accent shadow-[0_0_28px_rgba(6,182,212,0.1)]">
         <CardHeader>
-          <CardTitle>Create your account</CardTitle>
-          <CardDescription>Start your 14-day free trial of CoolBid</CardDescription>
+          <CardTitle className="text-2xl text-txt-primary">Create your account</CardTitle>
+          <CardDescription className="text-txt-secondary">Start your 30-day free trial of CoolBid</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignup} className="space-y-4">
@@ -93,15 +93,15 @@ function SignupForm() {
                 required
               />
             </div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <Button type="submit" className="w-full" disabled={loading}>
+            {error && <p className="text-sm text-error">{error}</p>}
+            <Button type="submit" className="w-full bg-gradient-brand hover-lift" disabled={loading}>
               {loading ? "Creating account..." : "Create account"}
             </Button>
           </form>
 
-          <p className="mt-4 text-center text-sm text-muted-foreground">
+          <p className="mt-4 text-center text-sm text-txt-secondary">
             Already have an account?{" "}
-            <Link href="/auth/login" className="underline">
+            <Link href="/auth/login" className="text-accent-light underline">
               Sign in
             </Link>
           </p>

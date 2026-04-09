@@ -34,25 +34,25 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <Link href="/estimates/new" className={cn(buttonVariants())}>
+        <h1 className="text-2xl font-bold text-txt-primary">Dashboard</h1>
+        <Link href="/estimates/new" className={cn(buttonVariants(), "bg-gradient-brand hover-lift")}>
           <Plus className="h-4 w-4 mr-2" />
           New Estimate
         </Link>
       </div>
 
-      <Card>
+      <Card className="bg-gradient-card border-border">
         <CardHeader>
-          <CardTitle>Total Estimates</CardTitle>
+          <CardTitle className="text-xs uppercase tracking-wider text-txt-tertiary">Total Estimates</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-3xl font-bold">{count ?? 0}</p>
+          <p className="text-3xl font-bold text-gradient-brand">{count ?? 0}</p>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="bg-gradient-card border-border">
         <CardHeader>
-          <CardTitle>Recent Estimates</CardTitle>
+          <CardTitle className="text-txt-primary">Recent Estimates</CardTitle>
         </CardHeader>
         <CardContent>
           {estimates.length > 0 ? (
@@ -61,37 +61,37 @@ export default async function DashboardPage() {
                 <li key={estimate.id}>
                   <Link
                     href={`/estimates/${estimate.id}`}
-                    className="flex items-center justify-between rounded-md p-3 hover:bg-muted transition-colors"
+                    className="flex items-center justify-between rounded-md border border-border p-3 transition-colors hover:bg-bg-card-hover"
                   >
                     <div className="flex items-center gap-3">
                       <FileText className="h-4 w-4 text-muted-foreground" />
                       <div>
-                        <p className="font-medium">{estimate.project_name}</p>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-txt-primary font-medium">{estimate.project_name}</p>
+                        <p className="text-txt-secondary text-sm">
                           {estimate.customer_name}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-sm font-medium">
+                      <span className="text-txt-primary font-medium">
                         {estimate.total_price != null
                           ? `$${estimate.total_price.toLocaleString()}`
                           : "—"}
                       </span>
-                      <Badge variant="outline">{estimate.status}</Badge>
+                      <span className="text-txt-tertiary text-xs capitalize">{estimate.status}</span>
                     </div>
                   </Link>
                 </li>
               ))}
             </ul>
           ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <p className="mb-4">No estimates yet.</p>
+            <div className="text-center py-8">
+              <p className="mb-4 text-txt-secondary">No estimates yet.</p>
               <Link
                 href="/estimates/new"
-                className={cn(buttonVariants({ variant: "outline" }))}
+                className={cn("text-accent-light")}
               >
-                <Plus className="h-4 w-4 mr-2" />
+                <Plus className="h-4 w-4 mr-2 inline" />
                 Create your first estimate
               </Link>
             </div>

@@ -21,12 +21,15 @@ export default function NewEstimatePage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-4 sm:p-6">
+      <h1 className="text-2xl font-bold text-txt-primary">New Estimate</h1>
+
       {/* Step Indicator */}
       <div className="flex flex-wrap gap-2">
         {STEPS.map((s) => (
           <Badge
             key={s.key}
             variant={step === s.key ? "default" : "outline"}
+            className={step === s.key ? "bg-gradient-brand text-white border-none" : "bg-bg-card text-txt-secondary border-border"}
           >
             {s.label}
           </Badge>
@@ -35,7 +38,7 @@ export default function NewEstimatePage() {
 
       {/* Error Display */}
       {error && (
-        <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div className="rounded-lg border px-4 py-3 text-sm bg-error-bg border-error text-error">
           {error}
         </div>
       )}

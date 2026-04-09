@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { TRIAL_AI_ACTION_LIMIT } from "@/types/billing";
@@ -57,8 +56,8 @@ export function TrialBanner() {
       className={cn(
         "sticky top-0 z-50 flex items-center justify-between px-6 py-2 text-sm",
         isUrgent
-          ? "bg-yellow-50 text-yellow-900 border-b border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-200 dark:border-yellow-800"
-          : "bg-muted text-muted-foreground border-b"
+          ? "bg-warning-bg text-warning"
+          : "bg-accent-glow text-accent-light"
       )}
     >
       <span>
@@ -67,10 +66,7 @@ export function TrialBanner() {
       </span>
       <Link
         href="/upgrade"
-        className={cn(
-          buttonVariants({ variant: "default", size: "sm" }),
-          "ml-4"
-        )}
+        className="font-medium text-accent-light underline underline-offset-2 hover:no-underline"
       >
         Subscribe
       </Link>

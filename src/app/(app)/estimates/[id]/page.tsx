@@ -86,19 +86,19 @@ export default async function EstimateDetailPage({
       <div className="flex items-start gap-4">
         <Link
           href="/estimates"
-          className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "mt-0.5")}
+          className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "mt-0.5 text-txt-secondary hover:text-txt-primary")}
         >
           <ArrowLeft className="h-4 w-4 mr-1" />
           Back
         </Link>
         <div className="flex-1">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-bold">{est.project_name}</h1>
+            <h1 className="text-2xl font-bold text-txt-primary">{est.project_name}</h1>
             <Badge variant={statusVariant(est.status)}>{est.status}</Badge>
           </div>
-          <p className="text-muted-foreground mt-1">{est.customer_name}</p>
+          <p className="text-sm text-txt-secondary mt-1">{est.customer_name}</p>
           {est.total_sqft != null && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-txt-secondary">
               {est.total_sqft.toLocaleString()} sq ft
             </p>
           )}
@@ -107,40 +107,40 @@ export default async function EstimateDetailPage({
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Card>
+        <Card className="bg-gradient-card border-b-accent">
           <CardHeader>
-            <CardTitle>Materials</CardTitle>
+            <CardTitle className="text-xs uppercase tracking-wider text-txt-tertiary">Materials</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">
+            <p className="text-2xl font-bold text-txt-primary">
               ${materialCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-gradient-card border-b-accent">
           <CardHeader>
-            <CardTitle>Labor</CardTitle>
+            <CardTitle className="text-xs uppercase tracking-wider text-txt-tertiary">Labor</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">
+            <p className="text-2xl font-bold text-txt-primary">
               ${laborCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-gradient-card border-b-accent">
           <CardHeader>
-            <CardTitle>Margin</CardTitle>
+            <CardTitle className="text-xs uppercase tracking-wider text-txt-tertiary">Margin</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{margin}%</p>
+            <p className="text-2xl font-bold text-txt-primary">{margin}%</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-gradient-card border-b-accent">
           <CardHeader>
-            <CardTitle>Total Price</CardTitle>
+            <CardTitle className="text-xs uppercase tracking-wider text-txt-tertiary">Total Price</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">
+            <p className="text-3xl font-extrabold text-gradient-brand">
               ${totalPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </p>
           </CardContent>
@@ -149,33 +149,33 @@ export default async function EstimateDetailPage({
 
       {/* Rooms Table */}
       {roomList.length > 0 && (
-        <Card>
+        <Card className="bg-gradient-card border-border">
           <CardHeader>
-            <CardTitle>Rooms</CardTitle>
+            <CardTitle className="text-txt-primary">Rooms</CardTitle>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead className="text-right">Sq Ft</TableHead>
-                  <TableHead className="text-right">Windows</TableHead>
-                  <TableHead className="text-right">Ext Walls</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary pb-3">Name</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary pb-3">Type</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary pb-3 text-right">Sq Ft</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary pb-3 text-right">Windows</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary pb-3 text-right">Ext Walls</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {roomList.map((room) => (
-                  <TableRow key={room.id}>
-                    <TableCell className="font-medium">{room.name}</TableCell>
-                    <TableCell>{formatRoomType(room.type)}</TableCell>
-                    <TableCell className="text-right">
+                  <TableRow key={room.id} className="border-b border-border hover:bg-[rgba(6,182,212,0.03)] transition-colors">
+                    <TableCell className="text-sm text-txt-secondary py-2 tabular-nums text-txt-primary font-medium">{room.name}</TableCell>
+                    <TableCell className="text-sm text-txt-secondary py-2">{formatRoomType(room.type)}</TableCell>
+                    <TableCell className="text-sm text-txt-secondary py-2 tabular-nums text-txt-primary font-medium text-right">
                       {room.sqft != null ? room.sqft.toLocaleString() : "—"}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-sm text-txt-secondary py-2 tabular-nums text-txt-primary font-medium text-right">
                       {room.window_count}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-sm text-txt-secondary py-2 tabular-nums text-txt-primary font-medium text-right">
                       {room.exterior_walls}
                     </TableCell>
                   </TableRow>
@@ -188,37 +188,37 @@ export default async function EstimateDetailPage({
 
       {/* BOM Tables grouped by category */}
       {Object.entries(bomByCategory).map(([category, items]) => (
-        <Card key={category}>
+        <Card key={category} className="bg-gradient-card border-border">
           <CardHeader>
-            <CardTitle>{formatRoomType(category)}</CardTitle>
+            <CardTitle className="text-txt-primary">{formatRoomType(category)}</CardTitle>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Description</TableHead>
-                  <TableHead>SKU</TableHead>
-                  <TableHead className="text-right">Qty</TableHead>
-                  <TableHead className="text-right">Unit Cost</TableHead>
-                  <TableHead className="text-right">Total Cost</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary pb-3">Description</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary pb-3">SKU</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary pb-3 text-right">Qty</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary pb-3 text-right">Unit Cost</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary pb-3 text-right">Total Cost</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {items.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">
+                  <TableRow key={item.id} className="border-b border-border hover:bg-[rgba(6,182,212,0.03)] transition-colors">
+                    <TableCell className="text-sm text-txt-secondary py-2 text-txt-primary font-medium">
                       {item.description}
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-xs">
+                    <TableCell className="text-sm text-txt-secondary py-2">
                       {item.sku ?? "—"}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-sm text-txt-secondary py-2 tabular-nums text-txt-primary font-medium text-right">
                       {item.quantity} {item.unit}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-sm text-txt-secondary py-2 tabular-nums text-txt-primary font-medium text-right">
                       ${item.unit_cost.toFixed(2)}
                     </TableCell>
-                    <TableCell className="text-right font-medium">
+                    <TableCell className="text-sm text-txt-secondary py-2 tabular-nums text-txt-primary font-medium text-right">
                       ${item.total_cost.toFixed(2)}
                     </TableCell>
                   </TableRow>

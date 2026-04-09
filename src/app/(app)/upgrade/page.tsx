@@ -31,17 +31,17 @@ export default function UpgradePage() {
   }
 
   return (
-    <div className="max-w-lg mx-auto py-12 px-6 space-y-6">
+    <div className="min-h-screen bg-background max-w-lg mx-auto py-12 px-6 space-y-6">
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold">Subscribe to continue</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-3xl font-bold text-txt-primary">Subscribe to continue</h1>
+        <p className="text-txt-secondary">
           Your trial has ended or you&apos;ve reached the usage limit. Subscribe to keep using
           CoolBid with no restrictions.
         </p>
       </div>
 
       {error && (
-        <div className="rounded-lg border border-destructive bg-destructive/10 p-4 text-sm text-destructive">
+        <div className="rounded-lg border border-error bg-error-bg p-4 text-sm text-error">
           {error}
         </div>
       )}
