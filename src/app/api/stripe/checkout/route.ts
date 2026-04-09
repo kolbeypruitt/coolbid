@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim() ?? "http://localhost:3000";
 
   try {
     const session = await createCheckoutSession({
