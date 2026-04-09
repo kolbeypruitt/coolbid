@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FileText, Package, Settings } from "lucide-react";
+import { LayoutDashboard, FileText, Settings, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -16,32 +16,35 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <div className="w-64 h-screen border-r bg-muted/40 flex flex-col">
-      <div className="h-14 border-b flex items-center px-4">
-        <Link href="/dashboard" className="font-semibold text-lg">
+    <aside className="flex h-screen w-64 flex-col border-r border-border bg-sidebar">
+      <div className="flex h-14 items-center border-b border-border px-5">
+        <Link
+          href="/dashboard"
+          className="text-xl font-bold text-gradient-brand tracking-tight"
+        >
           CoolBid
         </Link>
       </div>
-      <nav className="flex-1 p-2 space-y-1">
-        {navItems.map(({ href, label, icon: Icon }) => {
-          const isActive = pathname === href || pathname.startsWith(href + "/");
+      <nav className="flex-1 space-y-1 p-3">
+        {navItems.map((item) => {
+          const isActive = pathname.startsWith(item.href);
           return (
             <Link
-              key={href}
-              href={href}
+              key={item.href}
+              href={item.href}
               className={cn(
                 "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                 isActive
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-muted"
+                  ? "bg-accent-glow text-accent-light"
+                  : "text-txt-secondary hover:bg-bg-card-hover hover:text-txt-primary"
               )}
             >
-              <Icon className="h-4 w-4" />
-              {label}
+              <item.icon className="h-4 w-4" />
+              {item.label}
             </Link>
           );
         })}
       </nav>
-    </div>
+    </aside>
   );
 }
