@@ -31,7 +31,7 @@ export function PageSelectStep() {
     const page = pdfPages[0];
     return (
       <div className="space-y-4">
-        <div className="overflow-hidden rounded-xl border border-border">
+        <div className="overflow-hidden rounded-xl border border-border hover-lift">
           <Image
             src={page.previewUrl}
             alt="Floorplan preview"
@@ -45,7 +45,7 @@ export function PageSelectStep() {
           <Button variant="outline" onClick={() => setStep("upload")}>
             Back
           </Button>
-          <Button onClick={handleAnalyze}>Analyze Floorplan</Button>
+          <Button onClick={handleAnalyze} className="bg-gradient-brand hover-lift">Analyze Floorplan</Button>
         </div>
       </div>
     );
@@ -53,7 +53,7 @@ export function PageSelectStep() {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm text-txt-secondary">
         Select the pages containing floor plans to analyze.
       </p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -66,8 +66,8 @@ export function PageSelectStep() {
               className={cn(
                 "flex flex-col overflow-hidden rounded-lg border-2 transition-colors",
                 isSelected
-                  ? "border-primary bg-primary/5"
-                  : "border-border hover:border-muted-foreground"
+                  ? "border-b-accent bg-accent-glow"
+                  : "border-border hover:border-b-hover"
               )}
             >
               <Image
@@ -78,7 +78,7 @@ export function PageSelectStep() {
                 className="h-auto w-full object-contain"
                 unoptimized
               />
-              <span className="py-1.5 text-center text-xs font-medium">
+              <span className="py-1.5 text-center text-xs font-medium text-txt-secondary">
                 Page {page.pageNum}
               </span>
             </button>
@@ -89,7 +89,7 @@ export function PageSelectStep() {
         <Button variant="outline" onClick={() => setStep("upload")}>
           Back
         </Button>
-        <Button onClick={handleAnalyze} disabled={selectedPages.length === 0}>
+        <Button onClick={handleAnalyze} disabled={selectedPages.length === 0} className="bg-gradient-brand hover-lift">
           Analyze {selectedPages.length > 0 ? `${selectedPages.length} Page${selectedPages.length > 1 ? "s" : ""}` : "Pages"}
         </Button>
       </div>

@@ -159,13 +159,13 @@ export function UploadStep() {
   return (
     <div className="space-y-4">
       {/* Project Info */}
-      <Card>
+      <Card className="bg-gradient-card border-border">
         <CardHeader>
-          <CardTitle>Project Info</CardTitle>
+          <CardTitle className="text-txt-primary">Project Info</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="project-name">Project Name</Label>
+            <Label htmlFor="project-name" className="text-txt-secondary">Project Name</Label>
             <Input
               id="project-name"
               value={projectName}
@@ -174,7 +174,7 @@ export function UploadStep() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="customer-name">Customer Name</Label>
+            <Label htmlFor="customer-name" className="text-txt-secondary">Customer Name</Label>
             <Input
               id="customer-name"
               value={customerName}
@@ -186,13 +186,13 @@ export function UploadStep() {
       </Card>
 
       {/* Building Info */}
-      <Card>
+      <Card className="bg-gradient-card border-border">
         <CardHeader>
-          <CardTitle>Building Info</CardTitle>
+          <CardTitle className="text-txt-primary">Building Info</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1.5">
-            <Label htmlFor="total-sqft">Total Sq Ft</Label>
+            <Label htmlFor="total-sqft" className="text-txt-secondary">Total Sq Ft</Label>
             <Input
               id="total-sqft"
               type="number"
@@ -202,7 +202,7 @@ export function UploadStep() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="num-units">Number of Units</Label>
+            <Label htmlFor="num-units" className="text-txt-secondary">Number of Units</Label>
             <Input
               id="num-units"
               type="number"
@@ -215,7 +215,7 @@ export function UploadStep() {
           </div>
           {knownUnits > 1 && (
             <div className="space-y-1.5">
-              <Label htmlFor="hvac-config">HVAC Config</Label>
+              <Label htmlFor="hvac-config" className="text-txt-secondary">HVAC Config</Label>
               <Select
                 value={hvacPerUnit ? "per_unit" : "shared"}
                 onValueChange={(val) =>
@@ -233,7 +233,7 @@ export function UploadStep() {
             </div>
           )}
           <div className="space-y-1.5">
-            <Label htmlFor="climate-zone">Climate Zone</Label>
+            <Label htmlFor="climate-zone" className="text-txt-secondary">Climate Zone</Label>
             <Select
               value={climateZone}
               onValueChange={(val) =>
@@ -253,7 +253,7 @@ export function UploadStep() {
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="system-type">System Type</Label>
+            <Label htmlFor="system-type" className="text-txt-secondary">System Type</Label>
             <Select
               value={systemType}
               onValueChange={(val) => setBuildingInfo({ systemType: val as SystemType })}
@@ -272,14 +272,14 @@ export function UploadStep() {
       </Card>
 
       {/* File Upload */}
-      <Card>
+      <Card className="bg-gradient-card border-border">
         <CardHeader>
-          <CardTitle>Upload Floorplan</CardTitle>
+          <CardTitle className="text-txt-primary">Upload Floorplan</CardTitle>
         </CardHeader>
         <CardContent>
           {processing ? (
-            <div className="flex flex-col items-center gap-4 rounded-lg border bg-muted/30 p-10">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+            <div className="flex flex-col items-center gap-4 rounded-lg border bg-bg-card p-10">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-glow">
                 {processing.status === "done" ? (
                   <Check className="h-7 w-7 text-primary" />
                 ) : (
@@ -288,13 +288,13 @@ export function UploadStep() {
               </div>
 
               <div className="text-center">
-                <p className="text-sm font-medium">
+                <p className="text-sm font-medium text-txt-primary">
                   {processing.status === "reading" && "Reading file..."}
                   {processing.status === "rendering" &&
                     `Rendering page ${processing.currentPage} of ${processing.totalPages}...`}
                   {processing.status === "done" && "Done!"}
                 </p>
-                <p className="mt-1 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <p className="mt-1 flex items-center justify-center gap-2 text-xs text-txt-tertiary">
                   <FileUp className="h-3.5 w-3.5" />
                   {processing.fileName}
                 </p>
@@ -302,16 +302,16 @@ export function UploadStep() {
 
               {processing.totalPages > 0 && (
                 <div className="w-full max-w-xs">
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-bg-card">
                     <div
-                      className="h-full rounded-full bg-primary transition-all duration-300 ease-out"
+                      className="h-full rounded-full progress-fill transition-all duration-300 ease-out"
                       style={{
                         width: `${processing.status === "done" ? 100 : Math.round((processing.currentPage / processing.totalPages) * 100)}%`,
                       }}
                     />
                   </div>
                   {processing.totalPages > 1 && processing.status === "rendering" && (
-                    <p className="mt-1.5 text-center text-xs text-muted-foreground">
+                    <p className="mt-1.5 text-center text-xs text-txt-tertiary">
                       {processing.currentPage} / {processing.totalPages} pages
                     </p>
                   )}
@@ -320,14 +320,14 @@ export function UploadStep() {
             </div>
           ) : (
             <div
-              className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-10 text-center transition-colors hover:border-primary hover:bg-primary/5"
+              className="border-2 border-dashed border-b-accent rounded-lg p-10 text-center bg-accent-glow hover:bg-accent-glow-strong hover:shadow-[0_0_40px_rgba(6,182,212,0.08)] transition-all duration-300 cursor-pointer flex flex-col items-center justify-center"
               onClick={() => fileInputRef.current?.click()}
               onDrop={handleDrop}
               onDragOver={(e) => e.preventDefault()}
             >
-              <Upload className="mb-3 size-8 text-muted-foreground" />
-              <p className="text-sm font-medium">Click to upload or drag & drop</p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <Upload className="mb-3 size-8 text-accent-light" />
+              <p className="text-sm font-medium text-txt-primary">Click to upload or drag & drop</p>
+              <p className="mt-1 text-xs text-txt-tertiary">
                 PDF, PNG, JPG, JPEG, or WebP
               </p>
             </div>
