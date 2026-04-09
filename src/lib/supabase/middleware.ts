@@ -44,5 +44,31 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Redirect to onboarding if not completed (skip for /onboarding itself and API routes)
+  if (user && !path.startsWith("/onboarding") && !path.startsWith("/api") && !path.startsWith("/auth")) {
+    const onboardingDone = request.cookies.get("onboarding_done")?.value === "true";
+    if (!onboardingDone) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("onboarding_completed")
+        .eq("id", user.id)
+        .single();
+
+      if (profile && !profile.onboarding_completed) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/onboarding";
+        return NextResponse.redirect(url);
+      }
+
+      // Profile says done — set cookie so we skip the DB check next time
+      if (profile?.onboarding_completed) {
+        supabaseResponse.cookies.set("onboarding_done", "true", {
+          path: "/",
+          maxAge: 60 * 60 * 24 * 365,
+        });
+      }
+    }
+  }
+
   return supabaseResponse;
 }
