@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Save, FileText, Download } from "lucide-react";
+import { Save, FileText, Download, AlertTriangle } from "lucide-react";
 import { useEstimator } from "@/hooks/use-estimator";
 import { generateRFQText, generateRFQCSV } from "@/lib/hvac/rfq";
 import { createClient } from "@/lib/supabase/client";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 
 import type { BomItem } from "@/types/hvac";
 
@@ -16,6 +17,20 @@ type BomCategory = {
   category: string;
   items: BomItem[];
 };
+
+function SourceBadge({ source }: { source: BomItem["source"] }) {
+  if (source === "starter") {
+    return <Badge variant="outline">Starter</Badge>;
+  }
+  if (source === "quote") {
+    return <Badge variant="default" className="bg-green-600 text-white hover:bg-green-700">Quoted</Badge>;
+  }
+  if (source === "manual") {
+    return <Badge variant="default" className="bg-blue-600 text-white hover:bg-blue-700">Manual</Badge>;
+  }
+  // missing
+  return <Badge variant="destructive">Missing</Badge>;
+}
 
 export function BomStep() {
   const router = useRouter();
@@ -29,6 +44,7 @@ export function BomStep() {
     customerName,
     supplierName,
     climateZone,
+    systemType,
     knownTotalSqft,
     knownUnits,
     hvacPerUnit,
@@ -40,7 +56,13 @@ export function BomStep() {
 
   if (!bom) return null;
 
-  const materialCost = bom.items.reduce((sum, item) => sum + (item.price ?? 0) * item.qty, 0);
+  const hasMissingItems = bom.items.some((item) => item.source === "missing");
+  const hasNullPrices = bom.items.some((item) => item.price === null);
+
+  const materialCost = bom.items.reduce(
+    (sum, item) => (item.price !== null ? sum + item.price * item.qty : sum),
+    0
+  );
   const laborCost = laborRate * laborHours;
   const subtotal = materialCost + laborCost;
   const markup = subtotal * (profitMargin / 100);
@@ -100,6 +122,7 @@ export function BomStep() {
           num_units: knownUnits,
           hvac_per_unit: hvacPerUnit,
           climate_zone: climateZone,
+          system_type: systemType,
           profit_margin: profitMargin,
           labor_rate: laborRate,
           labor_hours: laborHours,
@@ -161,6 +184,16 @@ export function BomStep() {
 
   return (
     <div className="space-y-4">
+      {/* Missing items warning banner */}
+      {hasMissingItems && (
+        <div className="flex items-start gap-3 rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-200">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            Some equipment couldn&apos;t be found in your catalog. Upload a supplier quote or add items manually to get accurate pricing.
+          </span>
+        </div>
+      )}
+
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Card>
@@ -244,7 +277,9 @@ export function BomStep() {
           </div>
           <div className="rounded-lg bg-muted/50 p-3 text-sm">
             <div className="flex justify-between py-0.5">
-              <span className="text-muted-foreground">Materials</span>
+              <span className="text-muted-foreground">
+                Materials{hasNullPrices && " (some items need pricing via RFQ)"}
+              </span>
               <span>${materialCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
             <div className="flex justify-between py-0.5">
@@ -274,22 +309,40 @@ export function BomStep() {
               <thead>
                 <tr className="border-b text-left text-xs text-muted-foreground">
                   <th className="pb-2 pr-4 font-medium">Description</th>
+                  <th className="pb-2 pr-4 font-medium">Brand</th>
                   <th className="pb-2 pr-4 font-medium">SKU</th>
                   <th className="pb-2 pr-4 text-right font-medium">Qty</th>
                   <th className="pb-2 pr-4 font-medium">Unit</th>
                   <th className="pb-2 pr-4 text-right font-medium">Price</th>
-                  <th className="pb-2 text-right font-medium">Total</th>
+                  <th className="pb-2 pr-4 text-right font-medium">Total</th>
+                  <th className="pb-2 font-medium">Source</th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((item, i) => (
                   <tr key={i} className="border-b last:border-0">
                     <td className="py-2 pr-4">{item.name}</td>
+                    <td className="py-2 pr-4 text-muted-foreground">{item.brand}</td>
                     <td className="py-2 pr-4 font-mono text-xs text-muted-foreground">{item.sku}</td>
                     <td className="py-2 pr-4 text-right">{item.qty}</td>
                     <td className="py-2 pr-4 text-muted-foreground">{item.unit}</td>
-                    <td className="py-2 pr-4 text-right">${(item.price ?? 0).toFixed(2)}</td>
-                    <td className="py-2 text-right">${((item.price ?? 0) * item.qty).toFixed(2)}</td>
+                    <td className="py-2 pr-4 text-right">
+                      {item.price === null ? (
+                        <span className="text-muted-foreground">RFQ</span>
+                      ) : (
+                        `$${item.price.toFixed(2)}`
+                      )}
+                    </td>
+                    <td className="py-2 pr-4 text-right">
+                      {item.price === null ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        `$${(item.price * item.qty).toFixed(2)}`
+                      )}
+                    </td>
+                    <td className="py-2">
+                      <SourceBadge source={item.source} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
