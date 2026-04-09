@@ -56,11 +56,11 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <Card className="w-full max-w-md">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-md bg-gradient-card border-b-accent shadow-[0_0_28px_rgba(6,182,212,0.1)]">
         <CardHeader>
-          <CardTitle>Welcome back</CardTitle>
-          <CardDescription>Sign in to CoolBid</CardDescription>
+          <CardTitle className="text-2xl text-txt-primary">Welcome back</CardTitle>
+          <CardDescription className="text-txt-secondary">Sign in to CoolBid</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
@@ -84,8 +84,8 @@ export default function LoginPage() {
                 required
               />
             </div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <Button type="submit" className="w-full" disabled={loading}>
+            {error && <p className="text-sm text-error">{error}</p>}
+            <Button type="submit" className="w-full bg-gradient-brand hover-lift" disabled={loading}>
               {loading ? "Signing in..." : "Sign in"}
             </Button>
           </form>
@@ -108,9 +108,9 @@ export default function LoginPage() {
             Continue with Google
           </Button>
 
-          <p className="mt-4 text-center text-sm text-muted-foreground">
+          <p className="mt-4 text-center text-sm text-txt-secondary">
             Don&apos;t have an account?{" "}
-            <Link href="/auth/signup" className="underline">
+            <Link href="/auth/signup" className="text-accent-light underline">
               Sign up
             </Link>
           </p>

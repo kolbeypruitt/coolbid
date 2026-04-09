@@ -166,8 +166,10 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl py-10">
-      <SupplierSelect onComplete={handleComplete} />
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="mx-auto w-full max-w-2xl">
+        <SupplierSelect onComplete={handleComplete} />
+      </div>
     </div>
   );
 }
