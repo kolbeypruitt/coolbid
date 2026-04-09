@@ -5,6 +5,7 @@ import { Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import { CatalogTable } from "@/components/parts-database/catalog-table";
+import { EmailConnectionsSection } from "@/components/parts-database/email-connections-section";
 
 export default function PartsDatabasePage() {
   return (
@@ -19,6 +20,7 @@ export default function PartsDatabasePage() {
           Upload Quote
         </Link>
       </div>
+      <EmailConnectionsSection />
       <CatalogTable />
     </div>
   );

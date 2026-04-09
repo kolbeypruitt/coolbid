@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, FileText, Settings, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -14,6 +16,34 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [reviewCount, setReviewCount] = useState(0);
+
+  useEffect(() => {
+    const supabase = createClient();
+
+    async function loadCount() {
+      const { count } = await supabase
+        .from("quotes")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "parsed");
+      setReviewCount(count ?? 0);
+    }
+
+    loadCount();
+
+    const channel = supabase
+      .channel("review_count")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "quotes" },
+        () => loadCount()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   return (
     <aside className="flex h-screen w-64 flex-col border-r border-border bg-sidebar">
@@ -41,6 +71,11 @@ export function Sidebar() {
             >
               <item.icon className="h-4 w-4" />
               {item.label}
+              {item.href === "/parts-database" && reviewCount > 0 && (
+                <span className="ml-auto rounded-full bg-accent-glow text-accent-light px-2 py-0.5 text-xs font-semibold">
+                  {reviewCount}
+                </span>
+              )}
             </Link>
           );
         })}
