@@ -12,6 +12,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
+import { SubscriptionStatus } from "@/components/billing/subscription-status";
 import type { Database } from "@/types/database";
 
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
@@ -104,10 +105,6 @@ export default function SettingsPage() {
       </div>
     );
   }
-
-  const trialEndsAt = profile?.trial_ends_at
-    ? new Date(profile.trial_ends_at).toLocaleDateString()
-    : null;
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -207,34 +204,7 @@ export default function SettingsPage() {
       </Card>
 
       {/* Subscription */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Subscription</CardTitle>
-          <CardDescription>Your current plan and billing details.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {profile?.subscription_status === "trialing" ? (
-            <p className="text-sm">
-              You are on a <span className="font-medium">free trial</span>
-              {trialEndsAt ? ` ending on ${trialEndsAt}` : ""}.
-            </p>
-          ) : (
-            <p className="text-sm">
-              Status:{" "}
-              <span className="font-medium capitalize">
-                {profile?.subscription_status ?? "—"}
-              </span>{" "}
-              — Plan:{" "}
-              <span className="font-medium capitalize">
-                {profile?.subscription_tier ?? "—"}
-              </span>
-            </p>
-          )}
-          <p className="text-sm text-muted-foreground">
-            Stripe billing integration coming soon.
-          </p>
-        </CardContent>
-      </Card>
+      <SubscriptionStatus />
     </div>
   );
 }
