@@ -1,8 +1,7 @@
 "use client";
 
-import { useRef } from "react";
-import { Upload } from "lucide-react";
-import * as pdfjs from "pdfjs-dist";
+import { useRef, useState } from "react";
+import { Upload, FileUp, Loader2, Check } from "lucide-react";
 
 import { useEstimator } from "@/hooks/use-estimator";
 import { Button } from "@/components/ui/button";
@@ -18,8 +17,11 @@ import {
 } from "@/components/ui/select";
 import type { ClimateZoneKey } from "@/types/hvac";
 
-pdfjs.GlobalWorkerOptions.workerSrc =
-  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs";
+async function loadPdfjs() {
+  const pdfjs = await import("pdfjs-dist");
+  pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+  return pdfjs;
+}
 
 const CLIMATE_ZONES: { value: ClimateZoneKey; label: string }[] = [
   { value: "hot_humid", label: "Hot & Humid" },
@@ -37,8 +39,16 @@ type PagePreview = {
   mediaType: string;
 };
 
+type ProcessingState = {
+  fileName: string;
+  totalPages: number;
+  currentPage: number;
+  status: "reading" | "rendering" | "done";
+} | null;
+
 export function UploadStep() {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [processing, setProcessing] = useState<ProcessingState>(null);
   const {
     projectName,
     customerName,
@@ -60,32 +70,33 @@ export function UploadStep() {
 
     if (file.type === "application/pdf") {
       try {
+        setProcessing({ fileName: file.name, totalPages: 0, currentPage: 0, status: "reading" });
+
+        const pdfjs = await loadPdfjs();
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
         const pages: PagePreview[] = [];
 
+        setProcessing({ fileName: file.name, totalPages: pdf.numPages, currentPage: 0, status: "rendering" });
+
         for (let i = 1; i <= pdf.numPages; i++) {
+          setProcessing((prev) => prev ? { ...prev, currentPage: i } : prev);
+
           const page = await pdf.getPage(i);
           const viewport = page.getViewport({ scale: 2 });
 
-          // Full quality canvas for base64
           const canvas = document.createElement("canvas");
           canvas.width = viewport.width;
           canvas.height = viewport.height;
           const ctx = canvas.getContext("2d")!;
           await page.render({ canvas, canvasContext: ctx, viewport }).promise;
           const base64 = canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
-
-          // Lower quality canvas for preview
-          const previewCanvas = document.createElement("canvas");
-          previewCanvas.width = viewport.width;
-          previewCanvas.height = viewport.height;
-          const previewCtx = previewCanvas.getContext("2d")!;
-          await page.render({ canvas: previewCanvas, canvasContext: previewCtx, viewport }).promise;
-          const previewUrl = previewCanvas.toDataURL("image/jpeg", 0.3);
+          const previewUrl = canvas.toDataURL("image/jpeg", 0.3);
 
           pages.push({ pageNum: i, previewUrl, base64, mediaType: "image/jpeg" });
         }
+
+        setProcessing((prev) => prev ? { ...prev, status: "done" } : prev);
 
         setPdfPages(pages);
         setFile(file.name, pages[0]?.previewUrl ?? "");
@@ -93,12 +104,18 @@ export function UploadStep() {
         if (pages.length === 1) {
           setSelectedPages([1]);
         }
-        setStep("select_pages");
+
+        setTimeout(() => {
+          setProcessing(null);
+          setStep("select_pages");
+        }, 300);
       } catch (err) {
+        setProcessing(null);
         setError(err instanceof Error ? err.message : "Failed to process PDF");
       }
     } else {
-      // Image file
+      setProcessing({ fileName: file.name, totalPages: 1, currentPage: 1, status: "reading" });
+
       const reader = new FileReader();
       reader.onload = (e) => {
         const dataUrl = e.target?.result as string;
@@ -114,7 +131,12 @@ export function UploadStep() {
         setPdfPages([page]);
         setSelectedPages([1]);
         setFile(file.name, dataUrl);
-        setStep("select_pages");
+
+        setProcessing((prev) => prev ? { ...prev, status: "done" } : prev);
+        setTimeout(() => {
+          setProcessing(null);
+          setStep("select_pages");
+        }, 300);
       };
       reader.readAsDataURL(file);
     }
@@ -236,18 +258,61 @@ export function UploadStep() {
           <CardTitle>Upload Floorplan</CardTitle>
         </CardHeader>
         <CardContent>
-          <div
-            className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-10 text-center transition-colors hover:border-primary hover:bg-primary/5"
-            onClick={() => fileInputRef.current?.click()}
-            onDrop={handleDrop}
-            onDragOver={(e) => e.preventDefault()}
-          >
-            <Upload className="mb-3 size-8 text-muted-foreground" />
-            <p className="text-sm font-medium">Click to upload or drag & drop</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              PDF, PNG, JPG, JPEG, or WebP
-            </p>
-          </div>
+          {processing ? (
+            <div className="flex flex-col items-center gap-4 rounded-lg border bg-muted/30 p-10">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+                {processing.status === "done" ? (
+                  <Check className="h-7 w-7 text-primary" />
+                ) : (
+                  <Loader2 className="h-7 w-7 animate-spin text-primary" />
+                )}
+              </div>
+
+              <div className="text-center">
+                <p className="text-sm font-medium">
+                  {processing.status === "reading" && "Reading file..."}
+                  {processing.status === "rendering" &&
+                    `Rendering page ${processing.currentPage} of ${processing.totalPages}...`}
+                  {processing.status === "done" && "Done!"}
+                </p>
+                <p className="mt-1 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                  <FileUp className="h-3.5 w-3.5" />
+                  {processing.fileName}
+                </p>
+              </div>
+
+              {processing.totalPages > 0 && (
+                <div className="w-full max-w-xs">
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all duration-300 ease-out"
+                      style={{
+                        width: `${processing.status === "done" ? 100 : Math.round((processing.currentPage / processing.totalPages) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                  {processing.totalPages > 1 && processing.status === "rendering" && (
+                    <p className="mt-1.5 text-center text-xs text-muted-foreground">
+                      {processing.currentPage} / {processing.totalPages} pages
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div
+              className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-10 text-center transition-colors hover:border-primary hover:bg-primary/5"
+              onClick={() => fileInputRef.current?.click()}
+              onDrop={handleDrop}
+              onDragOver={(e) => e.preventDefault()}
+            >
+              <Upload className="mb-3 size-8 text-muted-foreground" />
+              <p className="text-sm font-medium">Click to upload or drag & drop</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                PDF, PNG, JPG, JPEG, or WebP
+              </p>
+            </div>
+          )}
           <input
             ref={fileInputRef}
             type="file"
