@@ -1,3 +1,5 @@
+export type { SystemType } from "./catalog";
+
 export type ClimateZoneKey = "hot_humid" | "hot_dry" | "warm" | "mixed" | "cool" | "cold";
 
 export type ClimateZone = { label: string; factor: number; desc: string };
@@ -18,7 +20,8 @@ export type RoomLoad = Room & { btu: number; cfm: number; regs: number };
 
 export type BomItem = {
   partId: string; name: string; category: string; qty: number; unit: string;
-  price: number; supplier: string; sku: string; notes: string; source: "default" | "catalog";
+  price: number | null; supplier: string; sku: string; notes: string; source: "starter" | "quote" | "manual" | "missing";
+  brand: string;
 };
 
 export type BomSummary = {

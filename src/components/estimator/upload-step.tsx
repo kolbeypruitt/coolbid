@@ -16,6 +16,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { ClimateZoneKey } from "@/types/hvac";
+import { SYSTEM_TYPE_LABELS } from "@/types/catalog";
+import type { SystemType } from "@/types/catalog";
 
 async function loadPdfjs() {
   const pdfjs = await import("pdfjs-dist");
@@ -56,6 +58,7 @@ export function UploadStep() {
     knownUnits,
     hvacPerUnit,
     climateZone,
+    systemType,
     setProjectInfo,
     setBuildingInfo,
     setPdfPages,
@@ -245,6 +248,22 @@ export function UploadStep() {
                   <SelectItem key={z.value} value={z.value}>
                     {z.label}
                   </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="system-type">System Type</Label>
+            <Select
+              value={systemType}
+              onValueChange={(val) => setBuildingInfo({ systemType: val as SystemType })}
+            >
+              <SelectTrigger id="system-type" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(SYSTEM_TYPE_LABELS).map(([key, label]) => (
+                  <SelectItem key={key} value={key}>{label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import type { AnalysisResult, BomResult, ClimateZoneKey, Room } from "@/types/hvac";
+import type { SystemType } from "@/types/catalog";
 import { generateBOM } from "@/lib/hvac/bom-generator";
+import { createClient } from "@/lib/supabase/client";
 
 type EstimatorStep = "upload" | "select_pages" | "analyzing" | "rooms" | "bom";
 
@@ -21,6 +23,7 @@ type EstimatorState = {
   knownUnits: number;
   hvacPerUnit: boolean;
   climateZone: ClimateZoneKey;
+  systemType: SystemType;
   analysisProgress: number;
   analysisResult: AnalysisResult | null;
   rooms: Room[];
@@ -40,14 +43,14 @@ type EstimatorActions = {
   setFile: (fileName: string, img: string) => void;
   setPdfPages: (pages: PagePreview[]) => void;
   setSelectedPages: (pages: number[]) => void;
-  setBuildingInfo: (info: Partial<Pick<EstimatorState, "knownTotalSqft" | "knownUnits" | "hvacPerUnit" | "climateZone">>) => void;
+  setBuildingInfo: (info: Partial<Pick<EstimatorState, "knownTotalSqft" | "knownUnits" | "hvacPerUnit" | "climateZone" | "systemType">>) => void;
   setAnalysisProgress: (progress: number) => void;
   setAnalysisResult: (result: AnalysisResult) => void;
   setRooms: (rooms: Room[]) => void;
   updateRoom: (index: number, partial: Partial<Room>) => void;
   removeRoom: (index: number) => void;
   addRoom: () => void;
-  generateBom: () => void;
+  generateBom: () => Promise<void>;
   setProjectInfo: (info: Partial<Pick<EstimatorState, "projectName" | "customerName" | "supplierName">>) => void;
   setFinancials: (info: Partial<Pick<EstimatorState, "profitMargin" | "laborRate" | "laborHours">>) => void;
   setError: (error: string | null) => void;
@@ -79,6 +82,7 @@ function initialState(): EstimatorState {
     knownUnits: 1,
     hvacPerUnit: true,
     climateZone: "warm",
+    systemType: "gas_ac",
     analysisProgress: 0,
     analysisResult: null,
     rooms: [],
@@ -131,12 +135,19 @@ export const useEstimator = create<EstimatorState & EstimatorActions>((set, get)
       rooms: [...state.rooms, { ...DEFAULT_ROOM }],
     })),
 
-  generateBom: () => {
-    const { rooms, climateZone, analysisResult } = get();
+  generateBom: async () => {
+    const { rooms, climateZone, systemType, analysisResult } = get();
     try {
+      const supabase = createClient();
+      const { data: catalog } = await supabase
+        .from("catalog_items")
+        .select("*, supplier:suppliers(*)")
+        .order("usage_count", { ascending: false });
       const bom = generateBOM(
         rooms,
         climateZone,
+        systemType,
+        catalog ?? [],
         analysisResult?.building,
         analysisResult?.hvac_notes,
       );
