@@ -70,5 +70,62 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
+  // Subscription gating
+  const skipGatingPaths = [
+    "/pricing",
+    "/upgrade",
+    "/api",
+    "/auth",
+    "/onboarding",
+    "/_next",
+    "/settings",
+  ];
+  const shouldGate =
+    user &&
+    !skipGatingPaths.some((p) => path.startsWith(p)) &&
+    path !== "/";
+
+  if (shouldGate) {
+    const cachedStatus = request.cookies.get("sub_status")?.value;
+
+    if (!cachedStatus) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("subscription_status, trial_ends_at, ai_actions_used")
+        .eq("id", user!.id)
+        .single();
+
+      if (profile) {
+        const status = profile.subscription_status;
+        const trialExpired =
+          status === "trialing" && profile.trial_ends_at
+            ? new Date(profile.trial_ends_at) < new Date()
+            : false;
+        const usageExhausted =
+          status === "trialing" && profile.ai_actions_used >= 50;
+
+        supabaseResponse.cookies.set("sub_status", status ?? "unknown", {
+          path: "/",
+          maxAge: 300,
+        });
+
+        if (
+          status === "canceled" ||
+          status === "expired" ||
+          (status === "trialing" && trialExpired) ||
+          usageExhausted
+        ) {
+          const url = request.nextUrl.clone();
+          url.pathname = "/upgrade";
+          return NextResponse.redirect(url);
+        }
+      }
+    } else if (cachedStatus === "canceled" || cachedStatus === "expired") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/upgrade";
+      return NextResponse.redirect(url);
+    }
+  }
+
   return supabaseResponse;
 }
