@@ -4,6 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { anthropic } from "@/lib/anthropic";
 import { QUOTE_SYSTEM_PROMPT, QUOTE_ANALYSIS_PROMPT } from "@/lib/hvac/quote-prompt";
 import { createClient } from "@/lib/supabase/server";
+import { checkAiActionLimit, incrementAiActionCount } from "@/lib/billing/ai-action-counter";
 import type { ParsedQuoteResult } from "@/types/catalog";
 
 const ImageSchema = z.object({
@@ -25,6 +26,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   if (authError || !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const limitCheck = await checkAiActionLimit(supabase, user.id);
+  if (!limitCheck.allowed) {
+    return NextResponse.json(
+      {
+        error:
+          limitCheck.reason === "trial_limit"
+            ? "Trial limit reached. Subscribe to continue."
+            : "Subscription required.",
+        code: limitCheck.reason,
+      },
+      { status: 402 }
+    );
   }
 
   let body: unknown;
@@ -119,6 +134,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       { error: "Analysis failed", details: "Could not parse quote result" },
       { status: 500 }
     );
+  }
+
+  if (limitCheck.shouldIncrement) {
+    await incrementAiActionCount(supabase, user.id);
   }
 
   return NextResponse.json(result);

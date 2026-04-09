@@ -3,6 +3,7 @@ import { z } from "zod";
 import Anthropic from "@anthropic-ai/sdk";
 import { anthropic, SYSTEM_PROMPT, ANALYSIS_PROMPT } from "@/lib/anthropic";
 import { createClient } from "@/lib/supabase/server";
+import { checkAiActionLimit, incrementAiActionCount } from "@/lib/billing/ai-action-counter";
 import type { AnalysisResult } from "@/types/hvac";
 
 const ImageSchema = z.object({
@@ -31,6 +32,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   if (authError || !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const limitCheck = await checkAiActionLimit(supabase, user.id);
+  if (!limitCheck.allowed) {
+    return NextResponse.json(
+      {
+        error:
+          limitCheck.reason === "trial_limit"
+            ? "Trial limit reached. Subscribe to continue."
+            : "Subscription required.",
+        code: limitCheck.reason,
+      },
+      { status: 402 }
+    );
   }
 
   let body: unknown;
@@ -153,6 +168,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       { error: "Analysis failed", details: "Could not parse analysis result" },
       { status: 500 }
     );
+  }
+
+  if (limitCheck.shouldIncrement) {
+    await incrementAiActionCount(supabase, user.id);
   }
 
   return NextResponse.json(result);
