@@ -2,6 +2,11 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 
 export type Database = {
   public: {
+    PostgrestVersion: "12";
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
     Tables: {
       profiles: {
         Row: {
@@ -44,6 +49,7 @@ export type Database = {
           subscription_status?: string;
           trial_ends_at?: string | null;
         };
+        Relationships: [];
       };
       estimates: {
         Row: {
@@ -83,6 +89,7 @@ export type Database = {
           total_price?: number | null;
         };
         Update: Partial<Database["public"]["Tables"]["estimates"]["Insert"]>;
+        Relationships: [];
       };
       estimate_rooms: {
         Row: {
@@ -121,6 +128,7 @@ export type Database = {
           notes?: string;
         };
         Update: Partial<Database["public"]["Tables"]["estimate_rooms"]["Insert"]>;
+        Relationships: [];
       };
       estimate_bom_items: {
         Row: {
@@ -157,6 +165,7 @@ export type Database = {
           room_id?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["estimate_bom_items"]["Insert"]>;
+        Relationships: [];
       };
       floorplans: {
         Row: {
@@ -179,6 +188,7 @@ export type Database = {
           analysis_result?: Json | null;
         };
         Update: Partial<Database["public"]["Tables"]["floorplans"]["Insert"]>;
+        Relationships: [];
       };
     };
   };
