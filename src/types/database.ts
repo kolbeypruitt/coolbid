@@ -23,6 +23,7 @@ export type Database = {
           trial_ends_at: string | null;
           created_at: string;
           updated_at: string;
+          onboarding_completed: boolean;
         };
         Insert: {
           id: string;
@@ -36,6 +37,7 @@ export type Database = {
           subscription_tier?: string;
           subscription_status?: string;
           trial_ends_at?: string | null;
+          onboarding_completed?: boolean;
         };
         Update: {
           company_name?: string;
@@ -68,6 +70,7 @@ export type Database = {
           supplier_name: string;
           total_material_cost: number | null;
           total_price: number | null;
+          system_type: "heat_pump" | "gas_ac" | "electric" | "dual_fuel";
           created_at: string;
           updated_at: string;
         };
@@ -87,6 +90,7 @@ export type Database = {
           supplier_name?: string;
           total_material_cost?: number | null;
           total_price?: number | null;
+          system_type?: "heat_pump" | "gas_ac" | "electric" | "dual_fuel";
         };
         Update: Partial<Database["public"]["Tables"]["estimates"]["Insert"]>;
         Relationships: [];
@@ -188,6 +192,167 @@ export type Database = {
           analysis_result?: Json | null;
         };
         Update: Partial<Database["public"]["Tables"]["floorplans"]["Insert"]>;
+        Relationships: [];
+      };
+      suppliers: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          contact_email: string;
+          contact_phone: string;
+          brands: string[];
+          is_starter: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          contact_email?: string;
+          contact_phone?: string;
+          brands?: string[];
+          is_starter?: boolean;
+        };
+        Update: Partial<Database["public"]["Tables"]["suppliers"]["Insert"]>;
+        Relationships: [];
+      };
+      equipment_catalog: {
+        Row: {
+          id: string;
+          user_id: string;
+          supplier_id: string | null;
+          model_number: string;
+          description: string;
+          equipment_type: string;
+          system_type: string;
+          brand: string;
+          tonnage: number | null;
+          seer_rating: number | null;
+          btu_capacity: number | null;
+          stages: number | null;
+          refrigerant_type: string | null;
+          unit_price: number | null;
+          unit_of_measure: string;
+          source: string;
+          usage_count: number;
+          last_quoted_date: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          supplier_id?: string | null;
+          model_number: string;
+          description?: string;
+          equipment_type: string;
+          system_type?: string;
+          brand?: string;
+          tonnage?: number | null;
+          seer_rating?: number | null;
+          btu_capacity?: number | null;
+          stages?: number | null;
+          refrigerant_type?: string | null;
+          unit_price?: number | null;
+          unit_of_measure?: string;
+          source?: string;
+          usage_count?: number;
+          last_quoted_date?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["equipment_catalog"]["Insert"]>;
+        Relationships: [];
+      };
+      quotes: {
+        Row: {
+          id: string;
+          user_id: string;
+          supplier_id: string | null;
+          quote_number: string;
+          quote_date: string | null;
+          subtotal: number | null;
+          tax: number | null;
+          total: number | null;
+          file_name: string;
+          storage_path: string;
+          status: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          supplier_id?: string | null;
+          quote_number?: string;
+          quote_date?: string | null;
+          subtotal?: number | null;
+          tax?: number | null;
+          total?: number | null;
+          file_name: string;
+          storage_path: string;
+          status?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["quotes"]["Insert"]>;
+        Relationships: [];
+      };
+      quote_lines: {
+        Row: {
+          id: string;
+          quote_id: string;
+          catalog_item_id: string | null;
+          model_number: string;
+          description: string;
+          equipment_type: string;
+          brand: string;
+          tonnage: number | null;
+          seer_rating: number | null;
+          btu_capacity: number | null;
+          stages: number | null;
+          refrigerant_type: string | null;
+          quantity: number;
+          unit_price: number | null;
+          extended_price: number | null;
+          selected: boolean;
+        };
+        Insert: {
+          id?: string;
+          quote_id: string;
+          catalog_item_id?: string | null;
+          model_number?: string;
+          description?: string;
+          equipment_type?: string;
+          brand?: string;
+          tonnage?: number | null;
+          seer_rating?: number | null;
+          btu_capacity?: number | null;
+          stages?: number | null;
+          refrigerant_type?: string | null;
+          quantity?: number;
+          unit_price?: number | null;
+          extended_price?: number | null;
+          selected?: boolean;
+        };
+        Update: Partial<Database["public"]["Tables"]["quote_lines"]["Insert"]>;
+        Relationships: [];
+      };
+      price_history: {
+        Row: {
+          id: string;
+          catalog_item_id: string;
+          supplier_id: string | null;
+          price: number;
+          quote_date: string | null;
+          quote_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          catalog_item_id: string;
+          supplier_id?: string | null;
+          price: number;
+          quote_date?: string | null;
+          quote_id?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["price_history"]["Insert"]>;
         Relationships: [];
       };
     };

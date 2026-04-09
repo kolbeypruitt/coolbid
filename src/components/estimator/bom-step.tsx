@@ -10,20 +10,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+import type { BomItem } from "@/types/hvac";
+
 type BomCategory = {
   category: string;
-  items: Array<{
-    partId: string;
-    name: string;
-    category: string;
-    qty: number;
-    unit: string;
-    price: number;
-    supplier: string;
-    sku: string;
-    notes: string;
-    source: "default" | "catalog";
-  }>;
+  items: BomItem[];
 };
 
 export function BomStep() {
@@ -49,7 +40,7 @@ export function BomStep() {
 
   if (!bom) return null;
 
-  const materialCost = bom.items.reduce((sum, item) => sum + item.price * item.qty, 0);
+  const materialCost = bom.items.reduce((sum, item) => sum + (item.price ?? 0) * item.qty, 0);
   const laborCost = laborRate * laborHours;
   const subtotal = materialCost + laborCost;
   const markup = subtotal * (profitMargin / 100);
@@ -150,8 +141,8 @@ export function BomStep() {
           description: item.name,
           quantity: item.qty,
           unit: item.unit,
-          unit_cost: item.price,
-          total_cost: item.price * item.qty,
+          unit_cost: item.price ?? 0,
+          total_cost: (item.price ?? 0) * item.qty,
           part_id: item.partId || null,
           supplier: item.supplier || null,
           sku: item.sku || null,
@@ -297,8 +288,8 @@ export function BomStep() {
                     <td className="py-2 pr-4 font-mono text-xs text-muted-foreground">{item.sku}</td>
                     <td className="py-2 pr-4 text-right">{item.qty}</td>
                     <td className="py-2 pr-4 text-muted-foreground">{item.unit}</td>
-                    <td className="py-2 pr-4 text-right">${item.price.toFixed(2)}</td>
-                    <td className="py-2 text-right">${(item.price * item.qty).toFixed(2)}</td>
+                    <td className="py-2 pr-4 text-right">${(item.price ?? 0).toFixed(2)}</td>
+                    <td className="py-2 text-right">${((item.price ?? 0) * item.qty).toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>

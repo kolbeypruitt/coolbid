@@ -50,7 +50,8 @@ export function generateBOM(
       supplier: part.supplier,
       sku: part.sku,
       notes,
-      source: "default",
+      source: "starter",
+      brand: "",
     });
   }
 
