@@ -65,7 +65,7 @@ export default function LandingPage() {
           </Link>
         </div>
         <p className="text-txt-tertiary text-sm">
-          14-day free trial. No credit card required.
+          30-day free trial. No credit card required.
         </p>
       </section>
 

@@ -59,7 +59,7 @@ function SignupForm() {
       <Card className="w-full max-w-md bg-gradient-card border-b-accent shadow-[0_0_28px_rgba(6,182,212,0.1)]">
         <CardHeader>
           <CardTitle className="text-2xl text-txt-primary">Create your account</CardTitle>
-          <CardDescription className="text-txt-secondary">Start your 14-day free trial of CoolBid</CardDescription>
+          <CardDescription className="text-txt-secondary">Start your 30-day free trial of CoolBid</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignup} className="space-y-4">
