@@ -100,7 +100,7 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="max-w-2xl space-y-6">
-        <h1 className="text-2xl font-bold">Settings</h1>
+        <h1 className="text-2xl font-bold text-txt-primary">Settings</h1>
         <p className="text-muted-foreground">Loading...</p>
       </div>
     );
@@ -108,13 +108,13 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold">Settings</h1>
+      <h1 className="text-2xl font-bold text-txt-primary">Settings</h1>
 
       {/* Profile form */}
-      <Card>
+      <Card className="bg-gradient-card border-border">
         <CardHeader>
-          <CardTitle>Company Profile</CardTitle>
-          <CardDescription>Update your company information.</CardDescription>
+          <CardTitle className="text-txt-primary">Company Profile</CardTitle>
+          <CardDescription className="text-txt-secondary">Update your company information.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSave} className="space-y-4">
@@ -188,15 +188,15 @@ export default function SettingsPage() {
               <p
                 className={
                   message.type === "success"
-                    ? "text-sm text-green-600"
-                    : "text-sm text-destructive"
+                    ? "text-sm text-success"
+                    : "text-sm text-error"
                 }
               >
                 {message.text}
               </p>
             )}
 
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" disabled={saving} className="bg-gradient-brand hover-lift">
               {saving ? "Saving..." : "Save Changes"}
             </Button>
           </form>

@@ -42,26 +42,25 @@ export function PricingCard({ onSubscribe, isLoading }: PricingCardProps) {
   const displayPrice = isAnnual ? PRO_ANNUAL_PRICE : PRO_MONTHLY_PRICE;
 
   return (
-    <Card className="w-full max-w-sm mx-auto">
+    <Card className="w-full max-w-sm mx-auto bg-gradient-card border-b-accent shadow-[0_0_28px_rgba(6,182,212,0.1)]">
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">CoolBid Pro</CardTitle>
+          <CardTitle className="text-2xl text-txt-primary">CoolBid Pro</CardTitle>
           {isAnnual && (
-            <Badge variant="secondary">Save ${ANNUAL_SAVINGS}</Badge>
+            <Badge variant="secondary" className="bg-success-bg text-success border-none">Save ${ANNUAL_SAVINGS}</Badge>
           )}
         </div>
         <CardDescription>Everything you need for faster HVAC estimates.</CardDescription>
 
         {/* Interval toggle */}
-        <div className="flex items-center gap-2 mt-2">
+        <div className="flex rounded-md bg-bg-input p-1 mt-2">
           <button
             type="button"
             onClick={() => setInterval("month")}
             className={cn(
-              "rounded-md px-3 py-1 text-sm font-medium transition-colors",
               interval === "month"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
+                ? "flex-1 rounded-sm py-2 text-sm font-medium bg-gradient-brand text-white shadow-[0_0_12px_rgba(6,182,212,0.3)]"
+                : "flex-1 rounded-sm py-2 text-sm font-medium text-txt-secondary hover:text-txt-primary"
             )}
           >
             Monthly
@@ -70,10 +69,9 @@ export function PricingCard({ onSubscribe, isLoading }: PricingCardProps) {
             type="button"
             onClick={() => setInterval("year")}
             className={cn(
-              "rounded-md px-3 py-1 text-sm font-medium transition-colors",
               interval === "year"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
+                ? "flex-1 rounded-sm py-2 text-sm font-medium bg-gradient-brand text-white shadow-[0_0_12px_rgba(6,182,212,0.3)]"
+                : "flex-1 rounded-sm py-2 text-sm font-medium text-txt-secondary hover:text-txt-primary"
             )}
           >
             Annual
@@ -85,13 +83,13 @@ export function PricingCard({ onSubscribe, isLoading }: PricingCardProps) {
         {/* Price */}
         <div>
           <div className="flex items-baseline gap-1">
-            <span className="text-4xl font-bold">${displayPrice}</span>
-            <span className="text-muted-foreground text-sm">
+            <span className="text-5xl font-extrabold text-gradient-brand tracking-tighter">${displayPrice}</span>
+            <span className="text-txt-tertiary text-sm">
               {isAnnual ? "/year" : "/month"}
             </span>
           </div>
           {isAnnual && (
-            <p className="text-sm text-muted-foreground mt-0.5">
+            <p className="text-txt-tertiary text-sm mt-0.5">
               ${ANNUAL_MONTHLY}/month billed annually
             </p>
           )}
@@ -100,8 +98,8 @@ export function PricingCard({ onSubscribe, isLoading }: PricingCardProps) {
         {/* Features */}
         <ul className="space-y-2">
           {FEATURES.map((feature) => (
-            <li key={feature} className="flex items-center gap-2 text-sm">
-              <Check className="h-4 w-4 text-primary shrink-0" />
+            <li key={feature} className="flex items-center gap-2 text-sm text-txt-secondary">
+              <Check className="h-4 w-4 text-accent-light shrink-0" />
               {feature}
             </li>
           ))}
@@ -110,7 +108,7 @@ export function PricingCard({ onSubscribe, isLoading }: PricingCardProps) {
         {/* CTA */}
         {onSubscribe ? (
           <Button
-            className="w-full"
+            className="bg-gradient-brand hover-lift w-full"
             onClick={() => onSubscribe(interval)}
             disabled={isLoading}
           >
@@ -119,14 +117,14 @@ export function PricingCard({ onSubscribe, isLoading }: PricingCardProps) {
         ) : (
           <Link
             href="/auth/signup"
-            className={cn(buttonVariants(), "w-full justify-center")}
+            className={cn(buttonVariants(), "bg-gradient-brand hover-lift w-full justify-center")}
           >
             Start Free Trial
           </Link>
         )}
 
-        <p className="text-center text-xs text-muted-foreground">
-          30-day free trial. No credit card required.
+        <p className="text-center text-txt-tertiary text-xs">
+          30-day free trial · No credit card required
         </p>
       </CardContent>
     </Card>
