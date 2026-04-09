@@ -24,6 +24,11 @@ export type Database = {
           created_at: string;
           updated_at: string;
           onboarding_completed: boolean;
+          ai_actions_used: number;
+          stripe_subscription_id: string | null;
+          subscription_period_end: string | null;
+          referral_source: string | null;
+          referral_code: string | null;
         };
         Insert: {
           id: string;
@@ -38,6 +43,11 @@ export type Database = {
           subscription_status?: string;
           trial_ends_at?: string | null;
           onboarding_completed?: boolean;
+          ai_actions_used?: number;
+          stripe_subscription_id?: string | null;
+          subscription_period_end?: string | null;
+          referral_source?: string | null;
+          referral_code?: string | null;
         };
         Update: {
           company_name?: string;
@@ -50,6 +60,11 @@ export type Database = {
           subscription_tier?: string;
           subscription_status?: string;
           trial_ends_at?: string | null;
+          ai_actions_used?: number;
+          stripe_subscription_id?: string | null;
+          subscription_period_end?: string | null;
+          referral_source?: string | null;
+          referral_code?: string | null;
         };
         Relationships: [];
       };
@@ -353,6 +368,33 @@ export type Database = {
           quote_id?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["price_history"]["Insert"]>;
+        Relationships: [];
+      };
+      billing_events: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          event_type: string;
+          stripe_event_id: string | null;
+          metadata: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string | null;
+          event_type: string;
+          stripe_event_id?: string | null;
+          metadata?: Json;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string | null;
+          event_type?: string;
+          stripe_event_id?: string | null;
+          metadata?: Json;
+          created_at?: string;
+        };
         Relationships: [];
       };
     };

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -15,8 +16,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-export default function SignupPage() {
+function SignupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const refParam = searchParams.get("ref");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [companyName, setCompanyName] = useState("");
@@ -37,11 +40,14 @@ export default function SignupPage() {
       return;
     }
 
-    if (data.user && companyName.trim()) {
-      await supabase
-        .from("profiles")
-        .update({ company_name: companyName.trim() })
-        .eq("id", data.user.id);
+    if (data.user) {
+      const profileUpdate: { company_name?: string; referral_source?: string } = {};
+      if (companyName.trim()) profileUpdate.company_name = companyName.trim();
+      if (refParam) profileUpdate.referral_source = refParam;
+
+      if (Object.keys(profileUpdate).length > 0) {
+        await supabase.from("profiles").update(profileUpdate).eq("id", data.user.id);
+      }
     }
 
     router.push("/dashboard");
@@ -102,5 +108,13 @@ export default function SignupPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center" />}>
+      <SignupForm />
+    </Suspense>
   );
 }

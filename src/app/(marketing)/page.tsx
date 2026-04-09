@@ -9,6 +9,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { PricingCard } from "@/components/billing/pricing-card";
 
 const features = [
   {
@@ -85,6 +86,12 @@ export default function LandingPage() {
             </Card>
           ))}
         </div>
+      </section>
+
+      {/* Pricing */}
+      <section className="mx-auto max-w-sm px-6 pb-24">
+        <h2 className="text-2xl font-bold text-center mb-8">Simple pricing</h2>
+        <PricingCard />
       </section>
 
       {/* Bottom CTA */}

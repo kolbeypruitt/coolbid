@@ -16,6 +16,12 @@ export default function MarketingLayout({
           </Link>
           <div className="flex items-center gap-2">
             <Link
+              href="/pricing"
+              className={cn(buttonVariants({ variant: "ghost" }))}
+            >
+              Pricing
+            </Link>
+            <Link
               href="/auth/login"
               className={cn(buttonVariants({ variant: "ghost" }))}
             >
