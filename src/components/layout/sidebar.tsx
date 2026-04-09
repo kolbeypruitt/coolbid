@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FileText, Settings } from "lucide-react";
+import { LayoutDashboard, FileText, Package, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/estimates", label: "Estimates", icon: FileText },
+  { href: "/parts-database", label: "Parts Database", icon: Package },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
