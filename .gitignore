@@ -46,3 +46,4 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.claude/skills/ui-ux-pro-max/scripts/__pycache__/
