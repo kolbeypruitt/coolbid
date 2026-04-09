@@ -204,23 +204,23 @@ export function QuoteReview({
 
   return (
     <div className="space-y-4">
-      <Card>
+      <Card className="bg-gradient-card border-border">
         <CardHeader>
-          <CardTitle>Review Quote</CardTitle>
+          <CardTitle className="text-txt-primary">Review Quote</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
-              <p className="text-xs text-muted-foreground">Supplier</p>
-              <p className="text-sm font-medium">{parsedResult.supplier_name || "—"}</p>
+              <p className="text-xs uppercase tracking-wider text-txt-tertiary">Supplier</p>
+              <p className="text-sm font-medium text-txt-primary">{parsedResult.supplier_name || "—"}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Quote #</p>
-              <p className="text-sm font-medium">{parsedResult.quote_number || "—"}</p>
+              <p className="text-xs uppercase tracking-wider text-txt-tertiary">Quote #</p>
+              <p className="text-sm font-medium text-txt-primary">{parsedResult.quote_number || "—"}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Date</p>
-              <p className="text-sm font-medium">{parsedResult.quote_date || "—"}</p>
+              <p className="text-xs uppercase tracking-wider text-txt-tertiary">Date</p>
+              <p className="text-sm font-medium text-txt-primary">{parsedResult.quote_date || "—"}</p>
             </div>
           </div>
         </CardContent>
@@ -228,13 +228,14 @@ export function QuoteReview({
 
       <Card>
         <CardHeader>
-          <CardTitle>Line Items</CardTitle>
+          <CardTitle className="text-txt-primary">Line Items</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
+          <div className="overflow-x-auto rounded-md border border-border bg-bg-card">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-8">
+                <TableHead className="w-8 text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary">
                   <input
                     type="checkbox"
                     checked={allSelected}
@@ -245,21 +246,21 @@ export function QuoteReview({
                     className="h-4 w-4 rounded border-input"
                   />
                 </TableHead>
-                <TableHead>Model #</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Brand</TableHead>
-                <TableHead>Tons</TableHead>
-                <TableHead>SEER</TableHead>
-                <TableHead>Qty</TableHead>
-                <TableHead>Unit Price</TableHead>
-                <TableHead>Ext. Price</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary">Model #</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary">Description</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary">Type</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary">Brand</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary">Tons</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary">SEER</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary">Qty</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary">Unit Price</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary">Ext. Price</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {lineItems.map((item, index) => (
-                <TableRow key={index}>
-                  <TableCell>
+                <TableRow key={index} className="hover:bg-[rgba(6,182,212,0.03)] transition-colors border-b border-border">
+                  <TableCell className="text-sm text-txt-secondary">
                     <input
                       type="checkbox"
                       checked={item.selected}
@@ -267,21 +268,21 @@ export function QuoteReview({
                       className="h-4 w-4 rounded border-input"
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-sm text-txt-secondary">
                     <Input
                       value={item.model_number}
                       onChange={(e) => updateItem(index, "model_number", e.target.value)}
                       className="h-7 min-w-[100px] text-xs"
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-sm text-txt-secondary">
                     <Input
                       value={item.description}
                       onChange={(e) => updateItem(index, "description", e.target.value)}
                       className="h-7 min-w-[160px] text-xs"
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-sm text-txt-secondary">
                     <Select
                       value={item.equipment_type}
                       onValueChange={(val) =>
@@ -302,14 +303,14 @@ export function QuoteReview({
                       </SelectContent>
                     </Select>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-sm text-txt-secondary">
                     <Input
                       value={item.brand}
                       onChange={(e) => updateItem(index, "brand", e.target.value)}
                       className="h-7 min-w-[80px] text-xs"
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-sm text-txt-secondary">
                     <Input
                       type="number"
                       value={item.tonnage ?? ""}
@@ -323,7 +324,7 @@ export function QuoteReview({
                       className="h-7 w-16 text-xs"
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-sm text-txt-secondary">
                     <Input
                       type="number"
                       value={item.seer_rating ?? ""}
@@ -337,7 +338,7 @@ export function QuoteReview({
                       className="h-7 w-16 text-xs"
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-sm text-txt-secondary">
                     <Input
                       type="number"
                       min={1}
@@ -348,7 +349,7 @@ export function QuoteReview({
                       className="h-7 w-14 text-xs"
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-sm text-txt-secondary">
                     <Input
                       type="number"
                       step="0.01"
@@ -363,7 +364,7 @@ export function QuoteReview({
                       className="h-7 w-20 text-xs"
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-sm text-txt-secondary">
                     <Input
                       type="number"
                       step="0.01"
@@ -382,6 +383,7 @@ export function QuoteReview({
               ))}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
@@ -395,7 +397,7 @@ export function QuoteReview({
         <Button variant="outline" onClick={onCancel} disabled={saving}>
           Cancel
         </Button>
-        <Button onClick={handleSave} disabled={saving || !someSelected}>
+        <Button className="bg-gradient-brand hover-lift" onClick={handleSave} disabled={saving || !someSelected}>
           {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {saving ? "Saving..." : "Save to Catalog"}
         </Button>

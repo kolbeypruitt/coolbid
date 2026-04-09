@@ -125,7 +125,7 @@ export function QuoteUpload({ suppliers, onParsed }: QuoteUploadProps) {
   if (suppliers.length === 0) {
     return (
       <Card>
-        <CardContent className="py-10 text-center text-sm text-muted-foreground">
+        <CardContent className="py-10 text-center text-sm text-txt-secondary">
           No suppliers found. Please complete onboarding to add a supplier before uploading quotes.
         </CardContent>
       </Card>
@@ -134,9 +134,9 @@ export function QuoteUpload({ suppliers, onParsed }: QuoteUploadProps) {
 
   return (
     <div className="space-y-4">
-      <Card>
+      <Card className="bg-gradient-card border-border">
         <CardHeader>
-          <CardTitle>Select Supplier</CardTitle>
+          <CardTitle className="text-txt-primary">Select Supplier</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-1.5">
@@ -157,9 +157,9 @@ export function QuoteUpload({ suppliers, onParsed }: QuoteUploadProps) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="bg-gradient-card border-border">
         <CardHeader>
-          <CardTitle>Upload Quote</CardTitle>
+          <CardTitle className="text-txt-primary">Upload Quote</CardTitle>
         </CardHeader>
         <CardContent>
           {error && (
@@ -168,39 +168,39 @@ export function QuoteUpload({ suppliers, onParsed }: QuoteUploadProps) {
             </p>
           )}
           {processing ? (
-            <div className="flex flex-col items-center gap-4 rounded-lg border bg-muted/30 p-10">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+            <div className="flex flex-col items-center gap-4 rounded-lg border bg-accent-glow p-10">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-glow">
                 {processing.status === "done" ? (
-                  <Check className="h-7 w-7 text-primary" />
+                  <Check className="h-7 w-7 text-accent-light" />
                 ) : (
-                  <Loader2 className="h-7 w-7 animate-spin text-primary" />
+                  <Loader2 className="h-7 w-7 animate-spin text-accent-light" />
                 )}
               </div>
               <div className="text-center">
-                <p className="text-sm font-medium">
+                <p className="text-sm font-medium text-txt-primary">
                   {processing.status === "reading" && "Reading file..."}
                   {processing.status === "rendering" &&
                     `Rendering page ${processing.currentPage} of ${processing.totalPages}...`}
                   {processing.status === "sending" && "Analyzing quote with AI..."}
                   {processing.status === "done" && "Done!"}
                 </p>
-                <p className="mt-1 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <p className="mt-1 flex items-center justify-center gap-2 text-xs text-txt-tertiary">
                   <FileUp className="h-3.5 w-3.5" />
                   {processing.fileName}
                 </p>
               </div>
               {processing.totalPages > 0 && processing.status === "rendering" && (
                 <div className="w-full max-w-xs">
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-bg-card">
                     <div
-                      className="h-full rounded-full bg-primary transition-all duration-300 ease-out"
+                      className="progress-fill h-full rounded-full transition-all duration-300 ease-out"
                       style={{
                         width: `${Math.round((processing.currentPage / processing.totalPages) * 100)}%`,
                       }}
                     />
                   </div>
                   {processing.totalPages > 1 && (
-                    <p className="mt-1.5 text-center text-xs text-muted-foreground">
+                    <p className="mt-1.5 text-center text-xs text-txt-tertiary">
                       {processing.currentPage} / {processing.totalPages} pages
                     </p>
                   )}
@@ -209,14 +209,14 @@ export function QuoteUpload({ suppliers, onParsed }: QuoteUploadProps) {
             </div>
           ) : (
             <div
-              className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-10 text-center transition-colors hover:border-primary hover:bg-primary/5"
+              className="border-2 border-dashed border-b-accent rounded-lg p-10 text-center bg-accent-glow hover:bg-accent-glow-strong hover:shadow-[0_0_40px_rgba(6,182,212,0.08)] transition-all duration-300 cursor-pointer flex flex-col items-center justify-center"
               onClick={() => fileInputRef.current?.click()}
               onDrop={handleDrop}
               onDragOver={(e) => e.preventDefault()}
             >
-              <Upload className="mb-3 size-8 text-muted-foreground" />
-              <p className="text-sm font-medium">Click to upload or drag & drop</p>
-              <p className="mt-1 text-xs text-muted-foreground">PDF only</p>
+              <Upload className="mb-3 size-8 text-accent-light" />
+              <p className="text-sm font-medium text-txt-primary">Click to upload or drag & drop</p>
+              <p className="mt-1 text-xs text-txt-tertiary">PDF only</p>
             </div>
           )}
           <input

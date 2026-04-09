@@ -168,7 +168,7 @@ export function CatalogDetail({ itemId }: CatalogDetailProps) {
 
   if (loading) {
     return (
-      <div role="status" className="py-20 text-center text-sm text-muted-foreground">
+      <div role="status" className="py-20 text-center text-sm text-txt-secondary">
         Loading…
       </div>
     );
@@ -197,61 +197,61 @@ export function CatalogDetail({ itemId }: CatalogDetailProps) {
   return (
     <div className="space-y-6 p-6">
       {/* Attributes */}
-      <Card>
+      <Card className="bg-gradient-card border-b-accent">
         <CardHeader>
-          <CardTitle>{item.description || item.model_number || "Item Detail"}</CardTitle>
+          <CardTitle className="text-txt-primary">{item.description || item.model_number || "Item Detail"}</CardTitle>
         </CardHeader>
         <CardContent>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
             <div>
-              <dt className="text-muted-foreground">Equipment Type</dt>
-              <dd>{EQUIPMENT_TYPE_LABELS[item.equipment_type] ?? item.equipment_type}</dd>
+              <dt className="text-xs uppercase tracking-wider text-txt-tertiary">Equipment Type</dt>
+              <dd className="text-txt-primary font-medium">{EQUIPMENT_TYPE_LABELS[item.equipment_type] ?? item.equipment_type}</dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">System Type</dt>
-              <dd>{systemLabel}</dd>
+              <dt className="text-xs uppercase tracking-wider text-txt-tertiary">System Type</dt>
+              <dd className="text-txt-primary font-medium">{systemLabel}</dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">Tonnage</dt>
-              <dd>{item.tonnage != null ? `${item.tonnage} ton` : "—"}</dd>
+              <dt className="text-xs uppercase tracking-wider text-txt-tertiary">Tonnage</dt>
+              <dd className="text-txt-primary font-medium">{item.tonnage != null ? `${item.tonnage} ton` : "—"}</dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">SEER</dt>
-              <dd>{item.seer_rating ?? "—"}</dd>
+              <dt className="text-xs uppercase tracking-wider text-txt-tertiary">SEER</dt>
+              <dd className="text-txt-primary font-medium">{item.seer_rating ?? "—"}</dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">BTU</dt>
-              <dd>{item.btu_capacity ?? "—"}</dd>
+              <dt className="text-xs uppercase tracking-wider text-txt-tertiary">BTU</dt>
+              <dd className="text-txt-primary font-medium">{item.btu_capacity ?? "—"}</dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">Stages</dt>
-              <dd>{item.stages ?? "—"}</dd>
+              <dt className="text-xs uppercase tracking-wider text-txt-tertiary">Stages</dt>
+              <dd className="text-txt-primary font-medium">{item.stages ?? "—"}</dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">Refrigerant</dt>
-              <dd>{item.refrigerant_type ?? "—"}</dd>
+              <dt className="text-xs uppercase tracking-wider text-txt-tertiary">Refrigerant</dt>
+              <dd className="text-txt-primary font-medium">{item.refrigerant_type ?? "—"}</dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">Price</dt>
-              <dd>
+              <dt className="text-xs uppercase tracking-wider text-txt-tertiary">Price</dt>
+              <dd className="text-txt-primary font-medium">
                 {item.unit_price != null
                   ? `$${item.unit_price.toFixed(2)}`
                   : "—"}
               </dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">Supplier</dt>
-              <dd>{item.supplier?.name ?? "—"}</dd>
+              <dt className="text-xs uppercase tracking-wider text-txt-tertiary">Supplier</dt>
+              <dd className="text-txt-primary font-medium">{item.supplier?.name ?? "—"}</dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">Source</dt>
+              <dt className="text-xs uppercase tracking-wider text-txt-tertiary">Source</dt>
               <dd>
                 <Badge variant={src.variant}>{src.label}</Badge>
               </dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">Usage Count</dt>
-              <dd>{item.usage_count}</dd>
+              <dt className="text-xs uppercase tracking-wider text-txt-tertiary">Usage Count</dt>
+              <dd className="text-txt-primary font-medium">{item.usage_count}</dd>
             </div>
           </dl>
         </CardContent>
@@ -301,7 +301,7 @@ export function CatalogDetail({ itemId }: CatalogDetailProps) {
             >
               {deleting ? "Deleting…" : "Delete Item"}
             </Button>
-            <Button onClick={handleSave} disabled={saving}>
+            <Button className="bg-gradient-brand hover-lift" onClick={handleSave} disabled={saving}>
               {saving ? "Saving…" : "Save"}
             </Button>
           </div>
@@ -311,34 +311,36 @@ export function CatalogDetail({ itemId }: CatalogDetailProps) {
       {/* Price History */}
       <Card>
         <CardHeader>
-          <CardTitle>Price History</CardTitle>
+          <CardTitle className="text-lg font-semibold text-txt-primary">Price History</CardTitle>
         </CardHeader>
         <CardContent>
           {priceHistory.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No price history yet.</p>
+            <p className="text-sm text-txt-secondary">No price history yet.</p>
           ) : (
+            <div className="overflow-x-auto rounded-md border border-border bg-bg-card">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Price</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary py-3 px-3 bg-bg-card">Date</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary py-3 px-3 bg-bg-card text-right">Price</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {priceHistory.map((entry) => (
-                  <TableRow key={entry.id}>
-                    <TableCell>
+                  <TableRow key={entry.id} className="hover:bg-[rgba(6,182,212,0.03)] transition-colors border-b border-border">
+                    <TableCell className="text-sm text-txt-secondary py-3 px-3">
                       {entry.quote_date
                         ? new Date(entry.quote_date).toLocaleDateString()
                         : new Date(entry.created_at).toLocaleDateString()}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-sm py-3 px-3 tabular-nums text-txt-primary font-medium text-right">
                       ${entry.price.toFixed(2)}
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
