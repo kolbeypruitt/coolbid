@@ -3,6 +3,9 @@
 # superpowers
 .superpowers/
 
+# supabase CLI
+supabase/.temp/
+
 # dependencies
 /node_modules
 /.pnp
