@@ -1,0 +1,4 @@
+{"type":"server-started","port":59339,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:59339","screen_dir":"/Users/kolbeypruitt/Workspace/coolbid/.superpowers/brainstorm/64809-1775690891/content","state_dir":"/Users/kolbeypruitt/Workspace/coolbid/.superpowers/brainstorm/64809-1775690891/state"}
+{"type":"screen-added","file":"/Users/kolbeypruitt/Workspace/coolbid/.superpowers/brainstorm/64809-1775690891/content/architecture-overview.html"}
+{"type":"screen-added","file":"/Users/kolbeypruitt/Workspace/coolbid/.superpowers/brainstorm/64809-1775690891/content/waiting.html"}
+{"type":"server-stopped","reason":"idle timeout"}
