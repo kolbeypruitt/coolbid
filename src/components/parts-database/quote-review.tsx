@@ -33,6 +33,7 @@ interface QuoteReviewProps {
   parsedResult: ParsedQuoteResult;
   supplierId: string;
   fileName: string;
+  existingQuoteId?: string;
   onSave: () => void;
   onCancel: () => void;
 }
@@ -41,6 +42,7 @@ export function QuoteReview({
   parsedResult,
   supplierId,
   fileName,
+  existingQuoteId,
   onSave,
   onCancel,
 }: QuoteReviewProps) {
@@ -80,28 +82,50 @@ export function QuoteReview({
 
       if (authError || !user) throw new Error("Not authenticated");
 
-      const { data: quoteData, error: quoteError } = await supabase
-        .from("quotes")
-        .insert({
-          user_id: user.id,
-          supplier_id: supplierId,
-          quote_number: parsedResult.quote_number,
-          quote_date: parsedResult.quote_date || null,
-          subtotal: parsedResult.subtotal,
-          tax: parsedResult.tax,
-          total: parsedResult.total,
-          file_name: fileName,
-          storage_path: "",
-          status: "reviewing",
-        })
-        .select("id")
-        .single();
+      let quoteId: string;
 
-      if (quoteError || !quoteData) {
-        throw new Error(quoteError?.message ?? "Failed to create quote record");
+      if (existingQuoteId) {
+        const { error: existingUpdateError } = await supabase
+          .from("quotes")
+          .update({
+            supplier_id: supplierId,
+            quote_number: parsedResult.quote_number,
+            quote_date: parsedResult.quote_date || null,
+            subtotal: parsedResult.subtotal,
+            tax: parsedResult.tax,
+            total: parsedResult.total,
+            status: "reviewing",
+          })
+          .eq("id", existingQuoteId);
+
+        if (existingUpdateError) throw new Error(existingUpdateError.message);
+        quoteId = existingQuoteId;
+
+        await supabase.from("quote_lines").delete().eq("quote_id", quoteId);
+      } else {
+        const { data: quoteData, error: quoteError } = await supabase
+          .from("quotes")
+          .insert({
+            user_id: user.id,
+            supplier_id: supplierId,
+            quote_number: parsedResult.quote_number,
+            quote_date: parsedResult.quote_date || null,
+            subtotal: parsedResult.subtotal,
+            tax: parsedResult.tax,
+            total: parsedResult.total,
+            file_name: fileName,
+            storage_path: "",
+            status: "reviewing",
+          })
+          .select("id")
+          .single();
+
+        if (quoteError || !quoteData) {
+          throw new Error(quoteError?.message ?? "Failed to create quote record");
+        }
+
+        quoteId = quoteData.id;
       }
-
-      const quoteId = quoteData.id;
 
       const selectedItems = lineItems.filter((item) => item.selected);
 

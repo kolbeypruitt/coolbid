@@ -290,7 +290,12 @@ export type Database = {
           total: number | null;
           file_name: string;
           storage_path: string;
-          status: string;
+          status: "parsed" | "reviewing" | "saved" | "rejected";
+          source_type: "manual_upload" | "email_attachment" | "email_body";
+          source_email_id: string | null;
+          source_email_subject: string | null;
+          source_email_from: string | null;
+          source_email_date: string | null;
           created_at: string;
         };
         Insert: {
@@ -303,8 +308,13 @@ export type Database = {
           tax?: number | null;
           total?: number | null;
           file_name: string;
-          storage_path: string;
-          status?: string;
+          storage_path?: string;
+          status?: "parsed" | "reviewing" | "saved" | "rejected";
+          source_type?: "manual_upload" | "email_attachment" | "email_body";
+          source_email_id?: string | null;
+          source_email_subject?: string | null;
+          source_email_from?: string | null;
+          source_email_date?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["quotes"]["Insert"]>;
         Relationships: [];
@@ -368,6 +378,63 @@ export type Database = {
           quote_id?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["price_history"]["Insert"]>;
+        Relationships: [];
+      };
+      email_connections: {
+        Row: {
+          id: string;
+          user_id: string;
+          provider: "gmail";
+          email_address: string;
+          access_token: string;
+          refresh_token: string;
+          expires_at: string;
+          scopes: string[];
+          connected_at: string;
+          last_sync_at: string | null;
+          last_sync_status: "idle" | "syncing" | "error";
+          last_sync_error: string | null;
+          sync_cursor: string | null;
+          initial_sync_days: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          provider: "gmail";
+          email_address: string;
+          access_token: string;
+          refresh_token: string;
+          expires_at: string;
+          scopes?: string[];
+          connected_at?: string;
+          last_sync_at?: string | null;
+          last_sync_status?: "idle" | "syncing" | "error";
+          last_sync_error?: string | null;
+          sync_cursor?: string | null;
+          initial_sync_days?: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["email_connections"]["Insert"]>;
+        Relationships: [];
+      };
+      supplier_email_domains: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          supplier_id: string | null;
+          domain: string;
+          is_starter: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string | null;
+          supplier_id?: string | null;
+          domain: string;
+          is_starter?: boolean;
+        };
+        Update: Partial<Database["public"]["Tables"]["supplier_email_domains"]["Insert"]>;
         Relationships: [];
       };
       billing_events: {

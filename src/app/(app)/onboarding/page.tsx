@@ -115,6 +115,14 @@ export default function OnboardingPage() {
           if (equipmentError) {
             console.error("Failed to insert equipment for", supplierName, equipmentError);
           }
+
+          // Seed known email domains for this starter supplier
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any).rpc("seed_starter_supplier_domains", {
+            p_user_id: user.id,
+            p_supplier_id: supplierRecord.id,
+            p_supplier_name: starterSupplier.name,
+          });
         })
       );
 
