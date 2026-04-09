@@ -38,8 +38,8 @@ export default function SignupPage() {
     }
 
     if (data.user && companyName.trim()) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase.from("profiles") as any)
+      await supabase
+        .from("profiles")
         .update({ company_name: companyName.trim() })
         .eq("id", data.user.id);
     }

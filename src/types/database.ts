@@ -32,7 +32,18 @@ export type Database = {
           subscription_status?: string;
           trial_ends_at?: string | null;
         };
-        Update: Partial<Database["public"]["Tables"]["profiles"]["Insert"]>;
+        Update: {
+          company_name?: string;
+          company_email?: string;
+          company_phone?: string;
+          address?: string;
+          state?: string;
+          zip?: string;
+          stripe_customer_id?: string | null;
+          subscription_tier?: string;
+          subscription_status?: string;
+          trial_ends_at?: string | null;
+        };
       };
       estimates: {
         Row: {
