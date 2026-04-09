@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 180" width="640" height="180">
+  <defs>
+    <linearGradient id="bidGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#3B82F6"/>
+    </linearGradient>
+  </defs>
+  <text x="320" y="128" text-anchor="middle" font-family="Inter, -apple-system, system-ui, sans-serif" font-weight="800" font-size="132" letter-spacing="-6">
+    <tspan fill="#F1F5F9">cool</tspan><tspan fill="url(#bidGrad)">bid</tspan>
+  </text>
+</svg>
