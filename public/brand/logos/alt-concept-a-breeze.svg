@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="bgGradA" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F1629"/>
+      <stop offset="100%" stop-color="#1A2236"/>
+    </linearGradient>
+    <linearGradient id="breezeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#3B82F6"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="56" ry="56" fill="url(#bgGradA)" stroke="rgba(6,182,212,0.3)" stroke-width="2"/>
+
+  <!-- Three parallel breeze/airflow curves forming an implied 'C' -->
+  <g fill="none" stroke="url(#breezeGrad)" stroke-linecap="round">
+    <path d="M 64 90 Q 130 70 180 95 Q 150 105 130 96" stroke-width="14"/>
+    <path d="M 58 134 Q 140 112 200 140 Q 160 152 132 140" stroke-width="14"/>
+    <path d="M 64 176 Q 130 156 180 180 Q 150 190 130 182" stroke-width="14"/>
+  </g>
+
+  <!-- small accent dots implying motion -->
+  <circle cx="50" cy="85" r="4" fill="#67E8F9"/>
+  <circle cx="48" cy="130" r="4" fill="#67E8F9"/>
+  <circle cx="50" cy="172" r="4" fill="#67E8F9"/>
+</svg>

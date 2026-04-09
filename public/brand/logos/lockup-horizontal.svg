@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 256" width="900" height="256">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="55%" stop-color="#06B6D4"/>
+      <stop offset="100%" stop-color="#3B82F6"/>
+    </linearGradient>
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#F1F5F9"/>
+      <stop offset="100%" stop-color="#94A3B8"/>
+    </linearGradient>
+    <linearGradient id="bidGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#3B82F6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Mark -->
+  <g transform="translate(8 8)">
+    <rect x="0" y="0" width="240" height="240" rx="56" ry="56" fill="url(#bgGrad)"/>
+    <rect x="0" y="0" width="240" height="120" rx="56" ry="56" fill="#FFFFFF" opacity="0.08"/>
+    <g transform="translate(120 120)" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round" fill="none">
+      <g><line x1="0" y1="0" x2="0" y2="-76"/><line x1="0" y1="-30" x2="-14" y2="-44"/><line x1="0" y1="-30" x2="14" y2="-44"/><line x1="0" y1="-56" x2="-12" y2="-68"/><line x1="0" y1="-56" x2="12" y2="-68"/></g>
+      <g transform="rotate(60)"><line x1="0" y1="0" x2="0" y2="-76"/><line x1="0" y1="-30" x2="-14" y2="-44"/><line x1="0" y1="-30" x2="14" y2="-44"/><line x1="0" y1="-56" x2="-12" y2="-68"/><line x1="0" y1="-56" x2="12" y2="-68"/></g>
+      <g transform="rotate(120)"><line x1="0" y1="0" x2="0" y2="-76"/><line x1="0" y1="-30" x2="-14" y2="-44"/><line x1="0" y1="-30" x2="14" y2="-44"/><line x1="0" y1="-56" x2="-12" y2="-68"/><line x1="0" y1="-56" x2="12" y2="-68"/></g>
+      <g transform="rotate(180)"><line x1="0" y1="0" x2="0" y2="-76"/><line x1="0" y1="-30" x2="-14" y2="-44"/><line x1="0" y1="-30" x2="14" y2="-44"/><line x1="0" y1="-56" x2="-12" y2="-68"/><line x1="0" y1="-56" x2="12" y2="-68"/></g>
+      <g transform="rotate(240)"><line x1="0" y1="0" x2="0" y2="-76"/><line x1="0" y1="-30" x2="-14" y2="-44"/><line x1="0" y1="-30" x2="14" y2="-44"/><line x1="0" y1="-56" x2="-12" y2="-68"/><line x1="0" y1="-56" x2="12" y2="-68"/></g>
+      <g transform="rotate(300)"><line x1="0" y1="0" x2="0" y2="-76"/><line x1="0" y1="-30" x2="-14" y2="-44"/><line x1="0" y1="-30" x2="14" y2="-44"/><line x1="0" y1="-56" x2="-12" y2="-68"/><line x1="0" y1="-56" x2="12" y2="-68"/></g>
+    </g>
+    <circle cx="120" cy="120" r="6" fill="#FFFFFF"/>
+  </g>
+
+  <!-- Wordmark -->
+  <g transform="translate(296 172)">
+    <text font-family="Inter, -apple-system, system-ui, sans-serif" font-weight="800" font-size="132" letter-spacing="-6">
+      <tspan fill="#F1F5F9">cool</tspan><tspan fill="url(#bidGrad)">bid</tspan>
+    </text>
+  </g>
+</svg>
