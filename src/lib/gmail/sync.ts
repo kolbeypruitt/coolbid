@@ -109,12 +109,16 @@ export async function syncEmailConnection(
         let sourceType: "email_attachment" | "email_body";
 
         if (extracted.attachments.length > 0) {
-          // PDF attachments: pass as images (Claude Vision)
           parsed = await parseQuoteContent({
             type: "images",
             images: extracted.attachments.map((a, i) => ({
               base64: a.base64,
-              mediaType: "image/jpeg" as const,
+              mediaType: a.mimeType as
+                | "image/jpeg"
+                | "image/png"
+                | "image/gif"
+                | "image/webp"
+                | "application/pdf",
               pageNum: i + 1,
             })),
           });

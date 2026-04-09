@@ -3,39 +3,54 @@ import { anthropic } from "@/lib/anthropic";
 import { QUOTE_SYSTEM_PROMPT, QUOTE_ANALYSIS_PROMPT } from "./quote-prompt";
 import type { ParsedQuoteResult } from "@/types/catalog";
 
+export type ImageMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+export type DocumentMediaType = "application/pdf";
+
+export type ParseAttachment = {
+  base64: string;
+  mediaType: ImageMediaType | DocumentMediaType;
+  pageNum?: number;
+};
+
 export type ParseInput =
-  | {
-      type: "images";
-      images: Array<{
-        base64: string;
-        mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
-        pageNum?: number;
-      }>;
-    }
-  | {
-      type: "text";
-      text: string;
-    };
+  | { type: "images"; images: ParseAttachment[] }
+  | { type: "text"; text: string };
+
+function isImageMediaType(mt: string): mt is ImageMediaType {
+  return mt === "image/jpeg" || mt === "image/png" || mt === "image/gif" || mt === "image/webp";
+}
 
 export async function parseQuoteContent(input: ParseInput): Promise<ParsedQuoteResult> {
   const content: Anthropic.Messages.ContentBlockParam[] = [];
 
   if (input.type === "images") {
-    for (const img of input.images) {
+    for (const att of input.images) {
       if (input.images.length > 1) {
         content.push({
           type: "text",
-          text: `--- Page ${img.pageNum ?? input.images.indexOf(img) + 1} of the quote ---`,
+          text: `--- Page ${att.pageNum ?? input.images.indexOf(att) + 1} of the quote ---`,
         });
       }
-      content.push({
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: img.mediaType,
-          data: img.base64,
-        },
-      });
+
+      if (isImageMediaType(att.mediaType)) {
+        content.push({
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: att.mediaType,
+            data: att.base64,
+          },
+        });
+      } else if (att.mediaType === "application/pdf") {
+        content.push({
+          type: "document",
+          source: {
+            type: "base64",
+            media_type: "application/pdf",
+            data: att.base64,
+          },
+        });
+      }
     }
   } else {
     content.push({
