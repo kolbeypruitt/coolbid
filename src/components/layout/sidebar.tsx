@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FileText, Settings, Package } from "lucide-react";
+import { LayoutDashboard, FileText, Settings, Package, MessageSquarePlus } from "lucide-react";
+import { useFeedbackStore } from "@/stores/feedback-store";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 
@@ -17,6 +18,7 @@ const navItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const [reviewCount, setReviewCount] = useState(0);
+  const openFeedback = useFeedbackStore((s) => s.open);
 
   useEffect(() => {
     const supabase = createClient();
@@ -79,6 +81,13 @@ export function Sidebar() {
             </Link>
           );
         })}
+        <button
+          onClick={() => openFeedback()}
+          className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-txt-secondary transition-colors hover:bg-bg-card-hover hover:text-txt-primary"
+        >
+          <MessageSquarePlus className="h-4 w-4" />
+          Feedback
+        </button>
       </nav>
     </aside>
   );
