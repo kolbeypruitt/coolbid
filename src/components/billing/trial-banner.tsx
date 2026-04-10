@@ -61,7 +61,7 @@ export function TrialBanner() {
       )}
     >
       <span>
-        Free trial — <strong>{days} day{days !== 1 ? "s" : ""} left</strong> ·{" "}
+        Pro trial — <strong>{days} day{days !== 1 ? "s" : ""} left</strong> ·{" "}
         {actionsUsed}/{TRIAL_AI_ACTION_LIMIT} AI actions used
       </span>
       <Link

@@ -18,6 +18,7 @@ import type { SubscriptionStatus } from "@/types/billing";
 
 interface StatusProfile {
   subscription_status: SubscriptionStatus | null;
+  subscription_tier: string | null;
   trial_ends_at: string | null;
   subscription_period_end: string | null;
   ai_actions_used: number | null;
@@ -62,7 +63,7 @@ export function SubscriptionStatus() {
       }
       const { data } = await supabase
         .from("profiles")
-        .select("subscription_status, trial_ends_at, subscription_period_end, ai_actions_used")
+        .select("subscription_status, subscription_tier, trial_ends_at, subscription_period_end, ai_actions_used")
         .eq("id", user.id)
         .single();
       setProfile(data as StatusProfile | null);
@@ -99,6 +100,8 @@ export function SubscriptionStatus() {
   }
 
   const status = profile?.subscription_status ?? null;
+  const tier = profile?.subscription_tier ?? "pro";
+  const tierLabel = tier.charAt(0).toUpperCase() + tier.slice(1);
 
   return (
     <Card className="bg-gradient-card border-b-accent">
@@ -131,7 +134,8 @@ export function SubscriptionStatus() {
         {status === "active" && (
           <>
             <p className="text-sm text-txt-primary">
-              Pro subscription active
+              {tierLabel}{" "}
+              subscription active
               {profile?.subscription_period_end
                 ? <span className="text-txt-secondary">{` · Renews ${new Date(profile.subscription_period_end).toLocaleDateString()}`}</span>
                 : ""}
