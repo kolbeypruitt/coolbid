@@ -254,6 +254,7 @@ export type Database = {
           contact_phone: string;
           brands: string[];
           is_starter: boolean;
+          is_active: boolean;
           created_at: string;
         };
         Insert: {
@@ -264,6 +265,7 @@ export type Database = {
           contact_phone?: string;
           brands?: string[];
           is_starter?: boolean;
+          is_active?: boolean;
         };
         Update: Partial<Database["public"]["Tables"]["suppliers"]["Insert"]>;
         Relationships: [];
