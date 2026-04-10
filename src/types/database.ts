@@ -29,6 +29,10 @@ export type Database = {
           subscription_period_end: string | null;
           referral_source: string | null;
           referral_code: string | null;
+          default_display_mode: "total_only" | "itemized";
+          default_quote_validity_days: number;
+          logo_url: string | null;
+          logo_content_type: string | null;
         };
         Insert: {
           id: string;
@@ -48,6 +52,10 @@ export type Database = {
           subscription_period_end?: string | null;
           referral_source?: string | null;
           referral_code?: string | null;
+          default_display_mode?: "total_only" | "itemized";
+          default_quote_validity_days?: number;
+          logo_url?: string | null;
+          logo_content_type?: string | null;
         };
         Update: {
           company_name?: string;
@@ -65,6 +73,10 @@ export type Database = {
           subscription_period_end?: string | null;
           referral_source?: string | null;
           referral_code?: string | null;
+          default_display_mode?: "total_only" | "itemized";
+          default_quote_validity_days?: number;
+          logo_url?: string | null;
+          logo_content_type?: string | null;
         };
         Relationships: [];
       };
@@ -74,7 +86,7 @@ export type Database = {
           user_id: string;
           project_name: string;
           customer_name: string;
-          status: "draft" | "sent" | "accepted";
+          status: "draft" | "sent" | "accepted" | "declined";
           total_sqft: number | null;
           num_units: number;
           hvac_per_unit: boolean;
@@ -88,13 +100,20 @@ export type Database = {
           system_type: "heat_pump" | "gas_ac" | "electric" | "dual_fuel";
           created_at: string;
           updated_at: string;
+          job_address: string | null;
+          customer_email: string | null;
+          customer_phone: string | null;
+          note_to_customer: string | null;
+          valid_until: string | null;
+          display_mode: "total_only" | "itemized";
+          scope_of_work: string | null;
         };
         Insert: {
           id?: string;
           user_id: string;
           project_name?: string;
           customer_name?: string;
-          status?: "draft" | "sent" | "accepted";
+          status?: "draft" | "sent" | "accepted" | "declined";
           total_sqft?: number | null;
           num_units?: number;
           hvac_per_unit?: boolean;
@@ -106,6 +125,13 @@ export type Database = {
           total_material_cost?: number | null;
           total_price?: number | null;
           system_type?: "heat_pump" | "gas_ac" | "electric" | "dual_fuel";
+          job_address?: string | null;
+          customer_email?: string | null;
+          customer_phone?: string | null;
+          note_to_customer?: string | null;
+          valid_until?: string | null;
+          display_mode?: "total_only" | "itemized";
+          scope_of_work?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["estimates"]["Insert"]>;
         Relationships: [];
@@ -462,6 +488,31 @@ export type Database = {
           metadata?: Json;
           created_at?: string;
         };
+        Relationships: [];
+      };
+      estimate_shares: {
+        Row: {
+          id: string;
+          estimate_id: string;
+          token: string;
+          created_at: string;
+          expires_at: string;
+          revoked_at: string | null;
+          first_viewed_at: string | null;
+          last_viewed_at: string | null;
+          view_count: number;
+        };
+        Insert: {
+          id?: string;
+          estimate_id: string;
+          token: string;
+          expires_at: string;
+          revoked_at?: string | null;
+          first_viewed_at?: string | null;
+          last_viewed_at?: string | null;
+          view_count?: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["estimate_shares"]["Insert"]>;
         Relationships: [];
       };
     };
