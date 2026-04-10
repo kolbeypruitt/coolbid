@@ -19,21 +19,24 @@ export function StarterSupplierToggles() {
 
   useEffect(() => {
     async function load() {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
 
-      const { data } = await supabase
-        .from("suppliers")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("is_starter", true)
-        .order("name");
+        const { data } = await supabase
+          .from("suppliers")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("is_starter", true)
+          .order("name");
 
-      setSuppliers(data ?? []);
-      setLoading(false);
+        setSuppliers(data ?? []);
+      } finally {
+        setLoading(false);
+      }
     }
     load();
   }, []);
@@ -50,7 +53,8 @@ export function StarterSupplierToggles() {
     const { error } = await supabase
       .from("suppliers")
       .update({ is_active: newValue })
-      .eq("id", supplier.id);
+      .eq("id", supplier.id)
+      .eq("user_id", supplier.user_id);
 
     if (error) {
       // Rollback

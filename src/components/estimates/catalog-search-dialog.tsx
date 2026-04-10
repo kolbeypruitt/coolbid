@@ -63,12 +63,12 @@ export function CatalogSearchDialog({
     }
 
     const { data } = await q;
-    const visible = (data ?? []).filter((item) => {
+    const rows = (data ?? []) as (CatalogRow & { supplier: { name: string; is_active: boolean } | null })[];
+    const visible = rows.filter((item) => {
       if (item.source !== "starter") return true;
-      const supplier = item.supplier as { name: string; is_active: boolean } | null;
-      return supplier?.is_active !== false;
+      return item.supplier?.is_active !== false;
     });
-    setResults(visible.slice(0, 20) as CatalogRow[]);
+    setResults(visible.slice(0, 20));
     setLoading(false);
   }
 

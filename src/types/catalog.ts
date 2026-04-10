@@ -25,6 +25,7 @@ export type Supplier = {
   contact_phone: string;
   brands: string[];
   is_starter: boolean;
+  is_active: boolean;
   created_at: string;
 };
 

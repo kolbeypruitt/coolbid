@@ -59,8 +59,7 @@ function isRetiredStarter(
 
 function isFromInactiveStarter(item: CatalogItem): boolean {
   if (item.source !== "starter") return false;
-  const supplier = item.supplier as { name: string; is_active: boolean } | null;
-  return supplier?.is_active === false;
+  return item.supplier?.is_active === false;
 }
 
 export async function GET(req: Request) {
@@ -129,7 +128,7 @@ export async function GET(req: Request) {
 
   const page = filtered.slice(0, PAGE_SIZE);
   const hasMore = showRetired
-    ? allItems.length > PAGE_SIZE
+    ? activeItems.length > PAGE_SIZE
     : filtered.length > PAGE_SIZE || (allItems.length === fetchSize && filtered.length === PAGE_SIZE);
 
   return NextResponse.json({ items: page, hasMore });
