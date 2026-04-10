@@ -4,7 +4,7 @@ import type { SystemType } from "@/types/catalog";
 import { generateBOM } from "@/lib/hvac/bom-generator";
 import { createClient } from "@/lib/supabase/client";
 
-type EstimatorStep = "upload" | "select_pages" | "analyzing" | "rooms" | "bom";
+type EstimatorStep = "customer" | "upload" | "select_pages" | "analyzing" | "rooms" | "bom";
 
 type PagePreview = {
   pageNum: number;
@@ -33,6 +33,9 @@ type EstimatorState = {
   laborHours: number;
   projectName: string;
   customerName: string;
+  jobAddress: string;
+  customerEmail: string;
+  customerPhone: string;
   supplierName: string;
   error: string | null;
   showRFQ: boolean;
@@ -51,7 +54,13 @@ type EstimatorActions = {
   removeRoom: (index: number) => void;
   addRoom: () => void;
   generateBom: () => Promise<void>;
+  setCustomerName: (name: string) => void;
+  setJobAddress: (address: string) => void;
+  setCustomerEmail: (email: string) => void;
+  setCustomerPhone: (phone: string) => void;
+  setProjectName: (name: string) => void;
   setProjectInfo: (info: Partial<Pick<EstimatorState, "projectName" | "customerName" | "supplierName">>) => void;
+  nextStep: () => void;
   setFinancials: (info: Partial<Pick<EstimatorState, "profitMargin" | "laborRate" | "laborHours">>) => void;
   setError: (error: string | null) => void;
   setShowRFQ: (show: boolean) => void;
@@ -71,9 +80,11 @@ const DEFAULT_ROOM: Room = {
   notes: "",
 };
 
+const STEP_ORDER: EstimatorStep[] = ["customer", "upload", "select_pages", "analyzing", "rooms", "bom"];
+
 function initialState(): EstimatorState {
   return {
-    step: "upload",
+    step: "customer",
     fileName: "",
     floorplanImg: null,
     pdfPages: [],
@@ -92,6 +103,9 @@ function initialState(): EstimatorState {
     laborHours: 16,
     projectName: "New HVAC Estimate",
     customerName: "",
+    jobAddress: "",
+    customerEmail: "",
+    customerPhone: "",
     supplierName: "Johnstone Supply",
     error: null,
     showRFQ: false,
@@ -157,7 +171,24 @@ export const useEstimator = create<EstimatorState & EstimatorActions>((set, get)
     }
   },
 
+  setCustomerName: (name) => set({ customerName: name }),
+
+  setJobAddress: (address) => set({ jobAddress: address }),
+
+  setCustomerEmail: (email) => set({ customerEmail: email }),
+
+  setCustomerPhone: (phone) => set({ customerPhone: phone }),
+
+  setProjectName: (name) => set({ projectName: name }),
+
   setProjectInfo: (info) => set(info),
+
+  nextStep: () =>
+    set((state) => {
+      const idx = STEP_ORDER.indexOf(state.step);
+      const next = STEP_ORDER[idx + 1];
+      return next ? { step: next } : {};
+    }),
 
   setFinancials: (info) => set(info),
 

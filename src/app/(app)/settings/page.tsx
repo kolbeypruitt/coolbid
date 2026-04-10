@@ -13,6 +13,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { SubscriptionStatus } from "@/components/billing/subscription-status";
+import { LogoUploader } from "@/components/settings/logo-uploader";
 import type { Database } from "@/types/database";
 
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
@@ -32,6 +33,8 @@ export default function SettingsPage() {
     address: "",
     state: "",
     zip: "",
+    default_display_mode: "total_only" as "total_only" | "itemized",
+    default_quote_validity_days: 30,
   });
 
   useEffect(() => {
@@ -58,6 +61,8 @@ export default function SettingsPage() {
           address: data.address ?? "",
           state: data.state ?? "",
           zip: data.zip ?? "",
+          default_display_mode: data.default_display_mode ?? "total_only",
+          default_quote_validity_days: data.default_quote_validity_days ?? 30,
         });
       }
       setLoading(false);
@@ -82,6 +87,8 @@ export default function SettingsPage() {
         address: form.address.trim() || "",
         state: form.state.trim() || "",
         zip: form.zip.trim() || "",
+        default_display_mode: form.default_display_mode,
+        default_quote_validity_days: form.default_quote_validity_days,
       })
       .eq("id", profile.id);
 
@@ -183,6 +190,49 @@ export default function SettingsPage() {
                 />
               </div>
             </div>
+            <div className="space-y-2">
+              <Label>Default quote display mode</Label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 text-sm text-txt-secondary">
+                  <input
+                    type="radio"
+                    name="default_display_mode"
+                    checked={form.default_display_mode === "total_only"}
+                    onChange={() =>
+                      setForm({ ...form, default_display_mode: "total_only" })
+                    }
+                  />
+                  Total only
+                </label>
+                <label className="flex items-center gap-2 text-sm text-txt-secondary">
+                  <input
+                    type="radio"
+                    name="default_display_mode"
+                    checked={form.default_display_mode === "itemized"}
+                    onChange={() =>
+                      setForm({ ...form, default_display_mode: "itemized" })
+                    }
+                  />
+                  Itemized
+                </label>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="validity_days">Default quote validity (days)</Label>
+              <Input
+                id="validity_days"
+                type="number"
+                min={1}
+                max={180}
+                value={form.default_quote_validity_days}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    default_quote_validity_days: Number(e.target.value) || 30,
+                  })
+                }
+              />
+            </div>
 
             {message && (
               <p
@@ -200,6 +250,22 @@ export default function SettingsPage() {
               {saving ? "Saving..." : "Save Changes"}
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* Logo */}
+      <Card className="bg-gradient-card border-border">
+        <CardHeader>
+          <CardTitle className="text-txt-primary">Logo</CardTitle>
+          <CardDescription className="text-txt-secondary">
+            Appears on the PDF and share page you send to customers.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <LogoUploader
+            initialLogoUrl={profile?.logo_url ?? null}
+            initialContentType={profile?.logo_content_type ?? null}
+          />
         </CardContent>
       </Card>
 
