@@ -204,11 +204,15 @@ export async function POST(request: NextRequest) {
         react: job.render(),
       });
 
-      await supabase.from("email_events").insert({
+      const { error: insertError } = await supabase.from("email_events").insert({
         user_id: job.userId,
         email_type: job.emailType,
         resend_id: data?.id ?? null,
       });
+
+      if (insertError) {
+        console.error(`Failed to record email_event for ${job.emailType} / ${job.userId}:`, insertError);
+      }
 
       sent++;
     } catch (err) {
