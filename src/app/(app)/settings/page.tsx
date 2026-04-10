@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { SubscriptionStatus } from "@/components/billing/subscription-status";
 import { LogoUploader } from "@/components/settings/logo-uploader";
+import { HelpFeedbackCard } from "@/components/settings/help-feedback-card";
 import type { Database } from "@/types/database";
 
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
@@ -271,6 +272,9 @@ export default function SettingsPage() {
 
       {/* Subscription */}
       <SubscriptionStatus />
+
+      {/* Help & Feedback */}
+      <HelpFeedbackCard />
     </div>
   );
 }
