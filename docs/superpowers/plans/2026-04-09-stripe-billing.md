@@ -1837,7 +1837,7 @@ After code is deployed:
 
 5. **Configure Webhook Endpoint:**
    - Developers → Webhooks → Add endpoint
-   - URL: `https://coolbid.vercel.app/api/stripe/webhook`
+   - URL: `https://coolbid.app/api/stripe/webhook`
    - Events:
      - `checkout.session.completed`
      - `customer.subscription.updated`

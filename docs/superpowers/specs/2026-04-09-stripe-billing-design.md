@@ -310,7 +310,7 @@ After deploying:
    - Do NOT allow switching plans (single tier for now)
 4. **Enable Smart Retries:** Billing → Subscriptions → Recovery — enable smart retries, 4 attempts over 3 weeks
 5. **Configure Webhook Endpoint:** Developers → Webhooks → Add endpoint:
-   - URL: `https://coolbid.vercel.app/api/stripe/webhook`
+   - URL: `https://coolbid.app/api/stripe/webhook`
    - Events to listen for:
      - `checkout.session.completed`
      - `customer.subscription.updated`

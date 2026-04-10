@@ -2000,7 +2000,7 @@ Automated supplier quote discovery via Gmail email crawling. Users connect Gmail
 ## Test plan
 
 - [ ] Connect Gmail → OAuth flow completes → connection appears in UI
-- [ ] Manually trigger cron (\`curl -X POST https://coolbid.vercel.app/api/cron/sync-emails -H "Authorization: Bearer <secret>"\`)
+- [ ] Manually trigger cron (\`curl -X POST https://coolbid.app/api/cron/sync-emails -H "Authorization: Bearer <secret>"\`)
 - [ ] Verify sync processes up to 5 messages, marks quotes as \`parsed\`
 - [ ] Review queue shows parsed quotes with email metadata
 - [ ] Sidebar shows review count badge
@@ -2020,20 +2020,20 @@ After the PR is merged:
    - Create new project or use existing
    - Enable Gmail API
    - OAuth 2.0 Client ID (Web Application)
-   - Authorized redirect URIs: `https://coolbid.vercel.app/api/auth/gmail/callback`
+   - Authorized redirect URIs: `https://coolbid.app/api/auth/gmail/callback`
    - Configure consent screen (add yourself + partner as test users during development)
 
 2. **Vercel env vars:**
    - `GOOGLE_CLIENT_ID`
    - `GOOGLE_CLIENT_SECRET`
-   - `GOOGLE_REDIRECT_URI=https://coolbid.vercel.app/api/auth/gmail/callback`
+   - `GOOGLE_REDIRECT_URI=https://coolbid.app/api/auth/gmail/callback`
    - `CRON_SECRET=<generate: openssl rand -hex 32>`
    - `OAUTH_STATE_SECRET=<generate: openssl rand -hex 32>`
 
 3. **cron-job.org setup:**
    - Create free account
    - Add new cronjob
-   - URL: `https://coolbid.vercel.app/api/cron/sync-emails`
+   - URL: `https://coolbid.app/api/cron/sync-emails`
    - Method: POST
    - Headers: `Authorization: Bearer <CRON_SECRET value>`
    - Schedule: every 15 minutes
