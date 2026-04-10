@@ -38,6 +38,7 @@ function profile(overrides: Partial<ProfileRow> = {}): ProfileRow {
     default_quote_validity_days: 30,
     logo_url: null,
     logo_content_type: null,
+    team_id: null,
     ...overrides,
   };
 }

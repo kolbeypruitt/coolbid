@@ -8,14 +8,14 @@ export default function UpgradePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSubscribe(interval: BillingInterval) {
+  async function handleSubscribe(tier: "starter" | "pro" | "enterprise", interval: BillingInterval) {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ interval }),
+        body: JSON.stringify({ tier, interval }),
       });
       const json = await res.json();
       if (!res.ok || !json.url) {

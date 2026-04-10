@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { buildAuthUrl } from "@/lib/gmail/oauth";
 import { signOAuthState } from "@/lib/oauth-state";
+import { canUseFeature } from "@/types/billing";
+import type { SubscriptionTier } from "@/types/billing";
 
 export async function GET() {
   const supabase = await createClient();
@@ -11,6 +13,21 @@ export async function GET() {
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Check tier — only Pro, Enterprise, and Trial can connect Gmail
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("subscription_tier")
+    .eq("id", user.id)
+    .single();
+
+  const tier = (profile?.subscription_tier ?? "trial") as SubscriptionTier;
+  if (!canUseFeature(tier, "gmail_sync")) {
+    return NextResponse.json(
+      { error: "Gmail sync requires a Pro or Enterprise plan." },
+      { status: 403 }
+    );
   }
 
   try {

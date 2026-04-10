@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createCheckoutSession, createStripeCustomer } from "@/lib/stripe";
 
 const requestSchema = z.object({
+  tier: z.enum(["starter", "pro", "enterprise"]),
   interval: z.enum(["month", "year"]),
 });
 
@@ -71,6 +72,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await createCheckoutSession({
       customerId,
+      tier: parsed.data.tier,
       interval: parsed.data.interval,
       userId: user.id,
       successUrl: `${appUrl}/dashboard?subscribed=true`,

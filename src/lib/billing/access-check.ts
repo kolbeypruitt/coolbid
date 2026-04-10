@@ -1,8 +1,9 @@
-import type { AccessState, SubscriptionStatus } from "@/types/billing";
+import type { AccessState, SubscriptionStatus, SubscriptionTier } from "@/types/billing";
 import { TRIAL_AI_ACTION_LIMIT } from "@/types/billing";
 
 type ProfileForAccessCheck = {
   subscription_status: string;
+  subscription_tier: string;
   trial_ends_at: string | null;
   ai_actions_used: number;
   subscription_period_end: string | null;
@@ -10,6 +11,7 @@ type ProfileForAccessCheck = {
 
 export function getAccessState(profile: ProfileForAccessCheck): AccessState {
   const status = profile.subscription_status as SubscriptionStatus;
+  const tier = (profile.subscription_tier ?? "trial") as SubscriptionTier;
   const now = new Date();
 
   if (status === "trialing") {
@@ -18,7 +20,7 @@ export function getAccessState(profile: ProfileForAccessCheck): AccessState {
     const usageExhausted = profile.ai_actions_used >= TRIAL_AI_ACTION_LIMIT;
 
     if (trialExpired) {
-      return { canAccess: false, reason: "trial_expired" };
+      return { canAccess: false, reason: "trial_expired", tier };
     }
 
     const trialDaysLeft = trialEnds
@@ -29,6 +31,7 @@ export function getAccessState(profile: ProfileForAccessCheck): AccessState {
     return {
       canAccess: !usageExhausted,
       reason: usageExhausted ? "locked_out" : "trialing",
+      tier,
       trialDaysLeft,
       aiActionsRemaining,
     };
@@ -38,19 +41,20 @@ export function getAccessState(profile: ProfileForAccessCheck): AccessState {
     return {
       canAccess: true,
       reason: status,
+      tier,
       subscriptionPeriodEnd: profile.subscription_period_end ?? undefined,
     };
   }
 
   if (status === "canceled") {
-    return { canAccess: false, reason: "canceled" };
+    return { canAccess: false, reason: "canceled", tier };
   }
 
   if (status === "expired") {
-    return { canAccess: false, reason: "trial_expired" };
+    return { canAccess: false, reason: "trial_expired", tier };
   }
 
-  return { canAccess: false, reason: "locked_out" };
+  return { canAccess: false, reason: "locked_out", tier };
 }
 
 export function isLockedStatus(status: string): boolean {
