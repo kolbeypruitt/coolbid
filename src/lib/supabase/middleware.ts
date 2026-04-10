@@ -44,8 +44,8 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Redirect to onboarding if not completed (skip for /onboarding itself and API routes)
-  if (user && !path.startsWith("/onboarding") && !path.startsWith("/api") && !path.startsWith("/auth")) {
+  // Redirect to onboarding if not completed (skip for /onboarding itself, API routes, and public share pages)
+  if (user && !path.startsWith("/onboarding") && !path.startsWith("/api") && !path.startsWith("/auth") && !path.startsWith("/q/")) {
     const onboardingDone = request.cookies.get("onboarding_done")?.value === "true";
     if (!onboardingDone) {
       const { data: profile } = await supabase
@@ -79,6 +79,7 @@ export async function updateSession(request: NextRequest) {
     "/onboarding",
     "/_next",
     "/settings",
+    "/q/",
   ];
   const shouldGate =
     user &&
