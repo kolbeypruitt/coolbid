@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { TrialBanner } from "@/components/billing/trial-banner";
+import { FeedbackModal } from "@/components/feedback/feedback-modal";
+import { FeedbackWidget } from "@/components/feedback/feedback-widget";
 
 export default async function AppLayout({
   children,
@@ -26,6 +28,8 @@ export default async function AppLayout({
         <TrialBanner />
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
+      <FeedbackModal />
+      <FeedbackWidget />
     </div>
   );
 }

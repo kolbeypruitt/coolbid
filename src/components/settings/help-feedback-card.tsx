@@ -1,6 +1,7 @@
 "use client";
 
 import { Mail, Phone, MessageSquare } from "lucide-react";
+import { SUPPORT_EMAIL, SUPPORT_PHONE, SUPPORT_PHONE_TEL } from "@/types/feedback";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -25,22 +26,22 @@ export function HelpFeedbackCard() {
       <CardContent className="space-y-4">
         <div className="space-y-3">
           <a
-            href="mailto:kolbey@coolbid.app"
+            href={`mailto:${SUPPORT_EMAIL}`}
             className="flex items-center gap-3 text-sm text-txt-secondary transition-colors hover:text-txt-primary"
           >
             <Mail className="h-4 w-4 text-accent-light" />
-            kolbey@coolbid.app
+            {SUPPORT_EMAIL}
           </a>
           <a
-            href="tel:+14055551234"
+            href={`tel:${SUPPORT_PHONE_TEL}`}
             className="flex items-center gap-3 text-sm text-txt-secondary transition-colors hover:text-txt-primary"
           >
             <Phone className="h-4 w-4 text-accent-light" />
-            (405) 555-1234
+            {SUPPORT_PHONE}
           </a>
         </div>
         <Button
-          onClick={open}
+          onClick={() => open()}
           className="w-full bg-gradient-brand hover-lift"
         >
           <MessageSquare className="mr-2 h-4 w-4" />

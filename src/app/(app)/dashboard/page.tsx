@@ -9,6 +9,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { FeedbackPrompt } from "@/components/feedback/feedback-prompt";
+
 type RecentEstimate = {
   id: string;
   project_name: string;
@@ -25,7 +27,7 @@ type RecentEstimate = {
 export default async function DashboardPage() {
   const supabase = await createClient();
 
-  const [{ count }, { data: recentEstimates }] = await Promise.all([
+  const [{ count }, { data: recentEstimates }, { data: profile }] = await Promise.all([
     supabase.from("estimates").select("*", { count: "exact", head: true }),
     supabase
       .from("estimates")
@@ -35,12 +37,43 @@ export default async function DashboardPage() {
       )
       .order("updated_at", { ascending: false })
       .limit(5),
+    supabase
+      .from("profiles")
+      .select("subscription_status, trial_ends_at, feedback_prompts_seen")
+      .single(),
   ]);
 
   const estimates = (recentEstimates ?? []) as unknown as RecentEstimate[];
 
+  const estimateCount = count ?? 0;
+  const feedbackPromptsSeen = (profile?.feedback_prompts_seen as Record<string, boolean>) ?? {};
+  const isTrialing = profile?.subscription_status === "trialing";
+  const trialEndsAt = profile?.trial_ends_at ? new Date(profile.trial_ends_at) : null;
+  const daysLeft = trialEndsAt ? Math.ceil((trialEndsAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+  const trialDayNumber = daysLeft !== null ? 30 - daysLeft : null;
+
   return (
     <div className="space-y-6">
+      <div className="space-y-3">
+        <FeedbackPrompt
+          promptKey="first_estimate"
+          message="How was your first estimate? We'd love to hear your thoughts."
+          show={estimateCount >= 1}
+          feedbackPromptsSeen={feedbackPromptsSeen}
+        />
+        <FeedbackPrompt
+          promptKey="mid_trial"
+          message="You're a week in — anything we can improve?"
+          show={isTrialing && trialDayNumber !== null && trialDayNumber >= 7}
+          feedbackPromptsSeen={feedbackPromptsSeen}
+        />
+        <FeedbackPrompt
+          promptKey="trial_expiring"
+          message="Your trial ends soon. What would make CoolBid worth subscribing to?"
+          show={isTrialing && daysLeft !== null && daysLeft <= 3}
+          feedbackPromptsSeen={feedbackPromptsSeen}
+        />
+      </div>
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-txt-primary">Dashboard</h1>
         <Link href="/estimates/new" className={cn(buttonVariants(), "bg-gradient-brand hover-lift")}>
@@ -54,7 +87,7 @@ export default async function DashboardPage() {
           <CardTitle className="text-xs uppercase tracking-wider text-txt-tertiary">Total Estimates</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-3xl font-bold text-gradient-brand">{count ?? 0}</p>
+          <p className="text-3xl font-bold text-gradient-brand">{estimateCount}</p>
         </CardContent>
       </Card>
 

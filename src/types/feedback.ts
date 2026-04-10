@@ -27,3 +27,7 @@ export const feedbackSchema = z.object({
 });
 
 export type FeedbackInput = z.infer<typeof feedbackSchema>;
+
+export const SUPPORT_EMAIL = "kolbey@coolbid.app";
+export const SUPPORT_PHONE = "(405) 555-1234";
+export const SUPPORT_PHONE_TEL = "+14055551234";
