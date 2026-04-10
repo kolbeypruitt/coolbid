@@ -61,6 +61,11 @@ export async function GET(
     .single();
 
   if (error || !data) {
+    console.error("[GET /api/catalog/:id]", {
+      itemId: id,
+      userId: user.id,
+      dbError: error?.message ?? "no row returned",
+    });
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
