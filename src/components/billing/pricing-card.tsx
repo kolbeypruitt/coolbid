@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { Check, X } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -36,7 +35,6 @@ type TierDef = {
   features: { label: string; included: boolean }[];
   highlight?: boolean;
   badge?: string;
-  icon: string;
 };
 
 const TIERS: TierDef[] = [
@@ -46,7 +44,6 @@ const TIERS: TierDef[] = [
     description: "For solo contractors getting started.",
     monthlyPrice: STARTER_MONTHLY_PRICE,
     annualPrice: STARTER_ANNUAL_PRICE,
-    icon: "/brand/tiers/starter.svg",
     features: [
       { label: "1 user", included: true },
       { label: "Unlimited estimates & AI analysis", included: true },
@@ -65,7 +62,6 @@ const TIERS: TierDef[] = [
     annualPrice: PRO_ANNUAL_PRICE,
     highlight: true,
     badge: "Most Popular",
-    icon: "/brand/tiers/pro.svg",
     features: [
       { label: "Up to 5 team members", included: true },
       { label: "Unlimited estimates & AI analysis", included: true },
@@ -82,7 +78,6 @@ const TIERS: TierDef[] = [
     description: "For large operations with unlimited seats.",
     monthlyPrice: ENTERPRISE_MONTHLY_PRICE,
     annualPrice: ENTERPRISE_ANNUAL_PRICE,
-    icon: "/brand/tiers/enterprise.svg",
     features: [
       { label: "Unlimited team members", included: true },
       { label: "Unlimited estimates & AI analysis", included: true },
@@ -156,13 +151,6 @@ export function PricingCards({ onSubscribe, isLoading, loadingTier }: PricingCar
               )}
             >
               <CardHeader>
-                <Image
-                  src={t.icon}
-                  alt={`${t.name} tier`}
-                  width={64}
-                  height={64}
-                  className="mb-2 rounded-xl"
-                />
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-xl text-txt-primary">{t.name}</CardTitle>
                   {t.badge && (
