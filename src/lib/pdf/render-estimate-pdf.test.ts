@@ -69,6 +69,8 @@ function estimate(overrides: Partial<EstimateRow> = {}): EstimateRow {
     valid_until: "2026-05-09",
     display_mode: "total_only",
     scope_of_work: null,
+    accepted_at: null,
+    declined_at: null,
     ...overrides,
   };
 }
