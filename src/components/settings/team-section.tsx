@@ -69,7 +69,7 @@ export function TeamSection({ tier }: TeamSectionProps) {
       }
 
       setMembers((prev) => [
-        { id: json.invite.id, email: json.invite.email, role: "member", status: "pending", invited_at: new Date().toISOString(), accepted_at: null },
+        { id: json.invite.id, team_id: json.invite.team_id, user_id: null, email: json.invite.email, role: "member", status: "pending", invited_at: new Date().toISOString(), accepted_at: null },
         ...prev,
       ]);
       setInviteEmail("");
