@@ -13,14 +13,7 @@ export const metadata: Metadata = {
   description:
     "HVAC estimating for residential contractors. Upload a floorplan, get a priced bill of materials in about a minute.",
   applicationName: "coolbid",
-  icons: {
-    icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/brand/icons/mark-32.png", sizes: "32x32", type: "image/png" },
-      { url: "/brand/icons/mark-192.png", sizes: "192x192", type: "image/png" },
-    ],
-    apple: "/brand/icons/mark-192.png",
-  },
+  // Icons are wired up automatically from src/app/{favicon.ico,icon.svg,apple-icon.png}
   openGraph: {
     type: "website",
     siteName: "coolbid",
