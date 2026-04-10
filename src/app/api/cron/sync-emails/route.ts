@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { verifyCronAuth } from "@/lib/cron-auth";
 import { syncEmailConnection } from "@/lib/gmail/sync";
+import { canUseFeature } from "@/types/billing";
+import type { SubscriptionTier } from "@/types/billing";
 import type { Database } from "@/types/database";
 import type { EmailConnection } from "@/types/email-connection";
 
@@ -38,7 +40,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "No connections to sync" });
   }
 
-  const connection = connections[0] as EmailConnection;
+  const eligibleConnections = [];
+  for (const conn of connections) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("subscription_tier")
+      .eq("id", conn.user_id)
+      .single();
+
+    const tier = (profile?.subscription_tier ?? "trial") as SubscriptionTier;
+    if (canUseFeature(tier, "gmail_sync")) {
+      eligibleConnections.push(conn);
+    }
+  }
+
+  if (eligibleConnections.length === 0) {
+    return NextResponse.json({ message: "No eligible connections to sync" });
+  }
+
+  const connection = eligibleConnections[0] as EmailConnection;
   const result = await syncEmailConnection(supabase, connection);
 
   return NextResponse.json({
