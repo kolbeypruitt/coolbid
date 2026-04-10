@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { CustomerCard } from "@/components/estimates/customer-card";
+import { ShareBlock } from "@/components/estimates/share-block";
 import type { Database } from "@/types/database";
 
 type EstimateRow = Database["public"]["Tables"]["estimates"]["Row"];
@@ -44,20 +45,30 @@ export default async function EstimateDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: estimate }, { data: rooms }, { data: bomItems }] =
-    await Promise.all([
-      supabase.from("estimates").select("*").eq("id", id).single(),
-      supabase
-        .from("estimate_rooms")
-        .select("*")
-        .eq("estimate_id", id)
-        .order("created_at"),
-      supabase
-        .from("estimate_bom_items")
-        .select("*")
-        .eq("estimate_id", id)
-        .order("category"),
-    ]);
+  const [
+    { data: estimate },
+    { data: rooms },
+    { data: bomItems },
+    { data: activeShareData },
+  ] = await Promise.all([
+    supabase.from("estimates").select("*").eq("id", id).single(),
+    supabase
+      .from("estimate_rooms")
+      .select("*")
+      .eq("estimate_id", id)
+      .order("created_at"),
+    supabase
+      .from("estimate_bom_items")
+      .select("*")
+      .eq("estimate_id", id)
+      .order("category"),
+    supabase
+      .from("estimate_shares")
+      .select("*")
+      .eq("estimate_id", id)
+      .is("revoked_at", null)
+      .maybeSingle(),
+  ]);
 
   if (!estimate) {
     notFound();
@@ -66,6 +77,9 @@ export default async function EstimateDetailPage({
   const est = estimate as EstimateRow;
   const roomList = (rooms ?? []) as RoomRow[];
   const bom = (bomItems ?? []) as BomRow[];
+  const activeShare = (activeShareData ?? null) as
+    | Database["public"]["Tables"]["estimate_shares"]["Row"]
+    | null;
 
   const materialCost = bom.reduce((sum, item) => sum + item.total_cost, 0);
   const laborCost = est.labor_rate * est.labor_hours;
@@ -104,6 +118,7 @@ export default async function EstimateDetailPage({
             </p>
           )}
         </div>
+        <ShareBlock estimate={est} activeShare={activeShare} />
       </div>
 
       {/* Customer */}
