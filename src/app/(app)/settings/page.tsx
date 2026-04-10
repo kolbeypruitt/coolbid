@@ -13,6 +13,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { SubscriptionStatus } from "@/components/billing/subscription-status";
+import { LogoUploader } from "@/components/settings/logo-uploader";
 import type { Database } from "@/types/database";
 
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
@@ -200,6 +201,22 @@ export default function SettingsPage() {
               {saving ? "Saving..." : "Save Changes"}
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* Logo */}
+      <Card className="bg-gradient-card border-border">
+        <CardHeader>
+          <CardTitle className="text-txt-primary">Logo</CardTitle>
+          <CardDescription className="text-txt-secondary">
+            Appears on the PDF and share page you send to customers.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <LogoUploader
+            initialLogoUrl={profile?.logo_url ?? null}
+            initialContentType={profile?.logo_content_type ?? null}
+          />
         </CardContent>
       </Card>
 
