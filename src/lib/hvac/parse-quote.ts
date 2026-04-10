@@ -63,10 +63,14 @@ export async function parseQuoteContent(input: ParseInput): Promise<ParsedQuoteR
 
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-20250514",
-    max_tokens: 4096,
+    max_tokens: 16384,
     system: QUOTE_SYSTEM_PROMPT,
     messages: [{ role: "user", content }],
   });
+
+  if (response.stop_reason === "max_tokens") {
+    throw new Error("Quote too large — response was truncated. Try uploading fewer pages.");
+  }
 
   const textBlock = response.content.find((b) => b.type === "text");
   if (!textBlock || textBlock.type !== "text") {
