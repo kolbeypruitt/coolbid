@@ -5,6 +5,7 @@ import { Header } from "@/components/layout/header";
 import { TrialBanner } from "@/components/billing/trial-banner";
 import { FeedbackModal } from "@/components/feedback/feedback-modal";
 import { FeedbackWidget } from "@/components/feedback/feedback-widget";
+import { Toaster } from "@/components/ui/sonner";
 
 export default async function AppLayout({
   children,
@@ -30,6 +31,7 @@ export default async function AppLayout({
       </div>
       <FeedbackModal />
       <FeedbackWidget />
+      <Toaster />
     </div>
   );
 }

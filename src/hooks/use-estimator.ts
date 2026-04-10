@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { AnalysisResult, BomResult, ClimateZoneKey, Room } from "@/types/hvac";
-import type { SystemType } from "@/types/catalog";
+import type { CatalogItem, SystemType } from "@/types/catalog";
 import { generateBOM } from "@/lib/hvac/bom-generator";
 import { createClient } from "@/lib/supabase/client";
 
@@ -205,14 +205,17 @@ export const useEstimator = create<EstimatorState & EstimatorActions>((set, get)
     try {
       const supabase = createClient();
       const { data: catalog } = await supabase
-        .from("catalog_items")
+        .from("equipment_catalog")
         .select("*, supplier:suppliers(*)")
         .order("usage_count", { ascending: false });
+      const activeCatalog = ((catalog ?? []) as CatalogItem[]).filter(
+        (item) => item.source !== "starter" || item.supplier?.is_active !== false,
+      );
       const bom = generateBOM(
         rooms,
         climateZone,
         systemType,
-        catalog ?? [],
+        activeCatalog,
         analysisResult?.building,
         analysisResult?.hvac_notes,
       );

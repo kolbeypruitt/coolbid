@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
   Card,
@@ -57,11 +58,18 @@ export function StarterSupplierToggles() {
       .eq("user_id", supplier.user_id);
 
     if (error) {
-      // Rollback
+      console.error("[StarterSupplierToggles] update failed:", error.message);
+      toast.error("Failed to update supplier");
       setSuppliers((prev) =>
         prev.map((s) =>
           s.id === supplier.id ? { ...s, is_active: !newValue } : s
         )
+      );
+    } else {
+      toast.success(
+        newValue
+          ? `${supplier.name} enabled`
+          : `${supplier.name} disabled`,
       );
     }
   }
@@ -74,7 +82,7 @@ export function StarterSupplierToggles() {
         <CardTitle className="text-txt-primary">Starter Parts Lists</CardTitle>
         <CardDescription className="text-txt-secondary">
           Toggle off a supplier to hide their starter equipment from your catalog
-          and estimates.
+          and estimates. Changes save automatically.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -97,7 +105,7 @@ export function StarterSupplierToggles() {
               type="checkbox"
               checked={supplier.is_active}
               onChange={() => handleToggle(supplier)}
-              className="rounded border-border"
+              className="h-4 w-4 rounded border-border accent-primary"
             />
           </label>
         ))}
