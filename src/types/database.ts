@@ -33,6 +33,7 @@ export type Database = {
           default_quote_validity_days: number;
           logo_url: string | null;
           logo_content_type: string | null;
+          team_id: string | null;
         };
         Insert: {
           id: string;
@@ -56,6 +57,7 @@ export type Database = {
           default_quote_validity_days?: number;
           logo_url?: string | null;
           logo_content_type?: string | null;
+          team_id?: string | null;
         };
         Update: {
           company_name?: string;
@@ -77,6 +79,7 @@ export type Database = {
           default_quote_validity_days?: number;
           logo_url?: string | null;
           logo_content_type?: string | null;
+          team_id?: string | null;
         };
         Relationships: [];
       };
@@ -491,6 +494,68 @@ export type Database = {
           stripe_event_id?: string | null;
           metadata?: Json;
           created_at?: string;
+        };
+        Relationships: [];
+      };
+      teams: {
+        Row: {
+          id: string;
+          owner_id: string;
+          name: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          name: string;
+        };
+        Update: {
+          name?: string;
+        };
+        Relationships: [];
+      };
+      team_members: {
+        Row: {
+          id: string;
+          team_id: string;
+          user_id: string | null;
+          email: string;
+          role: string;
+          status: string;
+          invited_at: string;
+          accepted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          team_id: string;
+          user_id?: string | null;
+          email: string;
+          role?: string;
+          status?: string;
+        };
+        Update: {
+          user_id?: string | null;
+          status?: string;
+          accepted_at?: string | null;
+        };
+        Relationships: [];
+      };
+      email_events: {
+        Row: {
+          id: string;
+          user_id: string;
+          email_type: string;
+          sent_at: string;
+          resend_id: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          email_type: string;
+          resend_id?: string | null;
+        };
+        Update: {
+          resend_id?: string | null;
         };
         Relationships: [];
       };
