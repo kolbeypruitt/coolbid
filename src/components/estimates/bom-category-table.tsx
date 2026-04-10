@@ -34,8 +34,6 @@ export interface BomCategoryTableProps {
   category: string;
   items: BomRow[];
   status: string;
-  /** Called after any mutation so parent can re-fetch / recalc */
-  onMutate: () => void;
 }
 
 export function BomCategoryTable({
@@ -43,7 +41,6 @@ export function BomCategoryTable({
   category,
   items,
   status,
-  onMutate,
 }: BomCategoryTableProps) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -84,7 +81,6 @@ export function BomCategoryTable({
     if (error) return;
     await flipToDraftIfSent();
     setEditingId(null);
-    onMutate();
     router.refresh();
   }
 
@@ -98,7 +94,6 @@ export function BomCategoryTable({
 
     if (error) return;
     await flipToDraftIfSent();
-    onMutate();
     router.refresh();
   }
 
@@ -125,7 +120,6 @@ export function BomCategoryTable({
     if (error) return;
     await flipToDraftIfSent();
     setSwapItemId(null);
-    onMutate();
     router.refresh();
   }
 
@@ -295,10 +289,7 @@ export function BomCategoryTable({
         estimateId={estimateId}
         open={addOpen}
         onOpenChange={setAddOpen}
-        onAdded={() => {
-          onMutate();
-          router.refresh();
-        }}
+        onAdded={router.refresh}
       />
     </>
   );

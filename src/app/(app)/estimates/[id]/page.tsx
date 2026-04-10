@@ -243,7 +243,6 @@ export default async function EstimateDetailPage({
           category={category}
           items={items}
           status={est.status}
-          onMutate={() => {}}
         />
       ))}
     </div>
