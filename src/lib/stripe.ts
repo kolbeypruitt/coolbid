@@ -1,5 +1,7 @@
 import Stripe from "stripe";
-import type { BillingInterval } from "@/types/billing";
+import type { BillingInterval, SubscriptionTier } from "@/types/billing";
+
+type PaidTier = Exclude<SubscriptionTier, "trial">;
 
 let stripeClient: Stripe | null = null;
 
@@ -18,17 +20,24 @@ export const stripe = new Proxy({} as Stripe, {
   },
 });
 
-export function getPriceId(interval: BillingInterval): string {
-  const priceId =
-    interval === "month"
-      ? process.env.STRIPE_PRICE_PRO_MONTHLY?.trim()
-      : process.env.STRIPE_PRICE_PRO_ANNUAL?.trim();
-  if (!priceId) throw new Error(`Missing Stripe price ID for interval: ${interval}`);
+export function getPriceId(tier: PaidTier, interval: BillingInterval): string {
+  const envMap: Record<string, string | undefined> = {
+    "starter-month": process.env.STRIPE_PRICE_STARTER_MONTHLY?.trim(),
+    "starter-year": process.env.STRIPE_PRICE_STARTER_ANNUAL?.trim(),
+    "pro-month": process.env.STRIPE_PRICE_PRO_MONTHLY?.trim(),
+    "pro-year": process.env.STRIPE_PRICE_PRO_ANNUAL?.trim(),
+    "enterprise-month": process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY?.trim(),
+    "enterprise-year": process.env.STRIPE_PRICE_ENTERPRISE_ANNUAL?.trim(),
+  };
+  const key = `${tier}-${interval}`;
+  const priceId = envMap[key];
+  if (!priceId) throw new Error(`Missing Stripe price ID for ${key}`);
   return priceId;
 }
 
 type CreateCheckoutParams = {
   customerId: string;
+  tier: PaidTier;
   interval: BillingInterval;
   userId: string;
   successUrl: string;
@@ -39,12 +48,12 @@ export async function createCheckoutSession(params: CreateCheckoutParams) {
   return getStripe().checkout.sessions.create({
     mode: "subscription",
     customer: params.customerId,
-    line_items: [{ price: getPriceId(params.interval), quantity: 1 }],
+    line_items: [{ price: getPriceId(params.tier, params.interval), quantity: 1 }],
     success_url: params.successUrl,
     cancel_url: params.cancelUrl,
     allow_promotion_codes: true,
-    metadata: { user_id: params.userId },
-    subscription_data: { metadata: { user_id: params.userId } },
+    metadata: { user_id: params.userId, tier: params.tier },
+    subscription_data: { metadata: { user_id: params.userId, tier: params.tier } },
   });
 }
 
