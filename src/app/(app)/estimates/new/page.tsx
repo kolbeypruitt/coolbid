@@ -2,6 +2,7 @@
 
 import { useEstimator } from "@/hooks/use-estimator";
 import { Badge } from "@/components/ui/badge";
+import { CustomerDetailsStep } from "@/components/estimator/customer-details-step";
 import { UploadStep } from "@/components/estimator/upload-step";
 import { PageSelectStep } from "@/components/estimator/page-select-step";
 import { AnalyzingStep } from "@/components/estimator/analyzing-step";
@@ -9,6 +10,7 @@ import { RoomsStep } from "@/components/estimator/rooms-step";
 import { BomStep } from "@/components/estimator/bom-step";
 
 const STEPS = [
+  { key: "customer", label: "Customer" },
   { key: "upload", label: "Upload" },
   { key: "select_pages", label: "Select Pages" },
   { key: "analyzing", label: "Analyzing" },
@@ -44,6 +46,7 @@ export default function NewEstimatePage() {
       )}
 
       {/* Step Content */}
+      {step === "customer" && <CustomerDetailsStep />}
       {step === "upload" && <UploadStep />}
       {step === "select_pages" && <PageSelectStep />}
       {step === "analyzing" && <AnalyzingStep />}
