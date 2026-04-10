@@ -102,9 +102,12 @@ export async function POST(request: NextRequest) {
             ? new Date(periodEndTs * 1000).toISOString()
             : null;
 
+          // Read tier from session metadata (set during checkout creation)
+          const tier = (session.metadata?.tier as string) ?? "pro";
+
           await updateProfileByCustomerId(customerId, {
             subscription_status: "active",
-            subscription_tier: "pro",
+            subscription_tier: tier,
             stripe_subscription_id: subscriptionId,
             subscription_period_end: periodEnd,
           });
@@ -113,6 +116,7 @@ export async function POST(request: NextRequest) {
           await logBillingEvent(event.id, "subscribed", userId, {
             subscription_id: subscriptionId,
             customer_id: customerId,
+            tier,
           });
         }
         break;
@@ -126,15 +130,20 @@ export async function POST(request: NextRequest) {
           ? new Date(periodEndTs * 1000).toISOString()
           : null;
 
+        // Tier may change on plan switch
+        const tier = (subscription.metadata?.tier as string) ?? undefined;
+
         await updateProfileByCustomerId(customerId, {
           subscription_status: subscription.status,
           subscription_period_end: periodEnd,
+          ...(tier ? { subscription_tier: tier } : {}),
         });
 
         const userId = await getUserIdFromCustomer(customerId);
         await logBillingEvent(event.id, "subscription_updated", userId, {
           status: subscription.status,
           subscription_id: subscription.id,
+          tier,
         });
         break;
       }
