@@ -109,7 +109,7 @@ export function FinancialsCard({
                 onChange={(e) =>
                   handleMarginChange(parseFloat(e.target.value) || 0)
                 }
-                className="w-20 text-right"
+                className="w-20 text-right border-border/60 bg-bg-card hover:border-b-accent focus-visible:border-b-accent"
               />
               <span className="text-sm text-txt-secondary">%</span>
             </div>
@@ -140,6 +140,7 @@ export function FinancialsCard({
               onChange={(e) =>
                 handleLaborRateChange(parseFloat(e.target.value) || 0)
               }
+              className="border-border/60 bg-bg-card hover:border-b-accent focus-visible:border-b-accent"
             />
           </div>
           <div className="space-y-1.5">
@@ -152,6 +153,7 @@ export function FinancialsCard({
               onChange={(e) =>
                 handleLaborHoursChange(parseFloat(e.target.value) || 0)
               }
+              className="border-border/60 bg-bg-card hover:border-b-accent focus-visible:border-b-accent"
             />
           </div>
         </div>
