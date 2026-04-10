@@ -23,6 +23,9 @@ import { cn } from "@/lib/utils";
 import { CustomerCard } from "@/components/estimates/customer-card";
 import { ShareBlock } from "@/components/estimates/share-block";
 import { EstimateActions } from "@/components/estimates/estimate-actions";
+import { FinancialsCard } from "@/components/estimates/financials-card";
+import { BomCategoryTable } from "@/components/estimates/bom-category-table";
+import { UnsavedShareBanner } from "@/components/estimates/unsaved-share-banner";
 import { reconstructBomResult } from "@/lib/hvac/bom-from-saved";
 import type { Database } from "@/types/database";
 
@@ -95,11 +98,6 @@ export default async function EstimateDetailPage({
     (item) => item.source === "missing" || (item.unit_cost === 0 && item.source !== "labor"),
   );
 
-  const materialCost = bom.reduce((sum, item) => sum + item.total_cost, 0);
-  const laborCost = est.labor_rate * est.labor_hours;
-  const margin = est.profit_margin;
-  const totalPrice = est.total_price ?? 0;
-
   // Group BOM by category
   const bomByCategory: Record<string, BomRow[]> = {};
   for (const item of bom) {
@@ -145,6 +143,13 @@ export default async function EstimateDetailPage({
         <ShareBlock estimate={est} activeShare={activeShare} hasUnpricedItems={hasUnpricedItems} />
       </div>
 
+      {/* Unsaved share banner */}
+      <UnsavedShareBanner
+        estimate={est}
+        hasActiveShare={activeShare !== null}
+        hasUnpricedItems={hasUnpricedItems}
+      />
+
       {/* Customer */}
       <CustomerCard
         estimateId={est.id}
@@ -161,47 +166,15 @@ export default async function EstimateDetailPage({
         projectName={est.project_name}
       />
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Card className="bg-gradient-card border-b-accent">
-          <CardHeader>
-            <CardTitle className="text-xs uppercase tracking-wider text-txt-tertiary">Materials</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-txt-primary">
-              ${materialCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-card border-b-accent">
-          <CardHeader>
-            <CardTitle className="text-xs uppercase tracking-wider text-txt-tertiary">Labor</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-txt-primary">
-              ${laborCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-card border-b-accent">
-          <CardHeader>
-            <CardTitle className="text-xs uppercase tracking-wider text-txt-tertiary">Margin</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-txt-primary">{margin}%</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-card border-b-accent">
-          <CardHeader>
-            <CardTitle className="text-xs uppercase tracking-wider text-txt-tertiary">Total Price</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-extrabold text-gradient-brand">
-              ${totalPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Financials — editable margin slider, labor inputs, live totals */}
+      <FinancialsCard
+        estimateId={est.id}
+        initialMargin={est.profit_margin}
+        initialLaborRate={est.labor_rate}
+        initialLaborHours={est.labor_hours}
+        bomItems={bom}
+        status={est.status}
+      />
 
       {/* Rooms Table */}
       {roomList.length > 0 && (
@@ -242,47 +215,16 @@ export default async function EstimateDetailPage({
         </Card>
       )}
 
-      {/* BOM Tables grouped by category */}
+      {/* BOM Tables grouped by category — editable */}
       {Object.entries(bomByCategory).map(([category, items]) => (
-        <Card key={category} className="bg-gradient-card border-border">
-          <CardHeader>
-            <CardTitle className="text-txt-primary">{formatRoomType(category)}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary pb-3">Description</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary pb-3">SKU</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary pb-3 text-right">Qty</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary pb-3 text-right">Unit Cost</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary pb-3 text-right">Total Cost</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {items.map((item) => (
-                  <TableRow key={item.id} className="border-b border-border hover:bg-[rgba(6,182,212,0.03)] transition-colors">
-                    <TableCell className="text-sm text-txt-secondary py-2 text-txt-primary font-medium">
-                      {item.description}
-                    </TableCell>
-                    <TableCell className="text-sm text-txt-secondary py-2">
-                      {item.sku ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-sm text-txt-secondary py-2 tabular-nums text-txt-primary font-medium text-right">
-                      {item.quantity} {item.unit}
-                    </TableCell>
-                    <TableCell className="text-sm text-txt-secondary py-2 tabular-nums text-txt-primary font-medium text-right">
-                      ${item.unit_cost.toFixed(2)}
-                    </TableCell>
-                    <TableCell className="text-sm text-txt-secondary py-2 tabular-nums text-txt-primary font-medium text-right">
-                      ${item.total_cost.toFixed(2)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <BomCategoryTable
+          key={category}
+          estimateId={est.id}
+          category={category}
+          items={items}
+          status={est.status}
+          onMutate={() => {}}
+        />
       ))}
     </div>
   );
