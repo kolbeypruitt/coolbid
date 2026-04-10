@@ -51,19 +51,24 @@ export function CatalogSearchDialog({
     const supabase = createClient();
     let q = supabase
       .from("equipment_catalog")
-      .select("*")
+      .select("*, supplier:suppliers(name, is_active)")
       .or(
         `description.ilike.%${query.trim()}%,model_number.ilike.%${query.trim()}%`
       )
       .order("usage_count", { ascending: false })
-      .limit(20);
+      .limit(40);
 
     if (filterCategory) {
       q = q.eq("equipment_type", filterCategory);
     }
 
     const { data } = await q;
-    setResults(data ?? []);
+    const visible = (data ?? []).filter((item) => {
+      if (item.source !== "starter") return true;
+      const supplier = item.supplier as { name: string; is_active: boolean } | null;
+      return supplier?.is_active !== false;
+    });
+    setResults(visible.slice(0, 20) as CatalogRow[]);
     setLoading(false);
   }
 
