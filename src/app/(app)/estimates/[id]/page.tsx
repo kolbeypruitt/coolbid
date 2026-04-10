@@ -132,6 +132,26 @@ export default async function EstimateDetailPage({
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold text-txt-primary">{est.project_name}</h1>
             <Badge variant={statusVariant(est.status)}>{est.status}</Badge>
+            {est.accepted_at && (
+              <span className="text-sm text-txt-secondary">
+                Accepted on{" "}
+                {new Date(est.accepted_at).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </span>
+            )}
+            {est.declined_at && (
+              <span className="text-sm text-txt-secondary">
+                Declined on{" "}
+                {new Date(est.declined_at).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </span>
+            )}
           </div>
           <p className="text-sm text-txt-secondary mt-1">{est.customer_name}</p>
           {est.total_sqft != null && (

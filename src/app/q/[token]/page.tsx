@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { lookupShareByToken } from "@/lib/share/lifecycle";
 import { generateScopeOfWork } from "@/lib/share/scope-of-work";
 import { NotAvailable } from "./not-available";
+import { AcceptDeclineButtons } from "@/components/share/accept-decline-buttons";
 import type { Database } from "@/types/database";
 
 type EstimateRow = Database["public"]["Tables"]["estimates"]["Row"];
@@ -207,6 +208,11 @@ export default async function PublicSharePage({
               <p className="italic text-txt-secondary">{est.note_to_customer}</p>
             </section>
           )}
+
+          {/* Accept / Decline */}
+          <section className="mt-8">
+            <AcceptDeclineButtons token={token} estimateStatus={est.status} />
+          </section>
 
           {/* Download button */}
           <footer className="mt-10 flex flex-col items-center gap-4 border-t border-border pt-6">

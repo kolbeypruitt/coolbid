@@ -32,6 +32,8 @@ function estimate(overrides: Partial<EstimateRow> = {}): EstimateRow {
     valid_until: null,
     display_mode: "total_only",
     scope_of_work: null,
+    accepted_at: null,
+    declined_at: null,
     ...overrides,
   };
 }

@@ -107,6 +107,8 @@ export type Database = {
           valid_until: string | null;
           display_mode: "total_only" | "itemized";
           scope_of_work: string | null;
+          accepted_at: string | null;
+          declined_at: string | null;
         };
         Insert: {
           id?: string;
@@ -132,6 +134,8 @@ export type Database = {
           valid_until?: string | null;
           display_mode?: "total_only" | "itemized";
           scope_of_work?: string | null;
+          accepted_at?: string | null;
+          declined_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["estimates"]["Insert"]>;
         Relationships: [];
@@ -501,6 +505,7 @@ export type Database = {
           first_viewed_at: string | null;
           last_viewed_at: string | null;
           view_count: number;
+          responded_at: string | null;
         };
         Insert: {
           id?: string;
@@ -511,6 +516,7 @@ export type Database = {
           first_viewed_at?: string | null;
           last_viewed_at?: string | null;
           view_count?: number;
+          responded_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["estimate_shares"]["Insert"]>;
         Relationships: [];
