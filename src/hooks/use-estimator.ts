@@ -15,6 +15,7 @@ type PagePreview = {
 
 type EstimatorState = {
   step: EstimatorStep;
+  estimateId: string | null;
   fileName: string;
   floorplanImg: string | null;
   pdfPages: PagePreview[];
@@ -43,6 +44,7 @@ type EstimatorState = {
 
 type EstimatorActions = {
   setStep: (step: EstimatorStep) => void;
+  createDraft: () => Promise<string | null>;
   setFile: (fileName: string, img: string) => void;
   setPdfPages: (pages: PagePreview[]) => void;
   setSelectedPages: (pages: number[]) => void;
@@ -85,6 +87,7 @@ const STEP_ORDER: EstimatorStep[] = ["customer", "upload", "select_pages", "anal
 function initialState(): EstimatorState {
   return {
     step: "customer",
+    estimateId: null,
     fileName: "",
     floorplanImg: null,
     pdfPages: [],
@@ -116,6 +119,54 @@ export const useEstimator = create<EstimatorState & EstimatorActions>((set, get)
   ...initialState(),
 
   setStep: (step) => set({ step }),
+
+  createDraft: async () => {
+    const state = get();
+    if (state.estimateId) return state.estimateId;
+
+    try {
+      const supabase = createClient();
+      const { data: { user }, error: authErr } = await supabase.auth.getUser();
+      if (authErr || !user) {
+        set({ error: "Not authenticated" });
+        return null;
+      }
+
+      const { data, error } = await supabase
+        .from("estimates")
+        .insert({
+          user_id: user.id,
+          project_name: state.projectName.trim() || state.jobAddress.trim() || "New Estimate",
+          customer_name: state.customerName.trim(),
+          job_address: state.jobAddress.trim() || null,
+          customer_email: state.customerEmail.trim() || null,
+          customer_phone: state.customerPhone.trim() || null,
+          status: "draft",
+          climate_zone: state.climateZone,
+          system_type: state.systemType,
+          profit_margin: state.profitMargin,
+          labor_rate: state.laborRate,
+          labor_hours: state.laborHours,
+          supplier_name: state.supplierName.trim() || "",
+          num_units: state.knownUnits,
+          hvac_per_unit: state.hvacPerUnit,
+        })
+        .select("id")
+        .single();
+
+      if (error || !data) {
+        set({ error: error?.message ?? "Failed to create draft" });
+        return null;
+      }
+
+      const id = data.id as string;
+      set({ estimateId: id });
+      return id;
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : "Failed to create draft" });
+      return null;
+    }
+  },
 
   setFile: (fileName, img) => set({ fileName, floorplanImg: img }),
 

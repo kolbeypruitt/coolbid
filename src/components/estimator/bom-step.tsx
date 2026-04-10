@@ -37,6 +37,7 @@ export function BomStep() {
   const {
     bom,
     rooms,
+    estimateId,
     profitMargin,
     laborRate,
     laborHours,
@@ -105,25 +106,22 @@ export function BomStep() {
     URL.revokeObjectURL(url);
   }
 
-  async function handleSave() {
+  async function handleFinish() {
     const currentBom = bom;
-    if (!currentBom) return;
+    if (!currentBom || !estimateId) return;
     setError(null);
     try {
       const supabase = createClient();
-      const { data: { user }, error: authErr } = await supabase.auth.getUser();
-      if (authErr || !user) throw new Error("Not authenticated");
 
-      const { data: estimate, error: estErr } = await supabase
+      // Update the estimate row with final financials
+      const { error: estErr } = await supabase
         .from("estimates")
-        .insert({
-          user_id: user.id,
+        .update({
           project_name: projectName.trim() || "New Estimate",
           customer_name: customerName.trim() || "",
           job_address: jobAddress.trim() || null,
           customer_email: customerEmail.trim() || null,
           customer_phone: customerPhone.trim() || null,
-          status: "draft",
           total_sqft: knownTotalSqft ? parseFloat(knownTotalSqft) || null : null,
           num_units: knownUnits,
           hvac_per_unit: hvacPerUnit,
@@ -136,14 +134,12 @@ export function BomStep() {
           total_material_cost: materialCost,
           total_price: totalPrice,
         })
-        .select("id")
-        .single();
+        .eq("id", estimateId);
 
-      if (estErr || !estimate) throw new Error(estErr?.message ?? "Failed to create estimate");
+      if (estErr) throw new Error(estErr.message);
 
-      const estimateId = estimate.id as string;
-
-      // Insert rooms
+      // Clear and re-insert rooms
+      await supabase.from("estimate_rooms").delete().eq("estimate_id", estimateId);
       if (rooms.length > 0) {
         const roomRows = rooms.map((r) => ({
           estimate_id: estimateId,
@@ -162,7 +158,8 @@ export function BomStep() {
         if (roomErr) throw new Error(roomErr.message);
       }
 
-      // Insert BOM items
+      // Clear and re-insert BOM items
+      await supabase.from("estimate_bom_items").delete().eq("estimate_id", estimateId);
       if (currentBom.items.length > 0) {
         const bomRows = currentBom.items.map((item) => ({
           estimate_id: estimateId,
@@ -388,9 +385,9 @@ export function BomStep() {
           <Download />
           Export CSV
         </Button>
-        <Button onClick={handleSave} className="bg-gradient-brand hover-lift">
+        <Button onClick={handleFinish} className="bg-gradient-brand hover-lift">
           <Save />
-          Save Estimate
+          Done — View Estimate
         </Button>
       </div>
     </div>
