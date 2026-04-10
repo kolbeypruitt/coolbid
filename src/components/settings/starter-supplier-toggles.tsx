@@ -51,14 +51,15 @@ export function StarterSupplierToggles() {
     );
 
     const supabase = createClient();
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("suppliers")
       .update({ is_active: newValue })
       .eq("id", supplier.id)
-      .eq("user_id", supplier.user_id);
+      .select("id, is_active")
+      .single();
 
-    if (error) {
-      console.error("[StarterSupplierToggles] update failed:", error.message);
+    if (error || !data) {
+      console.error("[StarterSupplierToggles] update failed:", error?.message ?? "no row returned");
       toast.error("Failed to update supplier");
       setSuppliers((prev) =>
         prev.map((s) =>
