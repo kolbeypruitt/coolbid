@@ -54,18 +54,13 @@ export async function GET(
   const { data, error } = await supabase
     .from("equipment_catalog")
     .select(
-      "*, supplier:suppliers(name), price_history(*, ordered:quote_date.desc), quote_lines(*)"
+      "*, supplier:suppliers(name), price_history(*), quote_lines(*)"
     )
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
 
   if (error || !data) {
-    console.error("[GET /api/catalog/:id]", {
-      itemId: id,
-      userId: user.id,
-      dbError: error?.message ?? "no row returned",
-    });
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
