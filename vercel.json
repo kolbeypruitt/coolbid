@@ -1,6 +1,0 @@
-{
-  "crons": [
-    { "path": "/api/cron/sync-emails", "schedule": "*/15 * * * *" },
-    { "path": "/api/cron/send-retention-emails", "schedule": "0 14 * * *" }
-  ]
-}
