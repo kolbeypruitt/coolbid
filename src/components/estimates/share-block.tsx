@@ -12,9 +12,10 @@ type ShareRow = Database["public"]["Tables"]["estimate_shares"]["Row"];
 export interface ShareBlockProps {
   estimate: EstimateRow;
   activeShare: ShareRow | null;
+  hasUnpricedItems?: boolean;
 }
 
-export function ShareBlock({ estimate, activeShare }: ShareBlockProps) {
+export function ShareBlock({ estimate, activeShare, hasUnpricedItems = false }: ShareBlockProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -58,6 +59,7 @@ export function ShareBlock({ estimate, activeShare }: ShareBlockProps) {
           note_to_customer: estimate.note_to_customer,
           customer_email: estimate.customer_email,
         }}
+        hasUnpricedItems={hasUnpricedItems}
         open={open}
         onOpenChange={setOpen}
       />

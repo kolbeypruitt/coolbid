@@ -22,6 +22,8 @@ import {
 import { cn } from "@/lib/utils";
 import { CustomerCard } from "@/components/estimates/customer-card";
 import { ShareBlock } from "@/components/estimates/share-block";
+import { EstimateActions } from "@/components/estimates/estimate-actions";
+import { reconstructBomResult } from "@/lib/hvac/bom-from-saved";
 import type { Database } from "@/types/database";
 
 type EstimateRow = Database["public"]["Tables"]["estimates"]["Row"];
@@ -45,11 +47,16 @@ export default async function EstimateDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const [
     { data: estimate },
     { data: rooms },
     { data: bomItems },
     { data: activeShareData },
+    { data: profileData },
   ] = await Promise.all([
     supabase.from("estimates").select("*").eq("id", id).single(),
     supabase
@@ -68,6 +75,9 @@ export default async function EstimateDetailPage({
       .eq("estimate_id", id)
       .is("revoked_at", null)
       .maybeSingle(),
+    user
+      ? supabase.from("profiles").select("company_name, company_phone, company_email").eq("id", user.id).single()
+      : Promise.resolve({ data: null }),
   ]);
 
   if (!estimate) {
@@ -80,6 +90,10 @@ export default async function EstimateDetailPage({
   const activeShare = (activeShareData ?? null) as
     | Database["public"]["Tables"]["estimate_shares"]["Row"]
     | null;
+
+  const hasUnpricedItems = bom.some(
+    (item) => item.source === "missing" || (item.unit_cost === 0 && item.source !== "labor"),
+  );
 
   const materialCost = bom.reduce((sum, item) => sum + item.total_cost, 0);
   const laborCost = est.labor_rate * est.labor_hours;
@@ -94,6 +108,16 @@ export default async function EstimateDetailPage({
     }
     bomByCategory[item.category].push(item);
   }
+
+  const bomResult = reconstructBomResult(est, bom, roomList);
+  const rfqConfig = {
+    companyName: profileData?.company_name ?? "",
+    companyPhone: profileData?.company_phone ?? "",
+    companyEmail: profileData?.company_email ?? "",
+    supplierName: est.supplier_name,
+    projectName: est.project_name,
+    customerName: est.customer_name,
+  };
 
   return (
     <div className="space-y-6">
@@ -118,7 +142,7 @@ export default async function EstimateDetailPage({
             </p>
           )}
         </div>
-        <ShareBlock estimate={est} activeShare={activeShare} />
+        <ShareBlock estimate={est} activeShare={activeShare} hasUnpricedItems={hasUnpricedItems} />
       </div>
 
       {/* Customer */}
@@ -128,6 +152,13 @@ export default async function EstimateDetailPage({
         job_address={est.job_address}
         customer_email={est.customer_email}
         customer_phone={est.customer_phone}
+      />
+
+      {/* RFQ + Export actions */}
+      <EstimateActions
+        bom={bomResult}
+        rfqConfig={rfqConfig}
+        projectName={est.project_name}
       />
 
       {/* Summary Cards */}

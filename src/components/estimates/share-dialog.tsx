@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Download, CircleX, Loader2 } from "lucide-react";
+import { Copy, Download, CircleX, Loader2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +25,7 @@ export interface ShareDialogProps {
     note_to_customer: string | null;
     customer_email: string | null;
   };
+  hasUnpricedItems?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -32,6 +33,7 @@ export interface ShareDialogProps {
 export function ShareDialog({
   estimateId,
   initial,
+  hasUnpricedItems = false,
   open,
   onOpenChange,
 }: ShareDialogProps) {
@@ -239,6 +241,19 @@ export function ShareDialog({
             />
           </div>
 
+          {hasUnpricedItems && (
+            <div className="flex items-start gap-3 rounded-md border border-error bg-error-bg p-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-error" />
+              <div className="text-sm text-error">
+                <p className="font-medium">Some items don&apos;t have pricing yet.</p>
+                <p className="mt-1 text-txt-secondary">
+                  Send an RFQ to your supplier first so the quote reflects real costs.
+                  Sharing now would understate the total.
+                </p>
+              </div>
+            </div>
+          )}
+
           {!initial.customer_email && (
             <div className="space-y-2 rounded-md border border-warning bg-[rgba(251,191,36,0.08)] p-3">
               <p className="text-sm text-warning">
@@ -263,7 +278,7 @@ export function ShareDialog({
             </Button>
             <Button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || hasUnpricedItems}
               className="bg-gradient-brand hover-lift"
             >
               {submitting ? (

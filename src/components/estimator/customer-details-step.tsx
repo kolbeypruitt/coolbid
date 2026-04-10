@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,15 +25,21 @@ export function CustomerDetailsStep() {
     setCustomerEmail,
     setCustomerPhone,
     setProjectName,
+    createDraft,
     nextStep,
+    error,
   } = useEstimator();
 
+  const [saving, setSaving] = useState(false);
   const canProceed = customerName.trim().length > 0;
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canProceed) return;
-    nextStep();
+    setSaving(true);
+    const id = await createDraft();
+    setSaving(false);
+    if (id) nextStep();
   }
 
   return (
@@ -97,12 +104,14 @@ export function CustomerDetailsStep() {
             />
           </div>
 
+          {error && <p className="text-sm text-error">{error}</p>}
+
           <Button
             type="submit"
             className="bg-gradient-brand hover-lift w-full"
-            disabled={!canProceed}
+            disabled={!canProceed || saving}
           >
-            Continue to floorplan
+            {saving ? "Creating estimate..." : "Continue to floorplan"}
           </Button>
         </form>
       </CardContent>
