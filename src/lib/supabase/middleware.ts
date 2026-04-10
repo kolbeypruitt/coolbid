@@ -92,7 +92,7 @@ export async function updateSession(request: NextRequest) {
     if (!cachedStatus) {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("subscription_status, trial_ends_at, ai_actions_used")
+        .select("subscription_status, subscription_tier, trial_ends_at, ai_actions_used")
         .eq("id", user!.id)
         .single();
 
@@ -106,6 +106,10 @@ export async function updateSession(request: NextRequest) {
           status === "trialing" && profile.ai_actions_used >= 50;
 
         supabaseResponse.cookies.set("sub_status", status ?? "unknown", {
+          path: "/",
+          maxAge: 300,
+        });
+        supabaseResponse.cookies.set("sub_tier", profile.subscription_tier ?? "trial", {
           path: "/",
           maxAge: 300,
         });
