@@ -3,6 +3,8 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
 import { constructWebhookEvent, stripe } from "@/lib/stripe";
 import type { Database } from "@/types/database";
+import { getResend, FROM_EMAIL } from "@/lib/resend";
+import { PaymentFailedEmail } from "@/lib/emails/payment-failed";
 
 function getServiceClient() {
   return createServiceClient<Database>(
@@ -171,11 +173,34 @@ export async function POST(request: NextRequest) {
           subscription_status: "past_due",
         });
 
-        const userId = await getUserIdFromCustomer(customerId);
+        const { data: failedProfile } = await supabase
+          .from("profiles")
+          .select("id, company_email")
+          .eq("stripe_customer_id", customerId)
+          .single();
+
+        const userId = failedProfile?.id ?? null;
         await logBillingEvent(event.id, "payment_failed", userId, {
           invoice_id: invoice.id,
           amount_due: invoice.amount_due,
         });
+
+        if (failedProfile?.company_email) {
+          try {
+            const resend = getResend();
+            const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim() ?? "https://coolbid.app";
+            await resend.emails.send({
+              from: FROM_EMAIL,
+              to: failedProfile.company_email,
+              subject: "Your CoolBid payment didn't go through",
+              react: PaymentFailedEmail({
+                portalUrl: `${appUrl}/settings`,
+              }),
+            });
+          } catch (err) {
+            console.error("Failed to send payment failed email:", err);
+          }
+        }
         break;
       }
 
