@@ -20,6 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { CustomerCard } from "@/components/estimates/customer-card";
 import type { Database } from "@/types/database";
 
 type EstimateRow = Database["public"]["Tables"]["estimates"]["Row"];
@@ -104,6 +105,15 @@ export default async function EstimateDetailPage({
           )}
         </div>
       </div>
+
+      {/* Customer */}
+      <CustomerCard
+        estimateId={est.id}
+        customer_name={est.customer_name}
+        job_address={est.job_address}
+        customer_email={est.customer_email}
+        customer_phone={est.customer_phone}
+      />
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
