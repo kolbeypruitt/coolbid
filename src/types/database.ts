@@ -34,6 +34,7 @@ export type Database = {
           logo_url: string | null;
           logo_content_type: string | null;
           team_id: string | null;
+          feedback_prompts_seen: Record<string, boolean>;
         };
         Insert: {
           id: string;
@@ -58,6 +59,7 @@ export type Database = {
           logo_url?: string | null;
           logo_content_type?: string | null;
           team_id?: string | null;
+          feedback_prompts_seen?: Record<string, boolean>;
         };
         Update: {
           company_name?: string;
@@ -80,6 +82,7 @@ export type Database = {
           logo_url?: string | null;
           logo_content_type?: string | null;
           team_id?: string | null;
+          feedback_prompts_seen?: Record<string, boolean>;
         };
         Relationships: [];
       };
