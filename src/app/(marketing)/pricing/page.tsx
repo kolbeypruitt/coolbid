@@ -34,7 +34,7 @@ export default function PricingPage() {
       </section>
 
       {/* Pricing card */}
-      <section className="mx-auto max-w-sm px-6 pb-20">
+      <section className="mx-auto max-w-6xl px-6 pb-20">
         <PricingCard />
       </section>
 

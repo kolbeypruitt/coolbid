@@ -628,7 +628,7 @@ function Pricing() {
           title="One plan. Unlimited estimates."
           subtitle="Start free for 30 days. Cancel any time — your data stays yours."
         />
-        <div className="mx-auto mt-14 max-w-sm">
+        <div className="mx-auto mt-14 max-w-6xl">
           <PricingCard />
         </div>
       </div>
