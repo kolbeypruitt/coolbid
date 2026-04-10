@@ -57,6 +57,12 @@ function isRetiredStarter(
   );
 }
 
+function isFromInactiveStarter(item: CatalogItem): boolean {
+  if (item.source !== "starter") return false;
+  const supplier = item.supplier as { name: string; is_active: boolean } | null;
+  return supplier?.is_active === false;
+}
+
 export async function GET(req: Request) {
   const supabase = await createClient();
 
@@ -87,7 +93,7 @@ export async function GET(req: Request) {
 
   let query = supabase
     .from("equipment_catalog")
-    .select("*, supplier:suppliers(name)")
+    .select("*, supplier:suppliers(name, is_active)")
     .eq("user_id", user.id)
     .order(sort, { ascending: false })
     .range(offset, offset + fetchSize - 1);
@@ -115,9 +121,11 @@ export async function GET(req: Request) {
 
   const allItems = (data ?? []) as CatalogItem[];
 
+  const activeItems = allItems.filter((item) => !isFromInactiveStarter(item));
+
   const filtered = showRetired
-    ? allItems
-    : allItems.filter((item) => !isRetiredStarter(item, allItems));
+    ? activeItems
+    : activeItems.filter((item) => !isRetiredStarter(item, activeItems));
 
   const page = filtered.slice(0, PAGE_SIZE);
   const hasMore = showRetired
@@ -156,7 +164,7 @@ export async function POST(req: Request) {
   const { data, error } = await supabase
     .from("equipment_catalog")
     .insert({ ...parsed.data, source: "manual", user_id: user.id })
-    .select("*, supplier:suppliers(name)")
+    .select("*, supplier:suppliers(name, is_active)")
     .single();
 
   if (error) {
