@@ -16,7 +16,8 @@ import { cn } from "@/lib/utils";
 import { PricingCard } from "@/components/billing/pricing-card";
 
 export const metadata = {
-  title: "coolbid — Floorplan in. Bill of materials out.",
+  // Use root layout's default title — avoids template duplication on the home page.
+  title: { absolute: "coolbid — Floorplan in. Bill of materials out." },
   description:
     "Upload a floorplan, get a priced bill of materials in minutes. HVAC estimating for residential contractors.",
 };
