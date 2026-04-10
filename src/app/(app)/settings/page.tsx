@@ -15,6 +15,7 @@ import {
 import { SubscriptionStatus } from "@/components/billing/subscription-status";
 import { LogoUploader } from "@/components/settings/logo-uploader";
 import { HelpFeedbackCard } from "@/components/settings/help-feedback-card";
+import { StarterSupplierToggles } from "@/components/settings/starter-supplier-toggles";
 import type { Database } from "@/types/database";
 
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
@@ -269,6 +270,9 @@ export default function SettingsPage() {
           />
         </CardContent>
       </Card>
+
+      {/* Starter Parts Lists */}
+      <StarterSupplierToggles />
 
       {/* Subscription */}
       <SubscriptionStatus />
