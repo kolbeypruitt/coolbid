@@ -81,6 +81,10 @@ export default async function EstimateDetailPage({
     | Database["public"]["Tables"]["estimate_shares"]["Row"]
     | null;
 
+  const hasUnpricedItems = bom.some(
+    (item) => item.source === "missing" || (item.unit_cost === 0 && item.source !== "labor"),
+  );
+
   const materialCost = bom.reduce((sum, item) => sum + item.total_cost, 0);
   const laborCost = est.labor_rate * est.labor_hours;
   const margin = est.profit_margin;
@@ -118,7 +122,7 @@ export default async function EstimateDetailPage({
             </p>
           )}
         </div>
-        <ShareBlock estimate={est} activeShare={activeShare} />
+        <ShareBlock estimate={est} activeShare={activeShare} hasUnpricedItems={hasUnpricedItems} />
       </div>
 
       {/* Customer */}
