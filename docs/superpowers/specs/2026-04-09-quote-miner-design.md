@@ -33,7 +33,7 @@ Single service architecture inside CoolBid:
 
 ```
 cron-job.org (external, free)
-  → POST https://coolbid.vercel.app/api/cron/sync-emails
+  → POST https://coolbid.app/api/cron/sync-emails
     (Authorization: Bearer CRON_SECRET)
     → Next.js API route processes ONE email_connections row per invocation
       → Google OAuth token refresh if needed
@@ -151,7 +151,7 @@ alter table public.quotes add constraint quotes_status_check
 3. Create OAuth 2.0 Client ID (Web Application)
 4. Authorized redirect URIs:
    - `http://localhost:3000/api/auth/gmail/callback` (dev)
-   - `https://coolbid.vercel.app/api/auth/gmail/callback` (prod)
+   - `https://coolbid.app/api/auth/gmail/callback` (prod)
 5. Configure OAuth consent screen:
    - Scopes: `openid`, `email`, `https://www.googleapis.com/auth/gmail.readonly`
    - App name: CoolBid
@@ -363,7 +363,7 @@ Add to Vercel + `.env.local.example`:
 ```
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI=https://coolbid.vercel.app/api/auth/gmail/callback
+GOOGLE_REDIRECT_URI=https://coolbid.app/api/auth/gmail/callback
 CRON_SECRET=<generate random 32-byte hex>
 OAUTH_STATE_SECRET=<generate random 32-byte hex for signing state tokens>
 ```
@@ -404,7 +404,7 @@ OAUTH_STATE_SECRET=<generate random 32-byte hex for signing state tokens>
 1. **Google Cloud Console:** create OAuth Client ID, configure consent screen, add redirect URIs, save secrets
 2. **Vercel env vars:** add GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI, CRON_SECRET, OAUTH_STATE_SECRET
 3. **cron-job.org:** create account, add new cron job:
-   - URL: `https://coolbid.vercel.app/api/cron/sync-emails`
+   - URL: `https://coolbid.app/api/cron/sync-emails`
    - Method: POST
    - Headers: `Authorization: Bearer <CRON_SECRET>`
    - Schedule: every 15 minutes
