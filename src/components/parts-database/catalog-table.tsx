@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import {
@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -41,6 +42,8 @@ const SOURCE_BADGE: Record<
 export function CatalogTable() {
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [query, setQuery] = useState("");
   const [equipmentType, setEquipmentType] = useState<EquipmentType | "all">(
     "all"
@@ -48,24 +51,44 @@ export function CatalogTable() {
   const [sort, setSort] = useState<SortOption>("usage");
   const [showRetired, setShowRetired] = useState(false);
 
-  useEffect(() => {
-    const controller = new AbortController();
-
-    const timer = setTimeout(() => {
+  const fetchPage = useCallback(
+    (offset: number, signal: AbortSignal) => {
       const params = new URLSearchParams();
       if (query.trim()) params.set("q", query.trim());
       if (equipmentType !== "all") params.set("equipment_type", equipmentType);
       if (sort !== "usage") params.set("sort", sort);
       if (showRetired) params.set("show_retired", "true");
+      if (offset > 0) params.set("offset", String(offset));
 
+      return fetch(`/api/catalog?${params.toString()}`, { signal })
+        .then((res) => {
+          if (!res.ok) throw new Error(`Catalog fetch failed: ${res.status}`);
+          return res.json();
+        })
+        .then((data: { items: CatalogItem[]; hasMore: boolean }) => data);
+    },
+    [query, equipmentType, sort, showRetired],
+  );
+
+  const loadMoreControllerRef = useRef<AbortController | null>(null);
+
+  // Reset and fetch first page when filters change
+  useEffect(() => {
+    const controller = new AbortController();
+    loadMoreControllerRef.current?.abort();
+
+    const timer = setTimeout(() => {
       setLoading(true);
-      fetch(`/api/catalog?${params.toString()}`, { signal: controller.signal })
-        .then((res) => res.json())
-        .then((data: CatalogItem[]) => {
-          setItems(Array.isArray(data) ? data : []);
+      fetchPage(0, controller.signal)
+        .then((data) => {
+          setItems(Array.isArray(data.items) ? data.items : []);
+          setHasMore(data.hasMore ?? false);
         })
         .catch((err: unknown) => {
-          if (err instanceof Error && err.name !== "AbortError") setItems([]);
+          if (err instanceof Error && err.name !== "AbortError") {
+            setItems([]);
+            setHasMore(false);
+          }
         })
         .finally(() => setLoading(false));
     }, 300);
@@ -73,8 +96,27 @@ export function CatalogTable() {
     return () => {
       clearTimeout(timer);
       controller.abort();
+      loadMoreControllerRef.current?.abort();
     };
-  }, [query, equipmentType, sort, showRetired]);
+  }, [fetchPage]);
+
+  function loadMore() {
+    loadMoreControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadMoreControllerRef.current = controller;
+    setLoadingMore(true);
+    fetchPage(items.length, controller.signal)
+      .then((data) => {
+        setItems((prev) => [...prev, ...(data.items ?? [])]);
+        setHasMore(data.hasMore ?? false);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name !== "AbortError") {
+          setHasMore(false);
+        }
+      })
+      .finally(() => setLoadingMore(false));
+  }
 
   return (
     <div className="space-y-4">
@@ -147,6 +189,7 @@ export function CatalogTable() {
           No items found.
         </div>
       ) : (
+        <>
         <div className="overflow-x-auto rounded-md border border-border bg-bg-card">
         <Table>
           <TableHeader>
@@ -209,6 +252,24 @@ export function CatalogTable() {
           </TableBody>
         </Table>
         </div>
+        <div className="flex items-center justify-between px-1">
+          <span className="text-xs text-txt-tertiary">
+            {items.length} item{items.length !== 1 ? "s" : ""}
+          </span>
+          {hasMore && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="text-txt-secondary hover:text-txt-primary"
+            >
+              {loadingMore && <Loader2 aria-hidden className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+              {loadingMore ? "Loading…" : "Load more"}
+            </Button>
+          )}
+        </div>
+        </>
       )}
     </div>
   );

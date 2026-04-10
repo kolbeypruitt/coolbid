@@ -37,6 +37,8 @@ const createCatalogSchema = z.object({
   unit_of_measure: z.string().trim().optional(),
 });
 
+const PAGE_SIZE = 100;
+
 function isRetiredStarter(
   item: CatalogItem,
   allItems: CatalogItem[]
@@ -72,6 +74,7 @@ export async function GET(req: Request) {
   const supplierId = searchParams.get("supplier_id")?.trim() || "";
   const sortParam = searchParams.get("sort")?.trim() || "usage_count";
   const showRetired = searchParams.get("show_retired") === "true";
+  const offset = Math.max(0, parseInt(searchParams.get("offset") || "0", 10) || 0);
 
   const sort = (
     VALID_SORTS as readonly string[]
@@ -79,11 +82,15 @@ export async function GET(req: Request) {
     ? (sortParam as (typeof VALID_SORTS)[number])
     : "usage_count";
 
+  // Fetch extra rows so we can filter retired items and still fill a page
+  const fetchSize = showRetired ? PAGE_SIZE + 1 : PAGE_SIZE * 2;
+
   let query = supabase
     .from("equipment_catalog")
     .select("*, supplier:suppliers(name)")
     .eq("user_id", user.id)
-    .order(sort, { ascending: false });
+    .order(sort, { ascending: false })
+    .range(offset, offset + fetchSize - 1);
 
   if (q) {
     query = query.or(
@@ -106,13 +113,18 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
-  const items = (data ?? []) as CatalogItem[];
+  const allItems = (data ?? []) as CatalogItem[];
 
   const filtered = showRetired
-    ? items
-    : items.filter((item) => !isRetiredStarter(item, items));
+    ? allItems
+    : allItems.filter((item) => !isRetiredStarter(item, allItems));
 
-  return NextResponse.json(filtered);
+  const page = filtered.slice(0, PAGE_SIZE);
+  const hasMore = showRetired
+    ? allItems.length > PAGE_SIZE
+    : filtered.length > PAGE_SIZE || (allItems.length === fetchSize && filtered.length === PAGE_SIZE);
+
+  return NextResponse.json({ items: page, hasMore });
 }
 
 export async function POST(req: Request) {
