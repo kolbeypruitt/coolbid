@@ -2,7 +2,7 @@
 
 **Date**: 2026-04-11
 **Status**: Draft
-**Goal**: Replace the treemap-based layout generation with real room positions extracted from floor plan images using SAM 2 segmentation.
+**Goal**: Replace the treemap-based layout generation with real room positions extracted from floor plan images using SAM 3 segmentation.
 
 ## Problem
 
@@ -15,7 +15,7 @@ The current pipeline extracts room dimensions and labels from floor plans (via D
 
 ## Approach
 
-**SAM 2 segmentation + Claude labeling** — use each tool for what it's good at. SAM 2 handles spatial segmentation (finding room regions and their positions). Claude handles text understanding (labeling rooms, reading dimensions, validating topology).
+**SAM 3 segmentation + Claude labeling** — use each tool for what it's good at. SAM 3 handles spatial segmentation (finding room regions and their positions). Claude handles text understanding (labeling rooms, reading dimensions, validating topology).
 
 ## Pipeline Architecture
 
@@ -26,7 +26,7 @@ User uploads PDF/images
          |
 [NEW] Geometry Service (Python, GPU)
   |-- Pre-process: edge detection -> wall mask
-  |-- SAM 2: segment enclosed room regions
+  |-- SAM 3: segment enclosed room regions
   |-- OpenCV: extract polygon contours from masks
   |-- Compute adjacency (shared edges within tolerance)
   |-- Return: RoomPolygon[] with {vertices, bbox, adjacentTo[]}
@@ -47,15 +47,15 @@ User uploads PDF/images
 ### Technology
 
 - **Framework**: FastAPI
-- **Core dependencies**: SAM 2 (PyTorch), OpenCV, NumPy
-- **Hardware**: GPU required (SAM 2 inference)
+- **Core dependencies**: SAM 3 (PyTorch), OpenCV, NumPy
+- **Hardware**: GPU required (SAM 3 inference)
 - **Hosting**: Replicate or Modal (deploy Docker image with model, pay per inference, no GPU instance management)
 - **Endpoint**: `POST /extract-geometry` — accepts image (JPEG/PNG), returns `RoomPolygon[]` JSON
 - **Expected latency**: 3-8 seconds per page
 
 ### Stage 1: Pre-processing (Wall Detection)
 
-Floor plan walls are the darkest, thickest lines. Before SAM 2 runs:
+Floor plan walls are the darkest, thickest lines. Before SAM 3 runs:
 
 1. Convert to grayscale, apply adaptive thresholding to isolate dark lines (walls)
 2. Morphological operations (dilate/close) to connect wall segments with small gaps (doorways, windows)
@@ -63,9 +63,9 @@ Floor plan walls are the darkest, thickest lines. Before SAM 2 runs:
 
 This step is critical — floor plans have doors and openings that break room boundaries. Closing those gaps gives SAM clean enclosed regions to segment.
 
-### Stage 2: SAM 2 Segmentation
+### Stage 2: SAM 3 Segmentation
 
-SAM 2 runs in automatic mask generation mode (no manual prompts). Returns a set of masks, one per detected region.
+SAM 3 runs in automatic mask generation mode (no manual prompts). Returns a set of masks, one per detected region.
 
 Post-filtering:
 - Discard masks too small (line artifacts, tiny closets below threshold)
@@ -184,9 +184,9 @@ No retries, no silent recovery. Every failure surfaces with diagnostic detail.
 | Failure | Behavior |
 |---------|----------|
 | Geometry service unreachable | Analysis fails: "Floor plan geometry service unavailable" |
-| SAM 2 finds 0 room regions | Analysis fails: "Could not detect room boundaries in floor plan" |
-| SAM 2 finds fewer rooms than Claude labels | Analysis fails with mismatch count details |
-| SAM 2 finds more regions than Claude can label | Analysis fails, surfaces which polygons had no match |
+| SAM 3 finds 0 room regions | Analysis fails: "Could not detect room boundaries in floor plan" |
+| SAM 3 finds fewer rooms than Claude labels | Analysis fails with mismatch count details |
+| SAM 3 finds more regions than Claude can label | Analysis fails, surfaces which polygons had no match |
 | Geometry service times out | Analysis fails after timeout, logs image dimensions and page count |
 | Pre-processing produces no wall mask | Analysis fails: "Could not detect walls in floor plan" |
 
@@ -195,7 +195,7 @@ No retries, no silent recovery. Every failure surfaces with diagnostic detail.
 Log each geometry extraction:
 - Image size, page number
 - Contour count, polygon count, adjacency edge count
-- Processing time per stage (pre-processing, SAM 2, contour extraction)
+- Processing time per stage (pre-processing, SAM 3, contour extraction)
 
 Log Claude label-matching:
 - Polygons matched, unmatched count, confidence
@@ -228,4 +228,4 @@ Current max duration is 120s. Geometry service adds 3-8s per page. Bump to 180s 
 | `src/app/api/analyze/route.ts` | Add geometry service call before Claude |
 | `src/components/estimator/analyzing-step.tsx` | Update progress steps to include geometry extraction |
 | Database migration | Add spatial columns to estimate_rooms |
-| New: Geometry service repo | Python FastAPI service with SAM 2 |
+| New: Geometry service repo | Python FastAPI service with SAM 3 |
