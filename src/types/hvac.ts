@@ -15,6 +15,10 @@ export type Room = {
   width_ft: number; length_ft: number; window_count: number;
   exterior_walls: number; ceiling_height: number; notes: string;
   unit?: number;
+  polygon_id: string;
+  bbox: { x: number; y: number; width: number; height: number };
+  centroid: { x: number; y: number };
+  adjacent_rooms: string[];
 };
 
 export type RoomLoad = Room & { btu: number; cfm: number; regs: number };

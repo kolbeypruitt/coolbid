@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import type { RoomPolygon } from "@/lib/geometry/client";
 
 export const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -292,3 +293,92 @@ Your entire response must be valid JSON with no markdown, no explanation, no cod
 
 --- OCR TEXT ---
 `;
+
+/* ── Geometry-aware prompt: labels detected room polygons ─────────── */
+
+export const GEOMETRY_LABELING_PROMPT = `You are analyzing a floor plan image. A geometry extraction service has already detected room boundaries as polygons. Your job is to LABEL each polygon and fill in room attributes.
+
+You have THREE sources of information:
+1. **The floor plan image(s) above** — use to identify room labels, windows, exterior walls
+2. **The OCR text below** — use for accurate text readings of dimensions, labels, notes
+3. **The detected room polygons below** — each polygon has an id, bounding box (normalized 0-1), and centroid
+
+**Your task for each polygon:**
+1. Look at the floor plan image near the polygon's centroid/bounding box
+2. Identify the room label text visible at that location
+3. Read dimension annotations near the polygon's edges to determine width_ft and length_ft
+4. Count windows visible in that polygon's walls
+5. Determine how many walls are exterior (thick outer walls)
+6. Note ceiling height if annotated, otherwise default to 9 ft
+
+**Important rules:**
+- Every polygon MUST be assigned a room name and type. If you cannot find a label, infer from context (e.g., a small polygon between bedrooms with no label is likely a hallway or closet).
+- The polygon_id in your output MUST match the id from the detected polygons.
+- The bbox and centroid values in your output MUST be copied exactly from the detected polygons — do not modify them.
+- The adjacent_rooms array should contain the room NAMES (not polygon IDs) of adjacent rooms, derived from the adjacency data provided.
+- If you see a labeled room on the floor plan that does NOT have a corresponding polygon, add it to the "unmatched_labels" array in analysis_notes.
+- Read dimension annotations from OCR text first, then check images for rotated text OCR missed.
+- Verify room sqft sum is within 10% of total building sqft.
+
+Return a single valid JSON object:
+{
+  "floorplan_type": "string",
+  "confidence": "high" | "medium" | "low",
+  "building": {
+    "stories": number,
+    "total_sqft": number,
+    "units": number,
+    "has_garage": boolean,
+    "building_shape": "string",
+    "unit_sqft": [number]
+  },
+  "rooms": [
+    {
+      "name": "exact label from plan",
+      "type": "enum value",
+      "floor": number,
+      "unit": number,
+      "estimated_sqft": number,
+      "width_ft": number,
+      "length_ft": number,
+      "window_count": number,
+      "exterior_walls": number,
+      "ceiling_height": number,
+      "notes": "string",
+      "polygon_id": "room_0",
+      "bbox": {"x": 0.1, "y": 0.2, "width": 0.3, "height": 0.25},
+      "centroid": {"x": 0.25, "y": 0.325},
+      "adjacent_rooms": ["Kitchen", "Hallway"]
+    }
+  ],
+  "hvac_notes": {
+    "suggested_equipment_location": "string",
+    "suggested_zones": number,
+    "special_considerations": ["string"]
+  },
+  "analysis_notes": "string"
+}
+
+Your entire response must be valid JSON with no markdown, no explanation, no code fences.
+
+--- DETECTED POLYGONS ---
+`;
+
+/** Format detected polygons as text for the Claude prompt. */
+export function formatPolygonsForPrompt(
+  polygonsByFloor: { floor: number; polygons: RoomPolygon[] }[],
+): string {
+  const sections: string[] = [];
+  for (const { floor, polygons } of polygonsByFloor) {
+    sections.push(`\n[Floor ${floor}]`);
+    for (const p of polygons) {
+      const adj = p.adjacent_to
+        .map((a) => `${a.room_id} (${a.shared_edge})`)
+        .join(", ");
+      sections.push(
+        `  ${p.id}: bbox(x=${p.bbox.x.toFixed(3)}, y=${p.bbox.y.toFixed(3)}, w=${p.bbox.width.toFixed(3)}, h=${p.bbox.height.toFixed(3)}) centroid(${p.centroid.x.toFixed(3)}, ${p.centroid.y.toFixed(3)}) area=${p.area.toFixed(4)}${adj ? ` adjacent=[${adj}]` : ""}`,
+      );
+    }
+  }
+  return sections.join("\n");
+}

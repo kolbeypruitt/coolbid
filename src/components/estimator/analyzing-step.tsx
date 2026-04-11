@@ -8,10 +8,10 @@ import type { AnalysisResult } from "@/types/hvac";
 
 const STEPS = [
   "Scanning document with OCR...",
-  "Extracting text and dimensions...",
-  "Detecting walls and room boundaries...",
+  "Extracting room boundaries from floor plan...",
+  "Detecting walls and computing adjacency...",
   "Reading dimension annotations...",
-  "Identifying room types...",
+  "Labeling rooms and matching polygons...",
   "Computing heat load requirements...",
   "Generating room report...",
 ];
@@ -141,6 +141,13 @@ export function AnalyzingStep() {
           if (res.status === 402) {
             const err = await res.json().catch(() => ({ error: "Analysis failed" }));
             throw new Error((err as { error?: string }).error ?? "Analysis failed");
+          }
+          if (res.status === 422) {
+            const err = await res.json().catch(() => ({ error: "Analysis failed" }));
+            const errorMsg = (err as { error?: string }).error ?? "Analysis failed";
+            if ((err as { code?: string }).code === "geometry_failed") {
+              throw new Error(errorMsg);
+            }
           }
           return null;
         }

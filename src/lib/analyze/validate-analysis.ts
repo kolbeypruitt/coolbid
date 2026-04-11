@@ -54,6 +54,24 @@ export function validateAnalysis(
   const roomSqftSum = rooms.reduce((sum, r) => sum + r.estimated_sqft, 0);
   let confidence = result.confidence;
 
+  // Geometry validation: every room must have spatial data
+  for (const room of rooms) {
+    if (!room.polygon_id) {
+      warnings.push(`Room "${room.name}": missing polygon_id — geometry extraction may have failed`);
+    }
+    if (!room.bbox || room.bbox.width <= 0 || room.bbox.height <= 0) {
+      warnings.push(`Room "${room.name}": invalid or missing bbox`);
+    }
+  }
+
+  // Check for duplicate polygon_ids
+  const polygonIds = rooms.map((r) => r.polygon_id).filter(Boolean);
+  const uniquePolygonIds = new Set(polygonIds);
+  if (polygonIds.length !== uniquePolygonIds.size) {
+    warnings.push("Multiple rooms reference the same polygon_id — geometry/label mismatch");
+    confidence = "low";
+  }
+
   if (result.building.unit_sqft && result.building.unit_sqft.length > 0) {
     // Per-unit validation using explicit unit_sqft array
     for (let u = 0; u < result.building.unit_sqft.length; u++) {
