@@ -31,7 +31,10 @@ async def extract_geometry(image: UploadFile = File(...)) -> GeometryResult:
     # Stage 1: Pre-processing (wall detection + gap closing)
     t0 = time.monotonic()
     wall_mask = detect_walls(img)
-    closed = close_gaps(wall_mask, gap_size=15)
+    # Scale gap size with image resolution — larger images have wider doorways.
+    # Baseline: 15px for ~800px wide, scales up for higher-res scans.
+    gap_px = max(15, min(h, w) // 50)
+    closed = close_gaps(wall_mask, gap_size=gap_px)
     logger.info("Pre-processing: %.2fs", time.monotonic() - t0)
 
     # Stage 2: Contour-based extraction (baseline)
