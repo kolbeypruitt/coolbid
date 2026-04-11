@@ -5,7 +5,10 @@ import numpy as np
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from .preprocess import detect_walls, close_gaps
 from .polygons import extract_room_polygons, compute_adjacency
-from .segment import is_sam3_available, segment_rooms_sam3
+from .segment import (
+    is_sam3_available, segment_rooms_sam3,
+    is_sam2_available, segment_rooms_sam2,
+)
 from .types import GeometryResult
 
 logging.basicConfig(level=logging.INFO)
@@ -28,46 +31,85 @@ async def extract_geometry(image: UploadFile = File(...)) -> GeometryResult:
     h, w = img.shape[:2]
     logger.info("Processing image: %dx%d", w, h)
 
+    # Stage 1: Pre-processing (wall detection + gap closing)
     t0 = time.monotonic()
     wall_mask = detect_walls(img)
     closed = close_gaps(wall_mask, gap_size=15)
     logger.info("Pre-processing: %.2fs", time.monotonic() - t0)
 
+    # Stage 2: Contour-based extraction (baseline)
     t1 = time.monotonic()
+    contour_polygons = extract_room_polygons(closed, image_width=w, image_height=h)
+    logger.info("Contour-based: %d polygons in %.2fs", len(contour_polygons), time.monotonic() - t1)
+
+    # Stage 3: Try SAM models — only use if they find more rooms than contours
+    best_polygons = contour_polygons
+    best_source = "contour"
+
+    # SAM 3: text-prompted (best quality)
     if is_sam3_available():
         try:
-            logger.info("Using SAM 3 segmentation")
+            t2 = time.monotonic()
+            logger.info("Trying SAM 3 (text-prompted)")
             room_masks = segment_rooms_sam3(img)
             if room_masks:
-                combined = np.zeros_like(closed)
-                for mask in room_masks:
-                    combined = cv2.bitwise_or(combined, cv2.bitwise_not(mask))
-                closed = combined
+                sam_mask = _masks_to_wall_mask(room_masks, closed.shape)
+                sam_polygons = extract_room_polygons(sam_mask, image_width=w, image_height=h)
+                logger.info("SAM 3: %d polygons in %.2fs", len(sam_polygons), time.monotonic() - t2)
+                if len(sam_polygons) >= len(contour_polygons):
+                    best_polygons = sam_polygons
+                    best_source = "sam3"
         except Exception as e:
-            logger.warning("SAM 3 failed, falling back to contour-based: %s", e)
-    logger.info("Segmentation: %.2fs", time.monotonic() - t1)
+            logger.warning("SAM 3 failed: %s", e)
 
-    t2 = time.monotonic()
-    polygons = extract_room_polygons(closed, image_width=w, image_height=h)
-    logger.info("Polygon extraction: %d polygons in %.2fs", len(polygons), time.monotonic() - t2)
+    # SAM 2: automatic masks (fallback, only if SAM 3 didn't improve)
+    if best_source != "sam3" and is_sam2_available():
+        try:
+            t2 = time.monotonic()
+            logger.info("Trying SAM 2 (automatic masks)")
+            room_masks = segment_rooms_sam2(img)
+            if room_masks:
+                sam_mask = _masks_to_wall_mask(room_masks, closed.shape)
+                sam_polygons = extract_room_polygons(sam_mask, image_width=w, image_height=h)
+                logger.info("SAM 2: %d polygons in %.2fs", len(sam_polygons), time.monotonic() - t2)
+                if len(sam_polygons) >= len(contour_polygons):
+                    best_polygons = sam_polygons
+                    best_source = "sam2"
+        except Exception as e:
+            logger.warning("SAM 2 failed: %s", e)
 
-    if not polygons:
+    logger.info("Using %s segmentation (%d polygons)", best_source, len(best_polygons))
+
+    if not best_polygons:
         raise HTTPException(
             status_code=422,
             detail={"error": "Could not detect room boundaries in floor plan"},
         )
 
+    # Stage 4: Adjacency
     t3 = time.monotonic()
-    polygons = compute_adjacency(polygons)
-    adj_count = sum(len(p.adjacent_to) for p in polygons)
+    best_polygons = compute_adjacency(best_polygons)
+    adj_count = sum(len(p.adjacent_to) for p in best_polygons)
     logger.info("Adjacency: %d edges in %.2fs", adj_count, time.monotonic() - t3)
 
     total = time.monotonic() - start
     logger.info("Total processing: %.2fs", total)
 
-    return GeometryResult(polygons=polygons, image_width=w, image_height=h)
+    return GeometryResult(polygons=best_polygons, image_width=w, image_height=h)
+
+
+def _masks_to_wall_mask(room_masks: list[np.ndarray], shape: tuple) -> np.ndarray:
+    """Convert room masks into a wall mask (invert of room regions)."""
+    combined = np.zeros(shape, dtype=np.uint8)
+    for mask in room_masks:
+        combined = cv2.bitwise_or(combined, cv2.bitwise_not(mask))
+    return combined
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "sam3_available": is_sam3_available()}
+    return {
+        "status": "ok",
+        "sam3_available": is_sam3_available(),
+        "sam2_available": is_sam2_available(),
+    }

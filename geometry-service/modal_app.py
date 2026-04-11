@@ -22,7 +22,9 @@ image = (
     .run_commands(
         # SAM 3 has undeclared deps (einops, pycocotools, psutil)
         "pip install einops pycocotools psutil",
-        # Install SAM 3 from source (not on PyPI)
+        # SAM 2 (open access, automatic masks — fallback)
+        "pip install git+https://github.com/facebookresearch/sam2.git",
+        # SAM 3 (gated, text-prompted — primary)
         "pip install git+https://github.com/facebookresearch/sam3.git",
     )
     .add_local_dir("app", remote_path="/root/app")

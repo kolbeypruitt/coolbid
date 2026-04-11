@@ -3,8 +3,7 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# SAM 3 is optional — fall back to contour-based extraction if not available.
-# This lets the service run on CPU for development/testing.
+# ── SAM 3 (text-prompted, best quality) ─────────────────────────────
 try:
     from sam3.model_builder import build_sam3_image_model
     from sam3.model.sam3_image_processor import Sam3Processor
@@ -12,40 +11,37 @@ try:
     SAM3_AVAILABLE = True
 except ImportError:
     SAM3_AVAILABLE = False
-    logger.info("SAM 3 not installed — using contour-based extraction only")
+    logger.info("SAM 3 not installed")
+
+# ── SAM 2 (automatic masks, fallback) ──────────────────────────────
+try:
+    from sam2.sam2_image_predictor import SAM2ImagePredictor
+
+    SAM2_AVAILABLE = True
+except ImportError:
+    SAM2_AVAILABLE = False
+    logger.info("SAM 2 not installed")
 
 
-_processor: "Sam3Processor | None" = None
+# ── SAM 3 ───────────────────────────────────────────────────────────
+
+_sam3_processor: "Sam3Processor | None" = None
 
 
-def _get_processor() -> "Sam3Processor":
-    """Lazily initialize SAM 3 processor (loads model on first call)."""
-    global _processor
-    if _processor is not None:
-        return _processor
-
-    if not SAM3_AVAILABLE:
-        raise RuntimeError("SAM 3 is not installed")
+def _get_sam3_processor() -> "Sam3Processor":
+    global _sam3_processor
+    if _sam3_processor is not None:
+        return _sam3_processor
 
     model = build_sam3_image_model()
-    _processor = Sam3Processor(model)
-    return _processor
+    _sam3_processor = Sam3Processor(model)
+    return _sam3_processor
 
 
 def segment_rooms_sam3(image: np.ndarray) -> list[np.ndarray]:
-    """Use SAM 3's text-prompted segmentation to find room regions.
-
-    SAM 3's Promptable Concept Segmentation lets us ask for "enclosed room"
-    regions specifically, rather than generic automatic segmentation.
-
-    Args:
-        image: BGR floor plan image.
-
-    Returns:
-        List of binary masks, one per detected room region.
-    """
-    processor = _get_processor()
-    rgb = image[:, :, ::-1]  # BGR to RGB
+    """Use SAM 3's text-prompted segmentation to find room regions."""
+    processor = _get_sam3_processor()
+    rgb = np.ascontiguousarray(image[:, :, ::-1])
 
     inference_state = processor.set_image(rgb)
     output = processor.set_text_prompt(
@@ -56,16 +52,72 @@ def segment_rooms_sam3(image: np.ndarray) -> list[np.ndarray]:
     masks = output["masks"]
     scores = output["scores"]
 
+    return _filter_room_masks(masks, scores, image.shape[0] * image.shape[1])
+
+
+# ── SAM 2 ───────────────────────────────────────────────────────────
+
+_sam2_predictor: "SAM2ImagePredictor | None" = None
+
+
+def _get_sam2_predictor() -> "SAM2ImagePredictor":
+    global _sam2_predictor
+    if _sam2_predictor is not None:
+        return _sam2_predictor
+
+    _sam2_predictor = SAM2ImagePredictor.from_pretrained("facebook/sam2.1-hiera-large")
+    return _sam2_predictor
+
+
+def segment_rooms_sam2(image: np.ndarray) -> list[np.ndarray]:
+    """Use SAM 2's automatic mask generation to find room regions."""
+    from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
+
+    predictor = _get_sam2_predictor()
+    generator = SAM2AutomaticMaskGenerator(
+        model=predictor.model,
+        points_per_side=32,
+        pred_iou_thresh=0.7,
+        stability_score_thresh=0.85,
+        min_mask_region_area=500,
+    )
+
+    rgb = np.ascontiguousarray(image[:, :, ::-1])
+    mask_data = generator.generate(rgb)
+
+    # Sort by area descending
+    mask_data.sort(key=lambda m: m["area"], reverse=True)
+
     image_area = image.shape[0] * image.shape[1]
     room_masks: list[np.ndarray] = []
 
+    for m in mask_data:
+        area_ratio = m["area"] / image_area
+        if area_ratio > 0.8 or area_ratio < 0.005:
+            continue
+        if m["predicted_iou"] < 0.7:
+            continue
+        binary = (m["segmentation"].astype(np.uint8)) * 255
+        room_masks.append(binary)
+
+    return room_masks
+
+
+# ── Shared filtering ────────────────────────────────────────────────
+
+def _filter_room_masks(
+    masks: list,
+    scores: list,
+    image_area: int,
+) -> list[np.ndarray]:
+    """Filter masks by area ratio and confidence score."""
+    room_masks: list[np.ndarray] = []
+
     for i, mask in enumerate(masks):
-        # Handle both tensor and numpy mask formats
         mask_np = mask.cpu().numpy() if hasattr(mask, "cpu") else np.array(mask)
         area = np.count_nonzero(mask_np)
         area_ratio = area / image_area
 
-        # Skip background (too large) and noise (too small)
         if area_ratio > 0.8 or area_ratio < 0.005:
             continue
 
@@ -79,6 +131,11 @@ def segment_rooms_sam3(image: np.ndarray) -> list[np.ndarray]:
     return room_masks
 
 
+# ── Public API ──────────────────────────────────────────────────────
+
 def is_sam3_available() -> bool:
-    """Check whether SAM 3 is installed and usable."""
     return SAM3_AVAILABLE
+
+
+def is_sam2_available() -> bool:
+    return SAM2_AVAILABLE
