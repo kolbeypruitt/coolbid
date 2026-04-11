@@ -221,6 +221,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const imageContent = buildImageContent(images);
 
   // Extract geometry from all pages in parallel
+  console.log("analyze: starting geometry extraction for", images.length, "images");
   type PolygonsByFloor = { floor: number; polygons: import("@/lib/geometry/client").RoomPolygon[] };
   let polygonsByFloor: PolygonsByFloor[];
   try {
@@ -231,7 +232,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         return { floor: img.pageNum ?? idx + 1, polygons: geometry.polygons };
       }),
     );
+    console.log("analyze: geometry extracted, floors:", polygonsByFloor.length, "total polygons:", polygonsByFloor.reduce((s, f) => s + f.polygons.length, 0));
   } catch (err) {
+    console.error("analyze: geometry extraction error:", err);
     if (err instanceof GeometryServiceError) {
       return NextResponse.json(
         { error: err.message, code: "geometry_failed" },

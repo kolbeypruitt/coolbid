@@ -115,6 +115,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   } catch {
     // Images are optional — continue without them
   }
+  console.log("analyze-docai: images count:", images.length);
 
   // Run Document AI OCR
   const ocrResult = await ocrDocument(buffer, mimeType);
@@ -128,6 +129,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let polygonsByFloor: PolygonsByFloor[] = [];
 
   if (images.length > 0) {
+    console.log("analyze-docai: starting geometry extraction for", images.length, "images");
     try {
       polygonsByFloor = await Promise.all(
         images.map(async (img, idx) => {
@@ -136,7 +138,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           return { floor: img.pageNum ?? idx + 1, polygons: geometry.polygons };
         }),
       );
+      console.log("analyze-docai: geometry extracted, floors:", polygonsByFloor.length, "total polygons:", polygonsByFloor.reduce((s, f) => s + f.polygons.length, 0));
     } catch (err) {
+      console.error("analyze-docai: geometry extraction error:", err);
       if (err instanceof GeometryServiceError) {
         return NextResponse.json(
           { error: err.message, code: "geometry_failed" },
@@ -145,6 +149,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       }
       throw err;
     }
+  } else {
+    console.log("analyze-docai: no images, skipping geometry extraction");
   }
 
   // Build Claude message: images + OCR text (hybrid approach)
@@ -166,6 +172,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // Add OCR text + prompt
+  console.log("analyze-docai: using prompt:", polygonsByFloor.length > 0 ? "GEOMETRY_LABELING" : "DOCAI_STRUCTURING");
   let prompt: string;
   if (polygonsByFloor.length > 0) {
     const polygonText = formatPolygonsForPrompt(polygonsByFloor);
