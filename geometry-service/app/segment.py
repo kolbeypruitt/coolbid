@@ -33,21 +33,30 @@ def _get_sam3_processor() -> "Sam3Processor":
     if _sam3_processor is not None:
         return _sam3_processor
 
+    import torch
+
+    # Load model and force all parameters + buffers to float32.
+    # SAM 3 weights are stored as bfloat16 but the A10G has limited
+    # bfloat16 support, causing dtype mismatch errors.
     model = build_sam3_image_model()
+    model = model.to(dtype=torch.float32)
+
     _sam3_processor = Sam3Processor(model)
     return _sam3_processor
 
 
 def segment_rooms_sam3(image: np.ndarray) -> list[np.ndarray]:
     """Use SAM 3's text-prompted segmentation to find room regions."""
+    import torch
     processor = _get_sam3_processor()
     rgb = np.ascontiguousarray(image[:, :, ::-1])
 
-    inference_state = processor.set_image(rgb)
-    output = processor.set_text_prompt(
-        state=inference_state,
-        prompt="enclosed room on architectural floor plan",
-    )
+    with torch.no_grad(), torch.amp.autocast("cuda", enabled=False):
+        inference_state = processor.set_image(rgb)
+        output = processor.set_text_prompt(
+            state=inference_state,
+            prompt="enclosed room on architectural floor plan",
+        )
 
     masks = output["masks"]
     scores = output["scores"]
