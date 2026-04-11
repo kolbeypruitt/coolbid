@@ -22,6 +22,9 @@ def extract_room_polygons(
     Returns:
         List of RoomPolygon with normalized (0-1) coordinates.
     """
+    if image_width <= 0 or image_height <= 0:
+        return []
+
     # Invert: we want room regions (non-wall) as foreground
     room_regions = cv2.bitwise_not(closed_wall_mask)
 
@@ -98,6 +101,11 @@ def compute_adjacency(
     Args:
         polygons: List of room polygons.
         wall_thickness: Maximum gap between edges to consider adjacent (normalized).
+
+    Note:
+        Only one adjacency direction is recorded per room pair. If two rooms
+        share both a horizontal and vertical edge (e.g., L-shaped layouts),
+        only the first detected direction is kept.
 
     Returns:
         Updated polygons with adjacent_to populated.
