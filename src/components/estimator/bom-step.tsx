@@ -149,6 +149,7 @@ export function BomStep() {
           centroid_x: r.centroid.x,
           centroid_y: r.centroid.y,
           adjacent_rooms: r.adjacent_rooms,
+          conditioned: r.conditioned,
         }));
         const { error: roomErr } = await supabase.from("estimate_rooms").insert(roomRows);
         if (roomErr) throw new Error(roomErr.message);

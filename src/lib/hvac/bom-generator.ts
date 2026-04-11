@@ -172,7 +172,7 @@ export function generateBOM(
     totalBTU += load.btu;
     totalCFM += load.cfm;
     totalRegs += load.regs;
-    if (load.type !== "garage" && load.type !== "closet") {
+    if (load.conditioned) {
       condSqft += load.estimated_sqft;
       if (load.estimated_sqft >= 250) largeRegs += load.regs;
     }

@@ -6,7 +6,7 @@ export function calculateRoomLoad(room: Room, climateZone: ClimateZoneKey): Room
   const factor = LOAD_FACTORS[room.type];
   const climateFactor = CLIMATE_ZONES[climateZone].factor;
 
-  if (room.type === "garage" || room.type === "closet") {
+  if (!room.conditioned) {
     return { ...room, btu: 0, cfm: 0, regs: 0 };
   }
 

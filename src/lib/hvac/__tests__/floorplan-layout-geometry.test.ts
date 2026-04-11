@@ -14,6 +14,7 @@ function makeRoom(overrides: Partial<RoomLoad> = {}): RoomLoad {
     exterior_walls: 2,
     ceiling_height: 9,
     notes: "",
+    conditioned: true,
     btu: 8000,
     cfm: 300,
     regs: 2,

@@ -80,6 +80,7 @@ const DEFAULT_ROOM: Room = {
   exterior_walls: 1,
   ceiling_height: 8,
   notes: "",
+  conditioned: true,
   polygon_id: "room_0",
   bbox: { x: 0, y: 0, width: 1, height: 1 },
   centroid: { x: 0.5, y: 0.5 },
