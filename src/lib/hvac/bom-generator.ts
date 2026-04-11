@@ -85,15 +85,9 @@ function findCatalogItemByKeyword(
   const realParts = typeMatch.filter((c) => c.source !== "starter");
 
   if (realParts.length > 0) {
-    // Pass 1: keyword match from quote/manual
+    // Match keyword among quote/manual parts only
     const kwMatch = sortByUsage(realParts.filter(matchesKeyword));
     if (kwMatch.length > 0) return { item: kwMatch[0], notes: "" };
-
-    // Pass 2: any real part of same equipment_type (broadened)
-    return {
-      item: sortByUsage(realParts)[0],
-      notes: "Quoted part may not match spec — verify size",
-    };
   }
 
   // Pass 3: no real parts — allow starters with keyword match
