@@ -63,7 +63,7 @@ export async function sendFeedback(
   }
 
   try {
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
       to: SUPPORT_EMAIL,
       replyTo: profile.company_email?.trim() || user.email || undefined,
@@ -84,6 +84,8 @@ export async function sendFeedback(
       console.error("Failed to send feedback email:", error);
       return { ok: false, reason: "Failed to send. Please try again." };
     }
+
+    console.log("Feedback email sent:", data?.id ?? "no id returned");
   } catch (err) {
     console.error("Feedback email send threw:", err);
     return { ok: false, reason: "Failed to send. Please try again." };
