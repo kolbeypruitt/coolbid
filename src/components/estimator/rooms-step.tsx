@@ -266,18 +266,20 @@ export function RoomsStep() {
                       <div className="mb-3 flex items-center justify-between gap-2">
                         <Input
                           value={room.name}
+                          onClick={(e) => e.stopPropagation()}
                           onChange={(e) => updateRoom(i, { name: e.target.value })}
                           className="h-8 border-0 bg-transparent px-0 text-sm font-semibold shadow-none focus-visible:border-b focus-visible:border-primary focus-visible:ring-0 text-txt-primary"
                         />
                         <button
-                          onClick={() => removeRoom(i)}
+                          onClick={(e) => { e.stopPropagation(); removeRoom(i); }}
                           className="shrink-0 text-txt-tertiary hover:text-error"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2">
+                      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+                      <div className="grid grid-cols-2 gap-2" onClick={(e) => e.stopPropagation()}>
                         <div className="space-y-1">
                           <Label className="text-xs text-txt-tertiary uppercase tracking-wider">Type</Label>
                           <Select
@@ -360,7 +362,7 @@ export function RoomsStep() {
                           <span>·</span>
                           <span>{estBtu.toLocaleString()} BTU</span>
                         </div>
-                        <label className="flex items-center gap-1.5 cursor-pointer">
+                        <label className="flex items-center gap-1.5 cursor-pointer" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             checked={room.conditioned}

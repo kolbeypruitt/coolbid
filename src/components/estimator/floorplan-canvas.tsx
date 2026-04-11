@@ -31,6 +31,10 @@ const ROOM_COLORS: Record<string, string> = {
   laundry: "168,85,247",
   office: "236,72,153",
   foyer: "148,163,184",
+  sunroom: "250,204,21",
+  bonus_room: "139,92,246",
+  basement: "100,116,139",
+  closet: "148,163,184",
   garage: "107,114,128",
   default: "148,163,184",
 };

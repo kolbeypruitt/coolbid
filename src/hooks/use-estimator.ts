@@ -202,9 +202,16 @@ export const useEstimator = create<EstimatorState & EstimatorActions>((set, get)
     }),
 
   removeRoom: (index) =>
-    set((state) => ({
-      rooms: state.rooms.filter((_, i) => i !== index),
-    })),
+    set((state) => {
+      const { selectedRoomIndex } = state;
+      let newSelected = selectedRoomIndex;
+      if (selectedRoomIndex === index) newSelected = null;
+      else if (selectedRoomIndex != null && selectedRoomIndex > index) newSelected = selectedRoomIndex - 1;
+      return {
+        rooms: state.rooms.filter((_, i) => i !== index),
+        selectedRoomIndex: newSelected,
+      };
+    }),
 
   addRoom: () =>
     set((state) => ({
