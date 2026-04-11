@@ -86,8 +86,9 @@ Return your entire response as a single valid JSON object with this exact struct
 Critical rules:
 - Read annotations — do not guess dimensions
 - Verify that room sqft values sum close to total_sqft (within 10%)
-- Exclude garages, patios, porches, and unconditioned spaces from rooms array
+- Include garages, patios, porches, and decks as rooms — they are valid spaces even if unconditioned
 - Include small rooms like closets, laundry, and half baths
+- Exclude title blocks, drawing borders, legends, and other non-building elements
 - Set confidence to "low" if image quality is poor, dimensions are missing, or the drawing is unclear
 - Your entire response must be valid JSON with no markdown, no explanation, no code fences`;
 
@@ -127,7 +128,8 @@ Rules:
 - Verify room sqft sum is within 10% of the total building sqft from the extraction
 - For rooms with no dimensions in the extraction, estimate from neighboring rooms and the total sqft budget. Note "dimensions estimated" in the notes field.
 - Convert feet-inches to decimal feet (e.g., 12'-6" = 12.5)
-- Exclude garages, patios, porches, and unconditioned spaces from the rooms array
+- Include garages, patios, porches, and decks as rooms — they are valid spaces even if unconditioned
+- Exclude title blocks, drawing borders, legends, and other non-building elements from the rooms array
 
 Return a single valid JSON object:
 {
@@ -187,7 +189,9 @@ You have THREE sources of information:
 6. Note ceiling height if annotated, otherwise default to 9 ft
 
 **Important rules:**
-- Every polygon MUST be assigned a room name and type. If you cannot find a label, infer from context (e.g., a small polygon between bedrooms with no label is likely a hallway or closet).
+- Skip polygons that are title blocks, drawing borders, legends, scale bars, or other non-building elements — do NOT include them in the rooms array.
+- Every remaining polygon MUST be assigned a room name and type. If you cannot find a label, infer from context (e.g., a small polygon between bedrooms with no label is likely a hallway or closet).
+- Include garages, patios, porches, and decks as rooms — they are valid spaces even if unconditioned.
 - The polygon_id in your output MUST match the id from the detected polygons.
 - The bbox and centroid values in your output MUST be copied exactly from the detected polygons — do not modify them.
 - The adjacent_rooms array should contain the room NAMES (not polygon IDs) of adjacent rooms, derived from the adjacency data provided.

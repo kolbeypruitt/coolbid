@@ -171,6 +171,7 @@ export type Database = {
           centroid_x: number | null;
           centroid_y: number | null;
           adjacent_rooms: string[];
+          conditioned: boolean;
         };
         Insert: {
           id?: string;
@@ -195,6 +196,7 @@ export type Database = {
           centroid_x?: number | null;
           centroid_y?: number | null;
           adjacent_rooms?: string[];
+          conditioned?: boolean;
         };
         Update: Partial<Database["public"]["Tables"]["estimate_rooms"]["Insert"]>;
         Relationships: [];

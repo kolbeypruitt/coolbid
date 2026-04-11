@@ -14,6 +14,7 @@ export type Room = {
   name: string; type: RoomType; floor: number; estimated_sqft: number;
   width_ft: number; length_ft: number; window_count: number;
   exterior_walls: number; ceiling_height: number; notes: string;
+  conditioned: boolean;
   unit?: number;
   polygon_id: string;
   bbox: { x: number; y: number; width: number; height: number };

@@ -123,7 +123,7 @@ export default async function EstimateDetailPage({
   const totalBTU = roomLoads.reduce((s, r) => s + r.btu, 0);
   const tonnage = calculateSystemTonnage(totalBTU);
   const condSqft = roomLoads
-    .filter((r) => r.type !== "garage" && r.type !== "closet")
+    .filter((r) => r.conditioned)
     .reduce((s, r) => s + r.estimated_sqft, 0);
   const layoutSummary = {
     designBTU: Math.ceil(totalBTU * 1.1),

@@ -47,6 +47,18 @@ function normalizeRoomType(raw: string): RoomType {
   return "bonus_room";
 }
 
+/** Room types that default to unconditioned (no heating/cooling). */
+const UNCONDITIONED_TYPES: Set<RoomType> = new Set(["garage"]);
+
+/** Name substrings that indicate an unconditioned space. */
+const UNCONDITIONED_NAME_PATTERNS = ["patio", "porch", "deck", "lanai"];
+
+function defaultConditioned(type: RoomType, name: string): boolean {
+  if (UNCONDITIONED_TYPES.has(type)) return false;
+  const lower = name.toLowerCase();
+  return !UNCONDITIONED_NAME_PATTERNS.some((p) => lower.includes(p));
+}
+
 const RoomSchema = z.object({
   name: z.string().min(1),
   type: z.string().transform(normalizeRoomType),
@@ -58,6 +70,7 @@ const RoomSchema = z.object({
   exterior_walls: z.coerce.number().int().min(0).max(4).default(1),
   ceiling_height: z.coerce.number().min(0).default(9),
   notes: z.string().default(""),
+  conditioned: z.coerce.boolean().optional(),
   unit: z.coerce.number().int().min(1).optional(),
   polygon_id: z.string().default(""),
   bbox: z.object({
@@ -71,7 +84,10 @@ const RoomSchema = z.object({
     y: z.coerce.number().min(0).max(1),
   }).default({ x: 0, y: 0 }),
   adjacent_rooms: z.array(z.string()).default([]),
-});
+}).transform((room) => ({
+  ...room,
+  conditioned: room.conditioned ?? defaultConditioned(room.type, room.name),
+}));
 
 const BuildingSchema = z.object({
   stories: z.coerce.number().int().min(1).default(1),

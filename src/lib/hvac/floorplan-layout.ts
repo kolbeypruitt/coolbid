@@ -113,7 +113,7 @@ export function generateFloorplanLayout(
   hvacNotes?: HvacNotes,
 ): FloorplanLayout {
   const conditioned = roomLoads.filter(
-    (r) => r.type !== "garage" && r.type !== "closet" && r.cfm > 0,
+    (r) => r.conditioned && r.cfm > 0,
   );
 
   const layoutRooms: LayoutRoom[] = conditioned.map((room, i) => {

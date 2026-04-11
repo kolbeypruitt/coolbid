@@ -242,10 +242,21 @@ export function RoomsStep() {
                         )}
                       </div>
 
-                      <div className="mt-3 flex items-center gap-2 text-xs text-txt-tertiary">
-                        <span>{room.width_ft || "?"}' × {room.length_ft || "?"}'</span>
-                        <span>·</span>
-                        <span>{estBtu.toLocaleString()} BTU</span>
+                      <div className="mt-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-xs text-txt-tertiary">
+                          <span>{room.width_ft || "?"}' × {room.length_ft || "?"}'</span>
+                          <span>·</span>
+                          <span>{estBtu.toLocaleString()} BTU</span>
+                        </div>
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={room.conditioned}
+                            onChange={(e) => updateRoom(i, { conditioned: e.target.checked })}
+                            className="h-3.5 w-3.5 rounded accent-primary"
+                          />
+                          <span className="text-xs text-txt-tertiary">Heated &amp; Cooled</span>
+                        </label>
                       </div>
                     </div>
                   );

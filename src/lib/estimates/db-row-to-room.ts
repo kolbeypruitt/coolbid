@@ -19,6 +19,9 @@ export function dbRowToRoom(
     exterior_walls: (r.exterior_walls as number) ?? 0,
     ceiling_height: (r.ceiling_height as number) ?? 8,
     notes: (r.notes as string) ?? "",
+    conditioned: r.conditioned != null
+      ? Boolean(r.conditioned)
+      : ((r.type as string) !== "garage"),
     polygon_id: (r.polygon_id as string) ?? `room_${index}`,
     bbox: {
       x: (r.bbox_x as number) ?? 0,
