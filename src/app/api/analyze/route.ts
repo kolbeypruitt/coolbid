@@ -72,18 +72,23 @@ function buildConstraints(
   if (!buildingInfo) return "";
   const constraints: string[] = [];
 
+  const units = buildingInfo.units ?? 1;
+  const perUnit = units > 1 && (buildingInfo.hvacPerUnit ?? false);
+
   if (buildingInfo.totalSqft != null) {
+    const anchorSqft = perUnit
+      ? Math.round(buildingInfo.totalSqft / units)
+      : buildingInfo.totalSqft;
     constraints.push(
-      `The building total conditioned square footage is ${buildingInfo.totalSqft} sqft — use this as your anchor when extracting room sizes.`
+      `The ${perUnit ? "per-unit" : "building total"} conditioned square footage is ${anchorSqft} sqft — use this as your anchor when extracting room sizes.`
     );
   }
 
-  if (buildingInfo.units != null && buildingInfo.units > 1) {
-    const perUnit = buildingInfo.hvacPerUnit ?? false;
+  if (units > 1) {
     constraints.push(
-      `This is a ${buildingInfo.units}-unit building. ${
+      `This is a ${units}-unit building. ${
         perUnit
-          ? "Analyze one unit only and note its square footage."
+          ? "Analyze one unit only. The sqft anchor above reflects one unit."
           : "Extract the full building layout."
       }`
     );
@@ -283,7 +288,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // Post-processing: fix sqft inconsistencies, flag anomalies, apply defaults
-  const result = validateAnalysis(validated.data);
+  const perUnitAnalysis =
+    (buildingInfo?.hvacPerUnit ?? false) && (buildingInfo?.units ?? 1) > 1;
+  const result = validateAnalysis(validated.data, { perUnitAnalysis });
 
   if (limitCheck.shouldIncrement) {
     await incrementAiActionCount(supabase, user.id);

@@ -1,6 +1,13 @@
 import type { AnalysisResult } from "@/types/hvac";
 
-export function validateAnalysis(result: AnalysisResult): AnalysisResult {
+interface ValidateOptions {
+  perUnitAnalysis?: boolean;
+}
+
+export function validateAnalysis(
+  result: AnalysisResult,
+  options: ValidateOptions = {}
+): AnalysisResult {
   const warnings: string[] = [];
   const seen = new Set<string>();
 
@@ -42,15 +49,19 @@ export function validateAnalysis(result: AnalysisResult): AnalysisResult {
     return patched;
   });
 
-  // Sqft sum check against building total
+  // Sqft sum check against building total (or per-unit total for multi-unit)
   const roomSqftSum = rooms.reduce((sum, r) => sum + r.estimated_sqft, 0);
   let confidence = result.confidence;
   if (result.building.total_sqft > 0) {
-    const totalDiff = Math.abs(roomSqftSum - result.building.total_sqft);
-    if (totalDiff / result.building.total_sqft > 0.15) {
+    const expectedSqft =
+      options.perUnitAnalysis && result.building.units > 1
+        ? result.building.total_sqft / result.building.units
+        : result.building.total_sqft;
+    const totalDiff = Math.abs(roomSqftSum - expectedSqft);
+    if (totalDiff / expectedSqft > 0.15) {
       confidence = "low";
       warnings.push(
-        `Room sqft sum (${roomSqftSum}) differs from building total (${result.building.total_sqft}) by ${Math.round((totalDiff / result.building.total_sqft) * 100)}%`
+        `Room sqft sum (${roomSqftSum}) differs from ${options.perUnitAnalysis ? "per-unit" : "building"} total (${Math.round(expectedSqft)}) by ${Math.round((totalDiff / expectedSqft) * 100)}%`
       );
     }
   }
