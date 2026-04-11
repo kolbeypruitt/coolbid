@@ -164,6 +164,13 @@ export type Database = {
           cfm_required: number | null;
           notes: string;
           created_at: string;
+          bbox_x: number | null;
+          bbox_y: number | null;
+          bbox_width: number | null;
+          bbox_height: number | null;
+          centroid_x: number | null;
+          centroid_y: number | null;
+          adjacent_rooms: string[];
         };
         Insert: {
           id?: string;
@@ -181,6 +188,13 @@ export type Database = {
           tonnage?: number | null;
           cfm_required?: number | null;
           notes?: string;
+          bbox_x?: number | null;
+          bbox_y?: number | null;
+          bbox_width?: number | null;
+          bbox_height?: number | null;
+          centroid_x?: number | null;
+          centroid_y?: number | null;
+          adjacent_rooms?: string[];
         };
         Update: Partial<Database["public"]["Tables"]["estimate_rooms"]["Insert"]>;
         Relationships: [];

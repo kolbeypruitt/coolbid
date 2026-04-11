@@ -30,7 +30,7 @@ export async function extractGeometry(
   }
 
   const formData = new FormData();
-  const blob = new Blob([imageBuffer], { type: mediaType });
+  const blob = new Blob([new Uint8Array(imageBuffer)], { type: mediaType });
   formData.append("image", blob, `floorplan.${mediaType.split("/")[1] || "jpg"}`);
 
   let response: Response;

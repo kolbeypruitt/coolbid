@@ -126,6 +126,18 @@ export default async function EstimateDetailPage({
         exterior_walls: r.exterior_walls,
         ceiling_height: r.ceiling_height,
         notes: r.notes,
+        polygon_id: (r as Record<string, unknown>).polygon_id as string ?? `room_${roomList.indexOf(r)}`,
+        bbox: {
+          x: (r as Record<string, unknown>).bbox_x as number ?? 0,
+          y: (r as Record<string, unknown>).bbox_y as number ?? 0,
+          width: (r as Record<string, unknown>).bbox_width as number ?? 1,
+          height: (r as Record<string, unknown>).bbox_height as number ?? 1,
+        },
+        centroid: {
+          x: (r as Record<string, unknown>).centroid_x as number ?? 0.5,
+          y: (r as Record<string, unknown>).centroid_y as number ?? 0.5,
+        },
+        adjacent_rooms: ((r as Record<string, unknown>).adjacent_rooms as string[]) ?? [],
       },
       climateZone,
     ),

@@ -50,6 +50,10 @@ export function validateAnalysis(
     return patched;
   });
 
+  // Sqft sum check — per-unit when unit_sqft provided, otherwise building total
+  const roomSqftSum = rooms.reduce((sum, r) => sum + r.estimated_sqft, 0);
+  let confidence = result.confidence;
+
   // Geometry validation: every room must have spatial data
   for (const room of rooms) {
     if (!room.polygon_id) {
@@ -67,10 +71,6 @@ export function validateAnalysis(
     warnings.push("Multiple rooms reference the same polygon_id — geometry/label mismatch");
     confidence = "low";
   }
-
-  // Sqft sum check — per-unit when unit_sqft provided, otherwise building total
-  const roomSqftSum = rooms.reduce((sum, r) => sum + r.estimated_sqft, 0);
-  let confidence = result.confidence;
 
   if (result.building.unit_sqft && result.building.unit_sqft.length > 0) {
     // Per-unit validation using explicit unit_sqft array
