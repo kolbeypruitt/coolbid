@@ -5,10 +5,7 @@ import numpy as np
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from .preprocess import detect_walls, close_gaps
 from .polygons import extract_room_polygons, compute_adjacency
-from .segment import (
-    is_sam3_available, segment_rooms_sam3,
-    is_sam2_available, segment_rooms_sam2,
-)
+from .segment import is_sam3_available, segment_rooms_sam3
 from .types import GeometryResult
 
 logging.basicConfig(level=logging.INFO)
@@ -42,11 +39,10 @@ async def extract_geometry(image: UploadFile = File(...)) -> GeometryResult:
     contour_polygons = extract_room_polygons(closed, image_width=w, image_height=h)
     logger.info("Contour-based: %d polygons in %.2fs", len(contour_polygons), time.monotonic() - t1)
 
-    # Stage 3: Try SAM models — only use if they find more rooms than contours
+    # Stage 3: SAM 3 — only use if it finds more rooms than contours
     best_polygons = contour_polygons
     best_source = "contour"
 
-    # SAM 3: text-prompted (best quality)
     if is_sam3_available():
         try:
             t2 = time.monotonic()
@@ -61,22 +57,6 @@ async def extract_geometry(image: UploadFile = File(...)) -> GeometryResult:
                     best_source = "sam3"
         except Exception as e:
             logger.warning("SAM 3 failed: %s", e)
-
-    # SAM 2: automatic masks (fallback, only if SAM 3 didn't improve)
-    if best_source != "sam3" and is_sam2_available():
-        try:
-            t2 = time.monotonic()
-            logger.info("Trying SAM 2 (automatic masks)")
-            room_masks = segment_rooms_sam2(img)
-            if room_masks:
-                sam_mask = _masks_to_wall_mask(room_masks, closed.shape)
-                sam_polygons = extract_room_polygons(sam_mask, image_width=w, image_height=h)
-                logger.info("SAM 2: %d polygons in %.2fs", len(sam_polygons), time.monotonic() - t2)
-                if len(sam_polygons) >= len(contour_polygons):
-                    best_polygons = sam_polygons
-                    best_source = "sam2"
-        except Exception as e:
-            logger.warning("SAM 2 failed: %s", e)
 
     logger.info("Using %s segmentation (%d polygons)", best_source, len(best_polygons))
 
@@ -108,8 +88,4 @@ def _masks_to_wall_mask(room_masks: list[np.ndarray], shape: tuple) -> np.ndarra
 
 @app.get("/health")
 async def health():
-    return {
-        "status": "ok",
-        "sam3_available": is_sam3_available(),
-        "sam2_available": is_sam2_available(),
-    }
+    return {"status": "ok", "sam3_available": is_sam3_available()}
