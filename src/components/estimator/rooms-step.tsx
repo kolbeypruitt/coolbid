@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useRef, useEffect } from "react";
 import { Trash2, Plus } from "lucide-react";
 import { useEstimator } from "@/hooks/use-estimator";
 import { ROOM_TYPES, LOAD_FACTORS } from "@/lib/hvac/parts-db";
@@ -16,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { FloorplanCanvas } from "@/components/estimator/floorplan-canvas";
 
 const CONFIDENCE_VARIANT: Record<
   string,
@@ -76,12 +78,37 @@ export function RoomsStep() {
     rooms,
     knownUnits,
     analysisResult,
+    floorplanImg,
+    pdfPages,
+    selectedPages,
+    selectedRoomIndex,
+    setSelectedRoomIndex,
     updateRoom,
     removeRoom,
     addRoom,
     generateBom,
     setStep,
   } = useEstimator();
+
+  const [hoveredRoomIndex, setHoveredRoomIndex] = useState<number | null>(null);
+  const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+
+  // Resolve which image to display (first selected page's preview)
+  const displayImage = (() => {
+    if (pdfPages.length > 0 && selectedPages.length > 0) {
+      const page = pdfPages.find((p) => p.pageNum === selectedPages[0]);
+      return page?.previewUrl ?? floorplanImg;
+    }
+    return floorplanImg;
+  })();
+
+  // Scroll selected card into view
+  useEffect(() => {
+    if (selectedRoomIndex != null) {
+      const el = cardRefs.current.get(selectedRoomIndex);
+      el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [selectedRoomIndex]);
 
   const totalSqft = rooms.reduce((sum, r) => sum + (r.estimated_sqft ?? 0), 0);
   const conditionedSqft = rooms
@@ -117,6 +144,24 @@ export function RoomsStep() {
         </div>
       </div>
 
+      {/* Two-column: canvas + cards */}
+      <div className="grid gap-4 lg:grid-cols-[minmax(300px,1fr)_minmax(300px,1.2fr)]">
+        {/* Left: Floorplan canvas (only when image available) */}
+        {displayImage && (
+          <div className="lg:sticky lg:top-4 lg:self-start">
+            <FloorplanCanvas
+              imageSrc={displayImage}
+              rooms={rooms}
+              selectedIndex={selectedRoomIndex}
+              onSelectRoom={setSelectedRoomIndex}
+              hoveredIndex={hoveredRoomIndex}
+              onHoverRoom={setHoveredRoomIndex}
+            />
+          </div>
+        )}
+
+        {/* Right: Room cards */}
+        <div className="space-y-3">
       {groups.map((group) => (
         <div key={group.unit ?? "single"} className="space-y-3">
           {group.unit != null && (
@@ -153,7 +198,15 @@ export function RoomsStep() {
                   return (
                     <div
                       key={i}
-                      className="bg-gradient-card border-border hover:border-b-accent hover-glow hover-lift transition-all duration-[250ms] rounded-xl p-4 shadow-sm"
+                      ref={(el) => { if (el) cardRefs.current.set(i, el); }}
+                      onClick={() => setSelectedRoomIndex(selectedRoomIndex === i ? null : i)}
+                      className={`bg-gradient-card border-border hover:border-b-accent hover-glow hover-lift transition-all duration-[250ms] rounded-xl p-4 shadow-sm cursor-pointer ${
+                        selectedRoomIndex === i
+                          ? "ring-2 ring-primary border-primary"
+                          : hoveredRoomIndex === i
+                            ? "ring-1 ring-primary/50"
+                            : ""
+                      }`}
                     >
                       <div className="mb-3 flex items-center justify-between gap-2">
                         <Input
@@ -270,6 +323,8 @@ export function RoomsStep() {
           ))}
         </div>
       ))}
+        </div>
+      </div>
 
       <div className="flex gap-2">
         <Button variant="outline" onClick={() => setStep("select_pages")}>
