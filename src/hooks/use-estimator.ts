@@ -23,6 +23,7 @@ type EstimatorState = {
   knownTotalSqft: string;
   knownUnits: number;
   hvacPerUnit: boolean;
+  identicalUnits: boolean;
   climateZone: ClimateZoneKey;
   systemType: SystemType;
   analysisProgress: number;
@@ -48,7 +49,7 @@ type EstimatorActions = {
   setFile: (fileName: string, img: string) => void;
   setPdfPages: (pages: PagePreview[]) => void;
   setSelectedPages: (pages: number[]) => void;
-  setBuildingInfo: (info: Partial<Pick<EstimatorState, "knownTotalSqft" | "knownUnits" | "hvacPerUnit" | "climateZone" | "systemType">>) => void;
+  setBuildingInfo: (info: Partial<Pick<EstimatorState, "knownTotalSqft" | "knownUnits" | "hvacPerUnit" | "identicalUnits" | "climateZone" | "systemType">>) => void;
   setAnalysisProgress: (progress: number) => void;
   setAnalysisResult: (result: AnalysisResult) => void;
   setRooms: (rooms: Room[]) => void;
@@ -100,6 +101,7 @@ function initialState(): EstimatorState {
     knownTotalSqft: "",
     knownUnits: 1,
     hvacPerUnit: true,
+    identicalUnits: true,
     climateZone: "warm",
     systemType: "gas_ac",
     analysisProgress: 0,
@@ -206,7 +208,7 @@ export const useEstimator = create<EstimatorState & EstimatorActions>((set, get)
     })),
 
   generateBom: async () => {
-    const { rooms, climateZone, systemType, analysisResult } = get();
+    const { rooms, climateZone, systemType, analysisResult, knownUnits, hvacPerUnit, identicalUnits } = get();
     try {
       const supabase = createClient();
       const { data: catalog } = await supabase
@@ -224,6 +226,23 @@ export const useEstimator = create<EstimatorState & EstimatorActions>((set, get)
         analysisResult?.building,
         analysisResult?.hvac_notes,
       );
+
+      // For identical multi-unit buildings with per-unit HVAC, multiply
+      // all quantities by the unit count so the BOM covers the full building.
+      const multiplier = hvacPerUnit && identicalUnits && knownUnits > 1 ? knownUnits : 1;
+      if (multiplier > 1) {
+        bom.items = bom.items.map((item) => ({ ...item, qty: item.qty * multiplier }));
+        bom.summary = {
+          ...bom.summary,
+          designBTU: bom.summary.designBTU * multiplier,
+          totalCFM: bom.summary.totalCFM * multiplier,
+          totalRegs: bom.summary.totalRegs * multiplier,
+          retCount: bom.summary.retCount * multiplier,
+          condSqft: bom.summary.condSqft * multiplier,
+          zones: bom.summary.zones * multiplier,
+        };
+      }
+
       set({ bom, step: "bom" });
     } catch (err) {
       set({ error: err instanceof Error ? err.message : "Failed to generate BOM" });

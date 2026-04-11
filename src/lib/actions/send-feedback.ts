@@ -54,26 +54,38 @@ export async function sendFeedback(
   const categoryLabel = CATEGORY_LABELS[parsed.data.category];
   const companyDisplayName = profile.company_name?.trim() || "Unknown";
 
-  const resend = getResend();
-  const { error } = await resend.emails.send({
-    from: FROM_EMAIL,
-    to: SUPPORT_EMAIL,
-    replyTo: profile.company_email?.trim() || user.email || undefined,
-    subject: `[CoolBid Feedback] ${categoryLabel} from ${companyDisplayName}`,
-    react: FeedbackReceivedEmail({
-      category: categoryLabel,
-      userName: companyDisplayName,
-      userEmail: user.email || "Unknown",
-      companyName: profile.company_name?.trim() || "Not set",
-      plan: profile.subscription_tier,
-      trialDay,
-      pageUrl: parsed.data.pageUrl,
-      message: parsed.data.message,
-    }),
-  });
+  let resend: ReturnType<typeof getResend>;
+  try {
+    resend = getResend();
+  } catch (err) {
+    console.error("Resend client init failed:", err);
+    return { ok: false, reason: "Email service unavailable. Please try again later." };
+  }
 
-  if (error) {
-    console.error("Failed to send feedback email:", error);
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: SUPPORT_EMAIL,
+      replyTo: profile.company_email?.trim() || user.email || undefined,
+      subject: `[CoolBid Feedback] ${categoryLabel} from ${companyDisplayName}`,
+      react: FeedbackReceivedEmail({
+        category: categoryLabel,
+        userName: companyDisplayName,
+        userEmail: user.email || "Unknown",
+        companyName: profile.company_name?.trim() || "Not set",
+        plan: profile.subscription_tier,
+        trialDay,
+        pageUrl: parsed.data.pageUrl,
+        message: parsed.data.message,
+      }),
+    });
+
+    if (error) {
+      console.error("Failed to send feedback email:", error);
+      return { ok: false, reason: "Failed to send. Please try again." };
+    }
+  } catch (err) {
+    console.error("Feedback email send threw:", err);
     return { ok: false, reason: "Failed to send. Please try again." };
   }
 

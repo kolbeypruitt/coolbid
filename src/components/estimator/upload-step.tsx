@@ -57,6 +57,7 @@ export function UploadStep() {
     knownTotalSqft,
     knownUnits,
     hvacPerUnit,
+    identicalUnits,
     climateZone,
     systemType,
     setProjectInfo,
@@ -214,23 +215,36 @@ export function UploadStep() {
             />
           </div>
           {knownUnits > 1 && (
-            <div className="space-y-1.5">
-              <Label htmlFor="hvac-config" className="text-txt-secondary">HVAC Config</Label>
-              <Select
-                value={hvacPerUnit ? "per_unit" : "shared"}
-                onValueChange={(val) =>
-                  setBuildingInfo({ hvacPerUnit: val === "per_unit" })
-                }
-              >
-                <SelectTrigger id="hvac-config" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="per_unit">Per Unit</SelectItem>
-                  <SelectItem value="shared">Shared</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="hvac-config" className="text-txt-secondary">HVAC Config</Label>
+                <Select
+                  value={hvacPerUnit ? "per_unit" : "shared"}
+                  onValueChange={(val) =>
+                    setBuildingInfo({ hvacPerUnit: val === "per_unit" })
+                  }
+                >
+                  <SelectTrigger id="hvac-config" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="per_unit">Per Unit</SelectItem>
+                    <SelectItem value="shared">Shared</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {hvacPerUnit && (
+                <label className="flex items-center gap-2 cursor-pointer pt-1">
+                  <input
+                    type="checkbox"
+                    checked={identicalUnits}
+                    onChange={(e) => setBuildingInfo({ identicalUnits: e.target.checked })}
+                    className="h-4 w-4 rounded accent-primary"
+                  />
+                  <span className="text-sm text-txt-secondary">All units are identical layout</span>
+                </label>
+              )}
+            </>
           )}
           <div className="space-y-1.5">
             <Label htmlFor="climate-zone" className="text-txt-secondary">Climate Zone</Label>
