@@ -145,10 +145,10 @@ function routeDucts(
   const segments: DuctSegment[] = [];
   const trunkSize = getTrunkSize(tonnage);
 
-  // Trunk runs horizontally across the center of the layout
+  // Trunk runs horizontally through the vertical center of the layout
   const innerLeft = PADDING + ROOM_GAP;
   const innerRight = SVG_WIDTH - PADDING - ROOM_GAP;
-  const trunkY = equipment.y + 20;
+  const trunkY = SVG_HEIGHT / 2;
 
   // Vertical drop from equipment to trunk
   segments.push({
@@ -166,19 +166,26 @@ function routeDucts(
     size: trunkSize,
   });
 
-  // Branch to each room's center
+  // L-shaped branches: horizontal along trunk, then vertical to room
   for (const room of layoutRooms) {
     const roomCenterX = room.x + room.width / 2;
     const roomCenterY = room.y + room.height / 2;
     const flexSize = getFlexSize(room.sqft);
 
-    // Connect from trunk to room — go vertical from trunk to room center
-    const branchStartX = roomCenterX;
-    const branchStartY = trunkY;
+    // Takeoff point on the trunk at the room's x-center
+    const takeoffX = roomCenterX;
 
+    // Find the nearest room edge to the trunk for the branch endpoint
+    const roomTop = room.y;
+    const roomBottom = room.y + room.height;
+    const branchEndY = Math.abs(roomTop - trunkY) < Math.abs(roomBottom - trunkY)
+      ? roomTop + 4    // connect to top edge (inset slightly)
+      : roomBottom - 4; // connect to bottom edge
+
+    // Vertical branch from trunk to room edge
     segments.push({
-      from: { x: branchStartX, y: branchStartY },
-      to: { x: roomCenterX, y: roomCenterY },
+      from: { x: takeoffX, y: trunkY },
+      to: { x: takeoffX, y: branchEndY },
       type: "branch",
       size: flexSize,
     });
@@ -254,7 +261,7 @@ export function generateFloorplanLayout(
   const location = hvacNotes?.suggested_equipment_location?.toLowerCase() ?? "";
   const isAttic = location.includes("attic");
   const equipX = SVG_WIDTH / 2;
-  const equipY = isAttic ? PADDING / 2 : SVG_HEIGHT - PADDING / 2;
+  const equipY = isAttic ? 15 : SVG_HEIGHT - 15;
   const equipLabel = isAttic ? "Attic Unit" : location.includes("garage") ? "Garage Unit" : "Equipment";
 
   const equipment = { x: equipX, y: equipY, label: equipLabel };
