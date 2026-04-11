@@ -20,7 +20,6 @@ type EstimatorState = {
   floorplanImg: string | null;
   pdfPages: PagePreview[];
   selectedPages: number[];
-  rawFile: File | null;
   knownTotalSqft: string;
   knownUnits: number;
   hvacPerUnit: boolean;
@@ -49,7 +48,6 @@ type EstimatorActions = {
   setFile: (fileName: string, img: string) => void;
   setPdfPages: (pages: PagePreview[]) => void;
   setSelectedPages: (pages: number[]) => void;
-  setRawFile: (file: File | null) => void;
   setBuildingInfo: (info: Partial<Pick<EstimatorState, "knownTotalSqft" | "knownUnits" | "hvacPerUnit" | "climateZone" | "systemType">>) => void;
   setAnalysisProgress: (progress: number) => void;
   setAnalysisResult: (result: AnalysisResult) => void;
@@ -98,7 +96,6 @@ function initialState(): EstimatorState {
     floorplanImg: null,
     pdfPages: [],
     selectedPages: [],
-    rawFile: null,
     knownTotalSqft: "",
     knownUnits: 1,
     hvacPerUnit: true,
@@ -180,8 +177,6 @@ export const useEstimator = create<EstimatorState & EstimatorActions>((set, get)
   setPdfPages: (pages) => set({ pdfPages: pages }),
 
   setSelectedPages: (pages) => set({ selectedPages: pages }),
-
-  setRawFile: (rawFile) => set({ rawFile }),
 
   setBuildingInfo: (info) => set(info),
 

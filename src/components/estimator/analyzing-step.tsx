@@ -7,7 +7,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import type { AnalysisResult } from "@/types/hvac";
 
 const STEPS = [
-  "Scanning document with OCR...",
   "Extracting room boundaries from floor plan...",
   "Detecting walls and computing adjacency...",
   "Reading dimension annotations...",
@@ -25,7 +24,6 @@ export function AnalyzingStep() {
   const {
     pdfPages,
     selectedPages,
-    rawFile,
     knownTotalSqft,
     knownUnits,
     hvacPerUnit,
@@ -87,80 +85,12 @@ export function AnalyzingStep() {
       }
 
       try {
-        // Primary path: Document AI OCR
-        let result: AnalysisResult | null = null;
-
-        if (rawFile) {
-          result = await tryDocumentAi(rawFile, buildingInfo);
-        }
-
-        // Fallback: existing vision-based analysis
-        if (!result) {
-          result = await visionAnalysis(buildingInfo);
-        }
-
-        if (result) {
-          resultRef.current = result;
-          apiFinishedRef.current = true;
-        }
+        const result = await visionAnalysis(buildingInfo);
+        resultRef.current = result;
+        apiFinishedRef.current = true;
       } catch (err) {
         setError(err instanceof Error ? err.message : "Analysis failed");
         setStep("select_pages");
-      }
-    }
-
-    async function tryDocumentAi(
-      file: File,
-      buildingInfo: Record<string, unknown>
-    ): Promise<AnalysisResult | null> {
-      try {
-        const formData = new FormData();
-        formData.append("file", file);
-        if (Object.keys(buildingInfo).length > 0) {
-          formData.append("buildingInfo", JSON.stringify(buildingInfo));
-        }
-        formData.append("selectedPages", JSON.stringify(selectedPages));
-
-        // Include base64 page images so Claude can see rotated text OCR misses
-        const selectedPageData = pdfPages.filter((p) =>
-          selectedPages.includes(p.pageNum)
-        );
-        const images = selectedPageData.map((p) => ({
-          base64: p.base64,
-          mediaType: p.mediaType,
-          pageNum: p.pageNum,
-        }));
-        formData.append("images", JSON.stringify(images));
-
-        const res = await fetch("/api/analyze-docai", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!res.ok) {
-          if (res.status === 402) {
-            const err = await res.json().catch(() => ({ error: "Analysis failed" }));
-            throw new Error((err as { error?: string }).error ?? "Analysis failed");
-          }
-          if (res.status === 422) {
-            const err = await res.json().catch(() => ({ error: "Analysis failed" }));
-            const errorMsg = (err as { error?: string }).error ?? "Analysis failed";
-            if ((err as { code?: string }).code === "geometry_failed") {
-              throw new Error(errorMsg);
-            }
-          }
-          return null;
-        }
-
-        const data = await res.json();
-        if (data.fallback) return null;
-
-        return data as AnalysisResult;
-      } catch (err) {
-        // Re-throw billing errors
-        if (err instanceof Error && err.message.includes("limit")) throw err;
-        console.warn("Document AI path failed, falling back to vision:", err);
-        return null;
       }
     }
 

@@ -63,7 +63,6 @@ export function UploadStep() {
     setBuildingInfo,
     setPdfPages,
     setSelectedPages,
-    setRawFile,
     setFile,
     setStep,
     setError,
@@ -71,7 +70,6 @@ export function UploadStep() {
 
   async function handleFile(file: File) {
     setError(null);
-    setRawFile(file);
 
     if (file.type === "application/pdf") {
       try {
