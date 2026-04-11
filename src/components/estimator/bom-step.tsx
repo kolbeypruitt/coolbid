@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { Save, FileText, Download, AlertTriangle } from "lucide-react";
 import { useEstimator } from "@/hooks/use-estimator";
@@ -323,30 +324,42 @@ export function BomStep() {
               </thead>
               <tbody>
                 {items.map((item, i) => (
-                  <tr key={i} className="border-b last:border-0 hover:bg-[rgba(6,182,212,0.03)] transition-colors">
-                    <td className="text-txt-secondary py-2 pr-4">{item.name}</td>
-                    <td className="text-txt-secondary py-2 pr-4">{item.brand}</td>
-                    <td className="text-txt-secondary py-2 pr-4 font-mono text-xs">{item.sku}</td>
-                    <td className="tabular-nums text-txt-primary font-medium text-right py-2 pr-4">{item.qty}</td>
-                    <td className="text-txt-secondary py-2 pr-4">{item.unit}</td>
-                    <td className="tabular-nums text-txt-primary font-medium text-right py-2 pr-4">
-                      {item.price === null ? (
-                        <span className="text-txt-secondary">RFQ</span>
-                      ) : (
-                        `$${item.price.toFixed(2)}`
-                      )}
-                    </td>
-                    <td className="tabular-nums text-txt-primary font-medium text-right py-2 pr-4">
-                      {item.price === null ? (
-                        <span className="text-txt-secondary">—</span>
-                      ) : (
-                        `$${(item.price * item.qty).toFixed(2)}`
-                      )}
-                    </td>
-                    <td className="py-2">
-                      <SourceBadge source={item.source} />
-                    </td>
-                  </tr>
+                  <Fragment key={i}>
+                    <tr className="border-b last:border-0 hover:bg-[rgba(6,182,212,0.03)] transition-colors">
+                      <td className="text-txt-secondary py-2 pr-4">{item.name}</td>
+                      <td className="text-txt-secondary py-2 pr-4">{item.brand}</td>
+                      <td className="text-txt-secondary py-2 pr-4 font-mono text-xs">{item.sku}</td>
+                      <td className="tabular-nums text-txt-primary font-medium text-right py-2 pr-4">{item.qty}</td>
+                      <td className="text-txt-secondary py-2 pr-4">{item.unit}</td>
+                      <td className="tabular-nums text-txt-primary font-medium text-right py-2 pr-4">
+                        {item.price === null ? (
+                          <span className="text-txt-secondary">RFQ</span>
+                        ) : (
+                          `$${item.price.toFixed(2)}`
+                        )}
+                      </td>
+                      <td className="tabular-nums text-txt-primary font-medium text-right py-2 pr-4">
+                        {item.price === null ? (
+                          <span className="text-txt-secondary">—</span>
+                        ) : (
+                          `$${(item.price * item.qty).toFixed(2)}`
+                        )}
+                      </td>
+                      <td className="py-2">
+                        <SourceBadge source={item.source} />
+                      </td>
+                    </tr>
+                    {item.notes && (
+                      <tr className="border-b last:border-0">
+                        <td colSpan={8} className="py-1.5 pl-4">
+                          <span className="flex items-center gap-1.5 text-xs text-warning">
+                            <AlertTriangle className="h-3 w-3 shrink-0" />
+                            {item.notes}
+                          </span>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
