@@ -59,17 +59,17 @@ const RoomSchema = z.object({
   ceiling_height: z.coerce.number().min(0).default(9),
   notes: z.string().default(""),
   unit: z.coerce.number().int().min(1).optional(),
-  polygon_id: z.string().min(1),
+  polygon_id: z.string().default(""),
   bbox: z.object({
     x: z.coerce.number().min(0).max(1),
     y: z.coerce.number().min(0).max(1),
     width: z.coerce.number().min(0).max(1),
     height: z.coerce.number().min(0).max(1),
-  }),
+  }).default({ x: 0, y: 0, width: 0, height: 0 }),
   centroid: z.object({
     x: z.coerce.number().min(0).max(1),
     y: z.coerce.number().min(0).max(1),
-  }),
+  }).default({ x: 0, y: 0 }),
   adjacent_rooms: z.array(z.string()).default([]),
 });
 
