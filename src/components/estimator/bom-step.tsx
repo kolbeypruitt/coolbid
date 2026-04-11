@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 
 import type { BomItem } from "@/types/hvac";
+import { toBomInsertRows } from "@/lib/estimates/bom-rows";
 
 type BomCategory = {
   category: string;
@@ -162,20 +163,7 @@ export function BomStep() {
       // Clear and re-insert BOM items
       await supabase.from("estimate_bom_items").delete().eq("estimate_id", estimateId);
       if (currentBom.items.length > 0) {
-        const bomRows = currentBom.items.map((item) => ({
-          estimate_id: estimateId,
-          category: item.category,
-          description: item.name,
-          quantity: item.qty,
-          unit: item.unit,
-          unit_cost: item.price ?? 0,
-          total_cost: (item.price ?? 0) * item.qty,
-          part_id: item.partId || null,
-          supplier: item.supplier || null,
-          sku: item.sku || null,
-          notes: item.notes ?? "",
-          source: item.source,
-        }));
+        const bomRows = toBomInsertRows(currentBom.items, estimateId);
         const { error: bomErr } = await supabase.from("estimate_bom_items").insert(bomRows);
         if (bomErr) throw new Error(bomErr.message);
       }
