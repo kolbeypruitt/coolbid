@@ -17,7 +17,7 @@ export function FloorplanSchematic({
   climateZone,
   totalBTU,
 }: Props) {
-  const { rooms, ducts, equipment, viewBox } = layout;
+  const { rooms, ducts, equipment, viewBox, floorLabels } = layout;
   const btuLabel =
     totalBTU >= 1000 ? `${Math.round(totalBTU / 1000)}k BTU` : `${totalBTU} BTU`;
 
@@ -34,7 +34,7 @@ export function FloorplanSchematic({
       </div>
 
       {/* SVG */}
-      <div className="relative aspect-[4/3] overflow-hidden bg-bg-input">
+      <div className="relative overflow-hidden bg-bg-input" style={{ aspectRatio: `${viewBox.width} / ${viewBox.height}` }}>
         <svg
           viewBox={`0 0 ${viewBox.width} ${viewBox.height}`}
           className="h-full w-full"
@@ -83,16 +83,49 @@ export function FloorplanSchematic({
           />
 
           {/* Outer walls */}
-          <rect
-            x="30"
-            y="30"
-            width={viewBox.width - 60}
-            height={viewBox.height - 60}
-            fill="none"
-            stroke="rgba(148,163,184,0.5)"
-            strokeWidth="2.5"
-            rx="4"
-          />
+          {floorLabels.length === 0 ? (
+            <rect
+              x="30"
+              y="30"
+              width={viewBox.width - 60}
+              height={viewBox.height - 60}
+              fill="none"
+              stroke="rgba(148,163,184,0.5)"
+              strokeWidth="2.5"
+              rx="4"
+            />
+          ) : (
+            floorLabels.map((fl, i) => {
+              const nextY = i < floorLabels.length - 1
+                ? floorLabels[i + 1].y
+                : viewBox.height - 30;
+              const sectionH = nextY - fl.y - (i < floorLabels.length - 1 ? 10 : 0);
+              return (
+                <g key={fl.label}>
+                  <text
+                    x="32"
+                    y={fl.y + 11}
+                    fill="rgba(148,163,184,0.6)"
+                    fontSize="10"
+                    fontWeight="600"
+                    fontFamily="system-ui, sans-serif"
+                  >
+                    {fl.label}
+                  </text>
+                  <rect
+                    x="30"
+                    y={fl.y + 16}
+                    width={viewBox.width - 60}
+                    height={sectionH - 16}
+                    fill="none"
+                    stroke="rgba(148,163,184,0.5)"
+                    strokeWidth="2.5"
+                    rx="4"
+                  />
+                </g>
+              );
+            })
+          )}
 
           {/* Duct trunk segments */}
           {ducts

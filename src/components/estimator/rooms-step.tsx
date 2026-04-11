@@ -84,6 +84,9 @@ export function RoomsStep() {
   } = useEstimator();
 
   const totalSqft = rooms.reduce((sum, r) => sum + (r.estimated_sqft ?? 0), 0);
+  const conditionedSqft = rooms
+    .filter((r) => r.conditioned)
+    .reduce((sum, r) => sum + (r.estimated_sqft ?? 0), 0);
   const confidence = analysisResult?.confidence ?? "medium";
   const unitCount = analysisResult?.building.units ?? knownUnits ?? 1;
   const groups = groupRooms(rooms, unitCount, analysisResult?.building.unit_sqft);
@@ -95,7 +98,8 @@ export function RoomsStep() {
         <div>
           <h2 className="text-xl font-semibold text-txt-primary">Room Analysis</h2>
           <p className="text-sm text-txt-secondary">
-            AI detected {rooms.length} rooms — {totalSqft.toLocaleString()} sq ft total.
+            AI detected {rooms.length} rooms — {conditionedSqft.toLocaleString()} sq ft heated &amp; cooled
+            {conditionedSqft < totalSqft && <> of {totalSqft.toLocaleString()} total</>}.
             Edit anything that looks off.
           </p>
         </div>

@@ -1,22 +1,61 @@
 import type { RoomLoad, BomSummary, HvacNotes } from "@/types/hvac";
-import type { FloorplanLayout, LayoutRoom, DuctSegment } from "@/types/duct-layout";
+import type { FloorplanLayout, LayoutRoom, DuctSegment, FloorLabel } from "@/types/duct-layout";
 import { needsReturnRegister } from "./load-calc";
 
 const SVG_WIDTH = 400;
-const SVG_HEIGHT = 300;
+const FLOOR_HEIGHT = 260;
+const FLOOR_GAP = 40;
 const PADDING = 30;
+const LABEL_HEIGHT = 16;
 
-function mapBboxToSvg(bbox: { x: number; y: number; width: number; height: number }): {
-  x: number; y: number; width: number; height: number;
-} {
-  const innerW = SVG_WIDTH - PADDING * 2;
-  const innerH = SVG_HEIGHT - PADDING * 2;
-  return {
-    x: PADDING + bbox.x * innerW,
-    y: PADDING + bbox.y * innerH,
-    width: Math.max(bbox.width * innerW, 4),
-    height: Math.max(bbox.height * innerH, 4),
-  };
+/**
+ * Normalize room bboxes within a floor so they fill the available space.
+ *
+ * The raw bboxes from the geometry service are relative to the full image.
+ * When floors share a page, rooms on floor 2 might occupy only the top-right
+ * quadrant. This function re-normalizes each floor's rooms to 0–1 within
+ * that floor's bounding box, so each floor fills its SVG section.
+ */
+function normalizeBboxesForFloor(
+  rooms: RoomLoad[],
+): { x: number; y: number; width: number; height: number }[] {
+  if (rooms.length === 0) return [];
+  if (rooms.length === 1) {
+    // Single room — center it
+    return [{ x: 0.15, y: 0.15, width: 0.7, height: 0.7 }];
+  }
+
+  // Compute bounding box of all rooms on this floor
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const r of rooms) {
+    minX = Math.min(minX, r.bbox.x);
+    minY = Math.min(minY, r.bbox.y);
+    maxX = Math.max(maxX, r.bbox.x + r.bbox.width);
+    maxY = Math.max(maxY, r.bbox.y + r.bbox.height);
+  }
+
+  const rangeX = maxX - minX;
+  const rangeY = maxY - minY;
+
+  // If all rooms are at the same point, space them out
+  if (rangeX < 0.01 && rangeY < 0.01) {
+    const cols = Math.ceil(Math.sqrt(rooms.length));
+    return rooms.map((_, i) => ({
+      x: (i % cols) / cols,
+      y: Math.floor(i / cols) / Math.ceil(rooms.length / cols),
+      width: 1 / cols * 0.85,
+      height: 1 / Math.ceil(rooms.length / cols) * 0.85,
+    }));
+  }
+
+  // Add small margin around the group
+  const margin = 0.05;
+  return rooms.map((r) => ({
+    x: margin + (rangeX > 0.01 ? ((r.bbox.x - minX) / rangeX) * (1 - margin * 2) : 0.15),
+    y: margin + (rangeY > 0.01 ? ((r.bbox.y - minY) / rangeY) * (1 - margin * 2) : 0.15),
+    width: rangeX > 0.01 ? (r.bbox.width / rangeX) * (1 - margin * 2) : 0.7,
+    height: rangeY > 0.01 ? (r.bbox.height / rangeY) * (1 - margin * 2) : 0.7,
+  }));
 }
 
 function placeRegisters(
@@ -65,42 +104,66 @@ function routeDucts(
   const segments: DuctSegment[] = [];
   const trunkSize = getTrunkSize(tonnage);
 
-  const totalArea = layoutRooms.reduce((s, r) => s + r.width * r.height, 0);
-  const trunkY = totalArea > 0
-    ? layoutRooms.reduce((s, r) => s + (r.y + r.height / 2) * (r.width * r.height), 0) / totalArea
-    : SVG_HEIGHT / 2;
+  // Group rooms by floor for per-floor trunk lines
+  const floorMap = new Map<number, LayoutRoom[]>();
+  for (const r of layoutRooms) {
+    if (!floorMap.has(r.floor)) floorMap.set(r.floor, []);
+    floorMap.get(r.floor)!.push(r);
+  }
 
-  const leftEdge = Math.min(...layoutRooms.map((r) => r.x));
-  const rightEdge = Math.max(...layoutRooms.map((r) => r.x + r.width));
+  // Equipment-to-first-trunk vertical segment
+  const allRooms = layoutRooms;
+  if (allRooms.length === 0) return segments;
 
-  segments.push({
-    from: equipment,
-    to: { x: equipment.x, y: trunkY },
-    type: "trunk",
-    size: trunkSize,
-  });
+  for (const [, floorRooms] of floorMap) {
+    const totalArea = floorRooms.reduce((s, r) => s + r.width * r.height, 0);
+    const trunkY = totalArea > 0
+      ? floorRooms.reduce((s, r) => s + (r.y + r.height / 2) * (r.width * r.height), 0) / totalArea
+      : floorRooms[0].y + floorRooms[0].height / 2;
 
-  segments.push({
-    from: { x: leftEdge, y: trunkY },
-    to: { x: rightEdge, y: trunkY },
-    type: "trunk",
-    size: trunkSize,
-  });
+    const leftEdge = Math.min(...floorRooms.map((r) => r.x));
+    const rightEdge = Math.max(...floorRooms.map((r) => r.x + r.width));
 
-  for (const room of layoutRooms) {
-    const roomCenterX = room.x + room.width / 2;
-    const flexSize = getFlexSize(room.sqft);
-    const roomTop = room.y;
-    const roomBottom = room.y + room.height;
-    const branchEndY = Math.abs(roomTop - trunkY) < Math.abs(roomBottom - trunkY)
-      ? roomTop + 4
-      : roomBottom - 4;
-
+    // Trunk line for this floor
     segments.push({
-      from: { x: roomCenterX, y: trunkY },
-      to: { x: roomCenterX, y: branchEndY },
-      type: "branch",
-      size: flexSize,
+      from: { x: leftEdge, y: trunkY },
+      to: { x: rightEdge, y: trunkY },
+      type: "trunk",
+      size: trunkSize,
+    });
+
+    // Branch lines from trunk to each room
+    for (const room of floorRooms) {
+      const roomCenterX = room.x + room.width / 2;
+      const flexSize = getFlexSize(room.sqft);
+      const roomTop = room.y;
+      const roomBottom = room.y + room.height;
+      const branchEndY = Math.abs(roomTop - trunkY) < Math.abs(roomBottom - trunkY)
+        ? roomTop + 4
+        : roomBottom - 4;
+
+      segments.push({
+        from: { x: roomCenterX, y: trunkY },
+        to: { x: roomCenterX, y: branchEndY },
+        type: "branch",
+        size: flexSize,
+      });
+    }
+  }
+
+  // Connect equipment to nearest trunk
+  const trunkSegments = segments.filter((s) => s.type === "trunk");
+  if (trunkSegments.length > 0) {
+    const nearestTrunk = trunkSegments.reduce((best, t) => {
+      const midY = (t.from.y + t.to.y) / 2;
+      return Math.abs(midY - equipment.y) < Math.abs((best.from.y + best.to.y) / 2 - equipment.y) ? t : best;
+    });
+    const trunkMidX = (nearestTrunk.from.x + nearestTrunk.to.x) / 2;
+    segments.push({
+      from: equipment,
+      to: { x: trunkMidX, y: (nearestTrunk.from.y + nearestTrunk.to.y) / 2 },
+      type: "trunk",
+      size: trunkSize,
     });
   }
 
@@ -116,28 +179,77 @@ export function generateFloorplanLayout(
     (r) => r.conditioned && r.cfm > 0,
   );
 
-  const layoutRooms: LayoutRoom[] = conditioned.map((room, i) => {
-    const svgRect = mapBboxToSvg(room.bbox);
-    return {
-      id: room.polygon_id || `room-${i}`,
-      name: room.name,
-      type: room.type,
-      x: svgRect.x,
-      y: svgRect.y,
-      width: svgRect.width,
-      height: svgRect.height,
-      sqft: room.estimated_sqft,
-      cfm: room.cfm,
-      regs: room.regs,
-      hasReturn: needsReturnRegister(room),
-      registerPositions: placeRegisters(svgRect, room.regs),
-    };
-  });
+  // Group rooms by floor
+  const floorMap = new Map<number, RoomLoad[]>();
+  for (const r of conditioned) {
+    const floor = r.floor ?? 1;
+    if (!floorMap.has(floor)) floorMap.set(floor, []);
+    floorMap.get(floor)!.push(r);
+  }
+
+  const floors = [...floorMap.keys()].sort((a, b) => a - b);
+  const floorCount = floors.length;
+  const totalHeight = floorCount === 1
+    ? FLOOR_HEIGHT + PADDING * 2
+    : floorCount * FLOOR_HEIGHT + (floorCount - 1) * FLOOR_GAP + PADDING * 2;
+
+  const innerW = SVG_WIDTH - PADDING * 2;
+  const layoutRooms: LayoutRoom[] = [];
+  const floorLabels: FloorLabel[] = [];
+
+  for (let fi = 0; fi < floors.length; fi++) {
+    const floorNum = floors[fi];
+    const floorRooms = floorMap.get(floorNum)!;
+    const floorTopY = PADDING + fi * (FLOOR_HEIGHT + FLOOR_GAP);
+
+    // Add floor label for multi-floor plans
+    if (floorCount > 1) {
+      floorLabels.push({
+        label: `Floor ${floorNum}`,
+        y: floorTopY,
+      });
+    }
+
+    // Content area starts below the label
+    const contentTopY = floorCount > 1 ? floorTopY + LABEL_HEIGHT : floorTopY;
+    const contentH = floorCount > 1 ? FLOOR_HEIGHT - LABEL_HEIGHT : FLOOR_HEIGHT;
+
+    // Normalize bboxes so this floor's rooms fill the available space
+    const normalizedBboxes = normalizeBboxesForFloor(floorRooms);
+
+    for (let ri = 0; ri < floorRooms.length; ri++) {
+      const room = floorRooms[ri];
+      const nb = normalizedBboxes[ri];
+
+      const x = PADDING + nb.x * innerW;
+      const y = contentTopY + nb.y * contentH;
+      const width = Math.max(nb.width * innerW, 4);
+      const height = Math.max(nb.height * contentH, 4);
+
+      const svgRect = { x, y, width, height };
+
+      layoutRooms.push({
+        id: room.polygon_id || `room-${layoutRooms.length}`,
+        name: room.name,
+        type: room.type,
+        floor: floorNum,
+        x: svgRect.x,
+        y: svgRect.y,
+        width: svgRect.width,
+        height: svgRect.height,
+        sqft: room.estimated_sqft,
+        cfm: room.cfm,
+        regs: room.regs,
+        hasReturn: needsReturnRegister(room),
+        registerPositions: placeRegisters(svgRect, room.regs),
+      });
+    }
+  }
 
   const location = hvacNotes?.suggested_equipment_location?.toLowerCase() ?? "";
   const isAttic = location.includes("attic");
   const equipX = SVG_WIDTH / 2;
-  const equipY = isAttic ? 15 : SVG_HEIGHT - 15;
+  const equipY = isAttic ? 15 : totalHeight - 15;
   const equipLabel = isAttic ? "Attic Unit" : location.includes("garage") ? "Garage Unit" : "Equipment";
   const equipment = { x: equipX, y: equipY, label: equipLabel };
 
@@ -147,6 +259,7 @@ export function generateFloorplanLayout(
     rooms: layoutRooms,
     ducts,
     equipment,
-    viewBox: { width: SVG_WIDTH, height: SVG_HEIGHT },
+    viewBox: { width: SVG_WIDTH, height: totalHeight },
+    floorLabels,
   };
 }

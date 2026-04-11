@@ -4,6 +4,7 @@ export type LayoutRoom = {
   id: string;
   name: string;
   type: RoomType;
+  floor: number;
   x: number;
   y: number;
   width: number;
@@ -22,9 +23,15 @@ export type DuctSegment = {
   size: string;
 };
 
+export type FloorLabel = {
+  label: string;
+  y: number;
+};
+
 export type FloorplanLayout = {
   rooms: LayoutRoom[];
   ducts: DuctSegment[];
   equipment: { x: number; y: number; label: string };
   viewBox: { width: number; height: number };
+  floorLabels: FloorLabel[];
 };
