@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CatalogSearchDialog } from "./catalog-search-dialog";
+import { SourceBadge } from "@/components/ui/source-badge";
 import { AddPartDialog } from "./add-part-dialog";
 import type { Database } from "@/types/database";
 
@@ -171,7 +172,10 @@ export function BomCategoryTable({
                     className="border-b border-border hover:bg-[rgba(6,182,212,0.03)] transition-colors"
                   >
                     <TableCell className="text-sm text-txt-primary font-medium py-2">
-                      {item.description}
+                      <div className="flex items-center gap-2">
+                        {item.description}
+                        <SourceBadge source={item.source} />
+                      </div>
                     </TableCell>
                     <TableCell className="text-sm text-txt-secondary py-2">
                       {item.sku ?? "—"}

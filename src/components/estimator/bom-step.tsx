@@ -10,29 +10,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-
 import type { BomItem } from "@/types/hvac";
 import { toBomInsertRows } from "@/lib/estimates/bom-rows";
+import { SourceBadge } from "@/components/ui/source-badge";
 
 type BomCategory = {
   category: string;
   items: BomItem[];
 };
-
-function SourceBadge({ source }: { source: BomItem["source"] }) {
-  if (source === "starter") {
-    return <Badge variant="outline">Starter</Badge>;
-  }
-  if (source === "quote") {
-    return <Badge variant="default" className="bg-green-600 text-white hover:bg-green-700">Quoted</Badge>;
-  }
-  if (source === "manual") {
-    return <Badge variant="default" className="bg-blue-600 text-white hover:bg-blue-700">Manual</Badge>;
-  }
-  // missing
-  return <Badge variant="destructive">Missing</Badge>;
-}
 
 export function BomStep() {
   const router = useRouter();
