@@ -35,13 +35,16 @@ async def extract_geometry(image: UploadFile = File(...)) -> GeometryResult:
 
     t1 = time.monotonic()
     if is_sam3_available():
-        logger.info("Using SAM 3 segmentation")
-        room_masks = segment_rooms_sam3(img)
-        if room_masks:
-            combined = np.zeros_like(closed)
-            for mask in room_masks:
-                combined = cv2.bitwise_or(combined, cv2.bitwise_not(mask))
-            closed = combined
+        try:
+            logger.info("Using SAM 3 segmentation")
+            room_masks = segment_rooms_sam3(img)
+            if room_masks:
+                combined = np.zeros_like(closed)
+                for mask in room_masks:
+                    combined = cv2.bitwise_or(combined, cv2.bitwise_not(mask))
+                closed = combined
+        except Exception as e:
+            logger.warning("SAM 3 failed, falling back to contour-based: %s", e)
     logger.info("Segmentation: %.2fs", time.monotonic() - t1)
 
     t2 = time.monotonic()

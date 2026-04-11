@@ -31,7 +31,7 @@ image = (
 app = modal.App("coolbid-geometry", image=image)
 
 
-@app.function(gpu="A10G", timeout=120)
+@app.function(gpu="A10G", timeout=120, secrets=[modal.Secret.from_name("huggingface")])
 @modal.asgi_app()
 def fastapi_app():
     from app.main import app
