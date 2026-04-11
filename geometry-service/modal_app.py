@@ -20,6 +20,8 @@ image = (
     )
     .apt_install("git")
     .run_commands(
+        # SAM 3 has undeclared deps (einops, pycocotools, psutil)
+        "pip install einops pycocotools psutil",
         # Install SAM 3 from source (not on PyPI)
         "pip install git+https://github.com/facebookresearch/sam3.git",
     )
