@@ -7,8 +7,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import type { AnalysisResult } from "@/types/hvac";
 
 const STEPS = [
-  "Rendering selected pages at high resolution...",
-  "Uploading floorplan pages...",
+  "Scanning document with OCR...",
+  "Extracting text and dimensions...",
   "Detecting walls and room boundaries...",
   "Reading dimension annotations...",
   "Identifying room types...",
@@ -17,8 +17,7 @@ const STEPS = [
 ];
 
 // Hold back the last step until the API responds.
-// Each step takes 3-4.5s so 6 steps ≈ 18-27s — right in the API wait range.
-const HOLD_AT = STEPS.length - 2; // pause before "Generating room report..."
+const HOLD_AT = STEPS.length - 2;
 const STEP_MIN_MS = 3000;
 const STEP_JITTER_MS = 1500;
 
@@ -26,6 +25,7 @@ export function AnalyzingStep() {
   const {
     pdfPages,
     selectedPages,
+    rawFile,
     knownTotalSqft,
     knownUnits,
     hvacPerUnit,
@@ -43,7 +43,6 @@ export function AnalyzingStep() {
   useEffect(() => {
     if (done) return;
 
-    // If we're at the hold point and API isn't done, wait and retry
     if (visibleStep >= HOLD_AT && !apiFinishedRef.current) {
       const check = setInterval(() => {
         if (apiFinishedRef.current) {
@@ -54,13 +53,11 @@ export function AnalyzingStep() {
       return () => clearInterval(check);
     }
 
-    // If we've shown all steps, mark done
     if (visibleStep >= STEPS.length - 1) {
       const timeout = setTimeout(() => setDone(true), 1200);
       return () => clearTimeout(timeout);
     }
 
-    // Schedule next step
     const delay = STEP_MIN_MS + Math.random() * STEP_JITTER_MS;
     const timeout = setTimeout(() => {
       setVisibleStep((s) => s + 1);
@@ -79,6 +76,90 @@ export function AnalyzingStep() {
     hasRun.current = true;
 
     async function analyze() {
+      const buildingInfo: Record<string, unknown> = {};
+      if (knownTotalSqft) {
+        const sqft = parseFloat(knownTotalSqft);
+        if (!isNaN(sqft) && sqft > 0) buildingInfo.totalSqft = sqft;
+      }
+      if (knownUnits > 1) {
+        buildingInfo.units = knownUnits;
+        buildingInfo.hvacPerUnit = hvacPerUnit;
+      }
+
+      try {
+        // Primary path: Document AI OCR
+        let result: AnalysisResult | null = null;
+
+        if (rawFile) {
+          result = await tryDocumentAi(rawFile, buildingInfo);
+        }
+
+        // Fallback: existing vision-based analysis
+        if (!result) {
+          result = await visionAnalysis(buildingInfo);
+        }
+
+        if (result) {
+          resultRef.current = result;
+          apiFinishedRef.current = true;
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Analysis failed");
+        setStep("select_pages");
+      }
+    }
+
+    async function tryDocumentAi(
+      file: File,
+      buildingInfo: Record<string, unknown>
+    ): Promise<AnalysisResult | null> {
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        if (Object.keys(buildingInfo).length > 0) {
+          formData.append("buildingInfo", JSON.stringify(buildingInfo));
+        }
+        formData.append("selectedPages", JSON.stringify(selectedPages));
+
+        // Include base64 page images so Claude can see rotated text OCR misses
+        const selectedPageData = pdfPages.filter((p) =>
+          selectedPages.includes(p.pageNum)
+        );
+        const images = selectedPageData.map((p) => ({
+          base64: p.base64,
+          mediaType: p.mediaType,
+          pageNum: p.pageNum,
+        }));
+        formData.append("images", JSON.stringify(images));
+
+        const res = await fetch("/api/analyze-docai", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!res.ok) {
+          if (res.status === 402) {
+            const err = await res.json().catch(() => ({ error: "Analysis failed" }));
+            throw new Error((err as { error?: string }).error ?? "Analysis failed");
+          }
+          return null;
+        }
+
+        const data = await res.json();
+        if (data.fallback) return null;
+
+        return data as AnalysisResult;
+      } catch (err) {
+        // Re-throw billing errors
+        if (err instanceof Error && err.message.includes("limit")) throw err;
+        console.warn("Document AI path failed, falling back to vision:", err);
+        return null;
+      }
+    }
+
+    async function visionAnalysis(
+      buildingInfo: Record<string, unknown>
+    ): Promise<AnalysisResult> {
       const selectedPageData = pdfPages.filter((p) =>
         selectedPages.includes(p.pageNum)
       );
@@ -93,42 +174,25 @@ export function AnalyzingStep() {
         pageNum: p.pageNum,
       }));
 
-      const buildingInfo: Record<string, unknown> = {};
-      if (knownTotalSqft) {
-        const sqft = parseFloat(knownTotalSqft);
-        if (!isNaN(sqft) && sqft > 0) buildingInfo.totalSqft = sqft;
-      }
-      if (knownUnits > 1) {
-        buildingInfo.units = knownUnits;
-        buildingInfo.hvacPerUnit = hvacPerUnit;
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          images,
+          ...(Object.keys(buildingInfo).length > 0 ? { buildingInfo } : {}),
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res
+          .json()
+          .catch(() => ({ error: "Analysis failed" }));
+        throw new Error(
+          (err as { error?: string }).error ?? "Analysis failed"
+        );
       }
 
-      try {
-        const res = await fetch("/api/analyze", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            images,
-            ...(Object.keys(buildingInfo).length > 0 ? { buildingInfo } : {}),
-          }),
-        });
-
-        if (!res.ok) {
-          const err = await res
-            .json()
-            .catch(() => ({ error: "Analysis failed" }));
-          throw new Error(
-            (err as { error?: string }).error ?? "Analysis failed"
-          );
-        }
-
-        const result = (await res.json()) as AnalysisResult;
-        resultRef.current = result;
-        apiFinishedRef.current = true;
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Analysis failed");
-        setStep("select_pages");
-      }
+      return (await res.json()) as AnalysisResult;
     }
 
     analyze();
