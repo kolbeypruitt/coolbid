@@ -13,6 +13,8 @@ import { Label } from "@/components/ui/label";
 import type { BomItem } from "@/types/hvac";
 import { toBomInsertRows } from "@/lib/estimates/bom-rows";
 import { SourceBadge } from "@/components/ui/source-badge";
+import { FloorplanSchematic } from "@/components/estimates/floorplan-schematic";
+import { generateFloorplanLayout } from "@/lib/hvac/floorplan-layout";
 
 type BomCategory = {
   category: string;
@@ -206,6 +208,17 @@ export function BomStep() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Duct Layout Schematic */}
+      {bom.roomLoads.length > 0 && (
+        <FloorplanSchematic
+          layout={generateFloorplanLayout(bom.roomLoads, bom.summary)}
+          totalSqft={bom.summary.condSqft}
+          roomCount={rooms.length}
+          climateZone={climateZone}
+          totalBTU={bom.summary.designBTU}
+        />
+      )}
 
       {/* Pricing Card */}
       <Card className="bg-gradient-card border-border">

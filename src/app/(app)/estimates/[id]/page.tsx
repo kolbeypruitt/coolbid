@@ -26,7 +26,11 @@ import { EstimateActions } from "@/components/estimates/estimate-actions";
 import { FinancialsCard } from "@/components/estimates/financials-card";
 import { BomCategoryTable } from "@/components/estimates/bom-category-table";
 import { UnsavedShareBanner } from "@/components/estimates/unsaved-share-banner";
+import { FloorplanSchematic } from "@/components/estimates/floorplan-schematic";
 import { reconstructBomResult } from "@/lib/hvac/bom-from-saved";
+import { generateFloorplanLayout } from "@/lib/hvac/floorplan-layout";
+import { calculateRoomLoad, calculateSystemTonnage } from "@/lib/hvac/load-calc";
+import type { RoomLoad, ClimateZoneKey, RoomType } from "@/types/hvac";
 import type { Database } from "@/types/database";
 
 type EstimateRow = Database["public"]["Tables"]["estimates"]["Row"];
@@ -106,6 +110,44 @@ export default async function EstimateDetailPage({
     }
     bomByCategory[item.category].push(item);
   }
+
+  // Reconstruct room loads for duct layout schematic
+  const climateZone = (est.climate_zone ?? "mixed") as ClimateZoneKey;
+  const roomLoads: RoomLoad[] = roomList.map((r) =>
+    calculateRoomLoad(
+      {
+        name: r.name,
+        type: r.type as RoomType,
+        floor: r.floor,
+        estimated_sqft: r.sqft ?? 0,
+        width_ft: r.width_ft ?? 0,
+        length_ft: r.length_ft ?? 0,
+        window_count: r.window_count,
+        exterior_walls: r.exterior_walls,
+        ceiling_height: r.ceiling_height,
+        notes: r.notes,
+      },
+      climateZone,
+    ),
+  );
+  const totalBTU = roomLoads.reduce((s, r) => s + r.btu, 0);
+  const tonnage = calculateSystemTonnage(totalBTU);
+  const condSqft = roomLoads
+    .filter((r) => r.type !== "garage" && r.type !== "closet")
+    .reduce((s, r) => s + r.estimated_sqft, 0);
+  const layoutSummary = {
+    designBTU: Math.ceil(totalBTU * 1.1),
+    tonnage,
+    totalCFM: roomLoads.reduce((s, r) => s + r.cfm, 0),
+    totalRegs: roomLoads.reduce((s, r) => s + r.regs, 0),
+    retCount: 0,
+    condSqft,
+    zones: est.num_units,
+  };
+  const floorplanLayout =
+    roomLoads.length > 0
+      ? generateFloorplanLayout(roomLoads, layoutSummary)
+      : null;
 
   const bomResult = reconstructBomResult(est, bom, roomList);
   const rfqConfig = {
@@ -234,6 +276,17 @@ export default async function EstimateDetailPage({
             </Table>
           </CardContent>
         </Card>
+      )}
+
+      {/* Duct Layout Schematic */}
+      {floorplanLayout && (
+        <FloorplanSchematic
+          layout={floorplanLayout}
+          totalSqft={condSqft}
+          roomCount={roomList.length}
+          climateZone={climateZone}
+          totalBTU={layoutSummary.designBTU}
+        />
       )}
 
       {/* BOM Tables grouped by category — editable */}
