@@ -35,6 +35,17 @@ const TYPE_ALIASES: Record<string, RoomType> = {
   "breakfast nook": "dining_room",
   "breakfast_nook": "dining_room",
   "nook": "dining_room",
+  "patio": "garage",
+  "covered patio": "garage",
+  "covered_patio": "garage",
+  "porch": "garage",
+  "front porch": "garage",
+  "back porch": "garage",
+  "deck": "garage",
+  "lanai": "garage",
+  "screened porch": "garage",
+  "title block": "garage",
+  "title_block": "garage",
 };
 
 function normalizeRoomType(raw: string): RoomType {
