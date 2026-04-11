@@ -302,6 +302,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     (buildingInfo?.hvacPerUnit ?? false) && (buildingInfo?.units ?? 1) > 1;
   const result = validateAnalysis(validated.data, { perUnitAnalysis });
 
+  // Build a lookup: polygon_id → vertices from the geometry service
+  const vertexLookup = new Map<string, { x: number; y: number }[]>();
+  for (const { polygons } of polygonsByFloor) {
+    for (const p of polygons) {
+      vertexLookup.set(p.id, p.vertices);
+    }
+  }
+
+  // Attach vertices to each room by polygon_id
+  result.rooms = result.rooms.map((room) => ({
+    ...room,
+    vertices: vertexLookup.get(room.polygon_id) ?? [],
+  }));
+
   if (limitCheck.shouldIncrement) {
     await incrementAiActionCount(supabase, user.id);
   }

@@ -83,6 +83,7 @@ const DEFAULT_ROOM: Room = {
   notes: "",
   conditioned: true,
   polygon_id: "room_0",
+  vertices: [],
   bbox: { x: 0, y: 0, width: 1, height: 1 },
   centroid: { x: 0.5, y: 0.5 },
   adjacent_rooms: [],

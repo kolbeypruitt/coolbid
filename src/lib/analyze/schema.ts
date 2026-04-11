@@ -73,6 +73,10 @@ const RoomSchema = z.object({
   conditioned: z.coerce.boolean().optional(),
   unit: z.coerce.number().int().min(1).optional(),
   polygon_id: z.string().default(""),
+  vertices: z.array(z.object({
+    x: z.coerce.number().min(0).max(1),
+    y: z.coerce.number().min(0).max(1),
+  })).default([]),
   bbox: z.object({
     x: z.coerce.number().min(0).max(1),
     y: z.coerce.number().min(0).max(1),

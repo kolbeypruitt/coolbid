@@ -16,6 +16,7 @@ function makeRoom(overrides: Partial<Room> = {}): Room {
     notes: "",
     conditioned: true,
     polygon_id: "room_0",
+    vertices: [],
     bbox: { x: 0.1, y: 0.2, width: 0.3, height: 0.25 },
     centroid: { x: 0.25, y: 0.325 },
     adjacent_rooms: [],

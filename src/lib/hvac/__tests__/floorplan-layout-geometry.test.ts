@@ -19,6 +19,7 @@ function makeRoom(overrides: Partial<RoomLoad> = {}): RoomLoad {
     cfm: 300,
     regs: 2,
     polygon_id: "room_0",
+    vertices: [],
     bbox: { x: 0.1, y: 0.1, width: 0.4, height: 0.4 },
     centroid: { x: 0.3, y: 0.3 },
     adjacent_rooms: ["Kitchen"],

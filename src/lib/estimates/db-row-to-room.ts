@@ -23,6 +23,7 @@ export function dbRowToRoom(
       ? Boolean(r.conditioned)
       : ((r.type as string) !== "garage"),
     polygon_id: (r.polygon_id as string) ?? `room_${index}`,
+    vertices: [],
     bbox: {
       x: (r.bbox_x as number) ?? 0,
       y: (r.bbox_y as number) ?? 0,

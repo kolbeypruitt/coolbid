@@ -17,6 +17,7 @@ export type Room = {
   conditioned: boolean;
   unit?: number;
   polygon_id: string;
+  vertices: { x: number; y: number }[];
   bbox: { x: number; y: number; width: number; height: number };
   centroid: { x: number; y: number };
   adjacent_rooms: string[];
