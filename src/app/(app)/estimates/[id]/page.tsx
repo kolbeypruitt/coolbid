@@ -31,6 +31,7 @@ import { reconstructBomResult } from "@/lib/hvac/bom-from-saved";
 import { generateFloorplanLayout } from "@/lib/hvac/floorplan-layout";
 import { calculateRoomLoad, calculateSystemTonnage } from "@/lib/hvac/load-calc";
 import type { RoomLoad, ClimateZoneKey, RoomType } from "@/types/hvac";
+import { dbRowToRoom } from "@/lib/estimates/db-row-to-room";
 import type { Database } from "@/types/database";
 
 type EstimateRow = Database["public"]["Tables"]["estimates"]["Row"];
@@ -113,32 +114,9 @@ export default async function EstimateDetailPage({
 
   // Reconstruct room loads for duct layout schematic
   const climateZone = (est.climate_zone ?? "mixed") as ClimateZoneKey;
-  const roomLoads: RoomLoad[] = roomList.map((r) =>
+  const roomLoads: RoomLoad[] = roomList.map((r, i) =>
     calculateRoomLoad(
-      {
-        name: r.name,
-        type: r.type as RoomType,
-        floor: r.floor,
-        estimated_sqft: r.sqft ?? 0,
-        width_ft: r.width_ft ?? 0,
-        length_ft: r.length_ft ?? 0,
-        window_count: r.window_count,
-        exterior_walls: r.exterior_walls,
-        ceiling_height: r.ceiling_height,
-        notes: r.notes,
-        polygon_id: (r as Record<string, unknown>).polygon_id as string ?? `room_${roomList.indexOf(r)}`,
-        bbox: {
-          x: (r as Record<string, unknown>).bbox_x as number ?? 0,
-          y: (r as Record<string, unknown>).bbox_y as number ?? 0,
-          width: (r as Record<string, unknown>).bbox_width as number ?? 1,
-          height: (r as Record<string, unknown>).bbox_height as number ?? 1,
-        },
-        centroid: {
-          x: (r as Record<string, unknown>).centroid_x as number ?? 0.5,
-          y: (r as Record<string, unknown>).centroid_y as number ?? 0.5,
-        },
-        adjacent_rooms: ((r as Record<string, unknown>).adjacent_rooms as string[]) ?? [],
-      },
+      dbRowToRoom(r as Record<string, unknown>, i),
       climateZone,
     ),
   );

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import Anthropic from "@anthropic-ai/sdk";
-import { anthropic, SYSTEM_PROMPT, GEOMETRY_LABELING_PROMPT, formatPolygonsForPrompt } from "@/lib/anthropic";
+import { anthropic, SYSTEM_PROMPT, DOCAI_STRUCTURING_PROMPT, GEOMETRY_LABELING_PROMPT, formatPolygonsForPrompt } from "@/lib/anthropic";
 import { createClient } from "@/lib/supabase/server";
 import {
   checkAiActionLimit,
@@ -123,18 +123,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ fallback: true });
   }
 
-  // Run geometry extraction on each page image
+  // Run geometry extraction on all page images in parallel
   type PolygonsByFloor = { floor: number; polygons: import("@/lib/geometry/client").RoomPolygon[] };
-  const polygonsByFloor: PolygonsByFloor[] = [];
+  let polygonsByFloor: PolygonsByFloor[] = [];
 
-  for (const img of images) {
-    const imageBuffer = Buffer.from(img.base64, "base64");
+  if (images.length > 0) {
     try {
-      const geometry = await extractGeometry(imageBuffer, img.mediaType);
-      polygonsByFloor.push({
-        floor: img.pageNum ?? polygonsByFloor.length + 1,
-        polygons: geometry.polygons,
-      });
+      polygonsByFloor = await Promise.all(
+        images.map(async (img, idx) => {
+          const imageBuffer = Buffer.from(img.base64, "base64");
+          const geometry = await extractGeometry(imageBuffer, img.mediaType);
+          return { floor: img.pageNum ?? idx + 1, polygons: geometry.polygons };
+        }),
+      );
     } catch (err) {
       if (err instanceof GeometryServiceError) {
         return NextResponse.json(
@@ -165,10 +166,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // Add OCR text + prompt
-  const polygonText = formatPolygonsForPrompt(polygonsByFloor);
-  const prompt = GEOMETRY_LABELING_PROMPT + polygonText
-    + "\n\n--- OCR TEXT ---\n" + ocrResult.text
-    + buildConstraints(buildingInfo);
+  let prompt: string;
+  if (polygonsByFloor.length > 0) {
+    const polygonText = formatPolygonsForPrompt(polygonsByFloor);
+    prompt = GEOMETRY_LABELING_PROMPT + polygonText
+      + "\n\n--- OCR TEXT ---\n" + ocrResult.text
+      + buildConstraints(buildingInfo);
+  } else {
+    // OCR-only path (no images provided) — use structuring prompt without geometry
+    prompt = DOCAI_STRUCTURING_PROMPT + ocrResult.text + buildConstraints(buildingInfo);
+  }
   content.push({ type: "text", text: prompt });
 
   let rawText: string;

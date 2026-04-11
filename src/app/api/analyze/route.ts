@@ -4,9 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import {
   anthropic,
   SYSTEM_PROMPT,
-  ANALYSIS_PROMPT,
   PASS1_EXTRACTION_PROMPT,
-  PASS2_STRUCTURING_PROMPT,
   GEOMETRY_LABELING_PROMPT,
   formatPolygonsForPrompt,
 } from "@/lib/anthropic";
@@ -222,27 +220,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const { images, buildingInfo } = parsed.data;
   const imageContent = buildImageContent(images);
 
-  // Extract geometry from each page
+  // Extract geometry from all pages in parallel
   type PolygonsByFloor = { floor: number; polygons: import("@/lib/geometry/client").RoomPolygon[] };
-  const polygonsByFloor: PolygonsByFloor[] = [];
-
-  for (const img of images) {
-    const imageBuffer = Buffer.from(img.base64, "base64");
-    try {
-      const geometry = await extractGeometry(imageBuffer, img.mediaType);
-      polygonsByFloor.push({
-        floor: img.pageNum ?? polygonsByFloor.length + 1,
-        polygons: geometry.polygons,
-      });
-    } catch (err) {
-      if (err instanceof GeometryServiceError) {
-        return NextResponse.json(
-          { error: err.message, code: "geometry_failed" },
-          { status: 422 },
-        );
-      }
-      throw err;
+  let polygonsByFloor: PolygonsByFloor[];
+  try {
+    polygonsByFloor = await Promise.all(
+      images.map(async (img, idx) => {
+        const imageBuffer = Buffer.from(img.base64, "base64");
+        const geometry = await extractGeometry(imageBuffer, img.mediaType);
+        return { floor: img.pageNum ?? idx + 1, polygons: geometry.polygons };
+      }),
+    );
+  } catch (err) {
+    if (err instanceof GeometryServiceError) {
+      return NextResponse.json(
+        { error: err.message, code: "geometry_failed" },
+        { status: 422 },
+      );
     }
+    throw err;
   }
 
   // Analyze: two-pass for complex plans, single-pass otherwise

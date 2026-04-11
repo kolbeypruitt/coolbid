@@ -4,7 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { generateBOM } from "@/lib/hvac/bom-generator";
 import { toBomInsertRows } from "@/lib/estimates/bom-rows";
 import { calcTotals } from "@/lib/estimates/recalc";
-import type { Room, ClimateZoneKey } from "@/types/hvac";
+import type { ClimateZoneKey } from "@/types/hvac";
+import { dbRowToRoom } from "@/lib/estimates/db-row-to-room";
 import type { CatalogItem, SystemType } from "@/types/catalog";
 import type { Database } from "@/types/database";
 
@@ -39,30 +40,7 @@ export async function regenerateBom(estimateId: string): Promise<{ error?: strin
   if (roomErr || !rooms || rooms.length === 0) return { error: "No rooms found on this estimate" };
 
   // Convert DB rows to Room type
-  const roomInputs: Room[] = rooms.map((r, i) => ({
-    name: r.name,
-    type: r.type as Room["type"],
-    floor: r.floor ?? 1,
-    estimated_sqft: r.sqft ?? 0,
-    width_ft: r.width_ft ?? 0,
-    length_ft: r.length_ft ?? 0,
-    window_count: r.window_count ?? 0,
-    exterior_walls: r.exterior_walls ?? 0,
-    ceiling_height: r.ceiling_height ?? 8,
-    notes: r.notes ?? "",
-    polygon_id: `room_${i}`,
-    bbox: {
-      x: (r as Record<string, unknown>).bbox_x as number ?? 0,
-      y: (r as Record<string, unknown>).bbox_y as number ?? 0,
-      width: (r as Record<string, unknown>).bbox_width as number ?? 1,
-      height: (r as Record<string, unknown>).bbox_height as number ?? 1,
-    },
-    centroid: {
-      x: (r as Record<string, unknown>).centroid_x as number ?? 0.5,
-      y: (r as Record<string, unknown>).centroid_y as number ?? 0.5,
-    },
-    adjacent_rooms: ((r as Record<string, unknown>).adjacent_rooms as string[]) ?? [],
-  }));
+  const roomInputs = rooms.map((r, i) => dbRowToRoom(r as Record<string, unknown>, i));
 
   // Fetch current catalog
   const { data: catalog, error: catErr } = await supabase
