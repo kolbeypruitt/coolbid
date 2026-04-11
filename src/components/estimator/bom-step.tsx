@@ -142,6 +142,13 @@ export function BomStep() {
           window_count: r.window_count,
           exterior_walls: r.exterior_walls,
           notes: r.notes ?? "",
+          bbox_x: r.bbox.x,
+          bbox_y: r.bbox.y,
+          bbox_width: r.bbox.width,
+          bbox_height: r.bbox.height,
+          centroid_x: r.centroid.x,
+          centroid_y: r.centroid.y,
+          adjacent_rooms: r.adjacent_rooms,
         }));
         const { error: roomErr } = await supabase.from("estimate_rooms").insert(roomRows);
         if (roomErr) throw new Error(roomErr.message);
