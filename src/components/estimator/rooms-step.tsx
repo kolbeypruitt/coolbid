@@ -91,16 +91,27 @@ export function RoomsStep() {
   } = useEstimator();
 
   const [hoveredRoomIndex, setHoveredRoomIndex] = useState<number | null>(null);
+  const [activeFloor, setActiveFloor] = useState(1);
   const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
-  // Resolve which image to display (first selected page's preview)
+  const floors = [...new Set(rooms.map((r) => r.floor))].sort((a, b) => a - b);
+
+  // Resolve which image to display (page matching active floor)
   const displayImage = (() => {
     if (pdfPages.length > 0 && selectedPages.length > 0) {
-      const page = pdfPages.find((p) => p.pageNum === selectedPages[0]);
+      // For multi-page: match floor to page number
+      const targetPage = selectedPages.length > 1
+        ? selectedPages[activeFloor - 1] ?? selectedPages[0]
+        : selectedPages[0];
+      const page = pdfPages.find((p) => p.pageNum === targetPage);
       return page?.previewUrl ?? floorplanImg;
     }
     return floorplanImg;
   })();
+
+  const floorRoomsWithIndex = rooms
+    .map((room, index) => ({ room, index }))
+    .filter(({ room }) => room.floor === activeFloor);
 
   // Scroll selected card into view
   useEffect(() => {
@@ -148,14 +159,51 @@ export function RoomsStep() {
       <div className="grid gap-4 lg:grid-cols-[minmax(300px,1fr)_minmax(300px,1.2fr)]">
         {/* Left: Floorplan canvas (only when image available) */}
         {displayImage && (
-          <div className="lg:sticky lg:top-4 lg:self-start">
+          <div className="lg:sticky lg:top-4 lg:self-start space-y-2">
+            {floors.length > 1 && (
+              <div className="flex gap-1">
+                {floors.map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setActiveFloor(f)}
+                    className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                      activeFloor === f
+                        ? "bg-primary text-white"
+                        : "bg-bg-secondary text-txt-secondary hover:bg-bg-tertiary"
+                    }`}
+                  >
+                    Floor {f}
+                  </button>
+                ))}
+              </div>
+            )}
             <FloorplanCanvas
               imageSrc={displayImage}
-              rooms={rooms}
-              selectedIndex={selectedRoomIndex}
-              onSelectRoom={setSelectedRoomIndex}
-              hoveredIndex={hoveredRoomIndex}
-              onHoverRoom={setHoveredRoomIndex}
+              rooms={floorRoomsWithIndex.map(({ room }) => room)}
+              selectedIndex={
+                selectedRoomIndex != null
+                  ? floorRoomsWithIndex.findIndex(({ index }) => index === selectedRoomIndex)
+                  : null
+              }
+              onSelectRoom={(localIdx) => {
+                if (localIdx == null) {
+                  setSelectedRoomIndex(null);
+                } else {
+                  setSelectedRoomIndex(floorRoomsWithIndex[localIdx]?.index ?? null);
+                }
+              }}
+              hoveredIndex={
+                hoveredRoomIndex != null
+                  ? floorRoomsWithIndex.findIndex(({ index }) => index === hoveredRoomIndex)
+                  : null
+              }
+              onHoverRoom={(localIdx) => {
+                if (localIdx == null) {
+                  setHoveredRoomIndex(null);
+                } else {
+                  setHoveredRoomIndex(floorRoomsWithIndex[localIdx]?.index ?? null);
+                }
+              }}
             />
           </div>
         )}
@@ -199,7 +247,14 @@ export function RoomsStep() {
                     <div
                       key={i}
                       ref={(el) => { if (el) cardRefs.current.set(i, el); }}
-                      onClick={() => setSelectedRoomIndex(selectedRoomIndex === i ? null : i)}
+                      onClick={() => {
+                        const newIdx = selectedRoomIndex === i ? null : i;
+                        setSelectedRoomIndex(newIdx);
+                        if (newIdx != null) {
+                          const room = rooms[newIdx];
+                          if (room.floor !== activeFloor) setActiveFloor(room.floor);
+                        }
+                      }}
                       className={`bg-gradient-card border-border hover:border-b-accent hover-glow hover-lift transition-all duration-[250ms] rounded-xl p-4 shadow-sm cursor-pointer ${
                         selectedRoomIndex === i
                           ? "ring-2 ring-primary border-primary"
