@@ -38,6 +38,8 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^20.19.39",
     "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19",
@@ -45,6 +47,7 @@
     "@vitest/ui": "^4.1.4",
     "eslint": "^9",
     "eslint-config-next": "16.2.3",
+    "jsdom": "^29.0.2",
     "pdf-parse": "^2.4.5",
     "supabase": "^2.88.1",
     "tailwindcss": "^4",
