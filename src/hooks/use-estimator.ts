@@ -41,6 +41,7 @@ type EstimatorState = {
   supplierName: string;
   error: string | null;
   showRFQ: boolean;
+  selectedRoomIndex: number | null;
 };
 
 type EstimatorActions = {
@@ -67,6 +68,7 @@ type EstimatorActions = {
   setFinancials: (info: Partial<Pick<EstimatorState, "profitMargin" | "laborRate" | "laborHours">>) => void;
   setError: (error: string | null) => void;
   setShowRFQ: (show: boolean) => void;
+  setSelectedRoomIndex: (index: number | null) => void;
   reset: () => void;
 };
 
@@ -120,6 +122,7 @@ function initialState(): EstimatorState {
     supplierName: "Johnstone Supply",
     error: null,
     showRFQ: false,
+    selectedRoomIndex: null,
   };
 }
 
@@ -274,6 +277,8 @@ export const useEstimator = create<EstimatorState & EstimatorActions>((set, get)
   setError: (error) => set({ error }),
 
   setShowRFQ: (show) => set({ showRFQ: show }),
+
+  setSelectedRoomIndex: (index) => set({ selectedRoomIndex: index }),
 
   reset: () => set(initialState()),
 }));
