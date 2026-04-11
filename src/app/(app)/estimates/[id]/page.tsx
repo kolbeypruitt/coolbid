@@ -184,6 +184,7 @@ export default async function EstimateDetailPage({
         bom={bomResult}
         rfqConfig={rfqConfig}
         projectName={est.project_name}
+        estimateId={est.id}
       />
 
       {/* Financials — editable margin slider, labor inputs, live totals */}
