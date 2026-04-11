@@ -58,6 +58,7 @@ const RoomSchema = z.object({
   exterior_walls: z.coerce.number().int().min(0).max(4).default(1),
   ceiling_height: z.coerce.number().min(0).default(9),
   notes: z.string().default(""),
+  unit: z.coerce.number().int().min(1).optional(),
 });
 
 const BuildingSchema = z.object({
@@ -66,6 +67,7 @@ const BuildingSchema = z.object({
   units: z.coerce.number().int().min(1).default(1),
   has_garage: z.coerce.boolean().default(false),
   building_shape: z.string().default("rectangle"),
+  unit_sqft: z.array(z.coerce.number().min(0)).optional(),
 });
 
 const HvacNotesSchema = z.object({

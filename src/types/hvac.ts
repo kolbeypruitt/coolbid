@@ -14,6 +14,7 @@ export type Room = {
   name: string; type: RoomType; floor: number; estimated_sqft: number;
   width_ft: number; length_ft: number; window_count: number;
   exterior_walls: number; ceiling_height: number; notes: string;
+  unit?: number;
 };
 
 export type RoomLoad = Room & { btu: number; cfm: number; regs: number };
@@ -31,7 +32,7 @@ export type BomSummary = {
 
 export type BomResult = { items: BomItem[]; summary: BomSummary; roomLoads: RoomLoad[] };
 
-export type BuildingInfo = { stories: number; total_sqft: number; units: number; has_garage: boolean; building_shape: string };
+export type BuildingInfo = { stories: number; total_sqft: number; units: number; has_garage: boolean; building_shape: string; unit_sqft?: number[] };
 
 export type HvacNotes = { suggested_equipment_location: string; suggested_zones: number; special_considerations: string[] };
 

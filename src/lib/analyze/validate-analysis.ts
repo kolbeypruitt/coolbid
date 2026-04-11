@@ -39,20 +39,42 @@ export function validateAnalysis(
       warnings.push(`Room "${patched.name}": length ${patched.length_ft} ft seems unusual`);
     }
 
-    // Duplicate detection (folded into the map pass)
-    const key = `${patched.name.toLowerCase().trim()}::${patched.floor}`;
+    // Duplicate detection — include unit in key so same room name in different units is OK
+    const unitKey = patched.unit ?? 0;
+    const key = `${patched.name.toLowerCase().trim()}::${patched.floor}::${unitKey}`;
     if (seen.has(key)) {
-      warnings.push(`Duplicate room: "${patched.name}" on floor ${patched.floor}`);
+      warnings.push(`Duplicate room: "${patched.name}" on floor ${patched.floor}${patched.unit ? ` unit ${patched.unit}` : ""}`);
     }
     seen.add(key);
 
     return patched;
   });
 
-  // Sqft sum check against building total (or per-unit total for multi-unit)
+  // Sqft sum check — per-unit when unit_sqft provided, otherwise building total
   const roomSqftSum = rooms.reduce((sum, r) => sum + r.estimated_sqft, 0);
   let confidence = result.confidence;
-  if (result.building.total_sqft > 0) {
+
+  if (result.building.unit_sqft && result.building.unit_sqft.length > 0) {
+    // Per-unit validation using explicit unit_sqft array
+    for (let u = 0; u < result.building.unit_sqft.length; u++) {
+      const unitNum = u + 1;
+      const expectedSqft = result.building.unit_sqft[u];
+      if (expectedSqft <= 0) continue;
+
+      const unitRoomSum = rooms
+        .filter((r) => r.unit === unitNum)
+        .reduce((sum, r) => sum + r.estimated_sqft, 0);
+
+      const diff = Math.abs(unitRoomSum - expectedSqft);
+      if (diff / expectedSqft > 0.15) {
+        confidence = "low";
+        warnings.push(
+          `Unit ${unitNum} room sqft sum (${unitRoomSum}) differs from expected (${expectedSqft}) by ${Math.round((diff / expectedSqft) * 100)}%`
+        );
+      }
+    }
+  } else if (result.building.total_sqft > 0) {
+    // Fallback: equal-division or building total
     const expectedSqft =
       options.perUnitAnalysis && result.building.units > 1
         ? result.building.total_sqft / result.building.units
@@ -64,6 +86,19 @@ export function validateAnalysis(
         `Room sqft sum (${roomSqftSum}) differs from ${options.perUnitAnalysis ? "per-unit" : "building"} total (${Math.round(expectedSqft)}) by ${Math.round((totalDiff / expectedSqft) * 100)}%`
       );
     }
+  }
+
+  // Per-floor sqft subtotals
+  const floorMap = new Map<number, number>();
+  for (const room of rooms) {
+    floorMap.set(room.floor, (floorMap.get(room.floor) ?? 0) + room.estimated_sqft);
+  }
+  if (floorMap.size > 1) {
+    const floorSummary = [...floorMap.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([floor, sqft]) => `Floor ${floor}: ${Math.round(sqft)} sqft`)
+      .join(", ");
+    warnings.push(`Per-floor breakdown: ${floorSummary}`);
   }
 
   const analysisNotes = [result.analysis_notes, ...warnings]

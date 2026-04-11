@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
-  serverExternalPackages: ["@resvg/resvg-js"],
+  serverExternalPackages: ["@resvg/resvg-js", "@google-cloud/documentai"],
   async redirects() {
     return [
       // Canonical host: www.coolbid.app → coolbid.app

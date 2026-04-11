@@ -15,6 +15,7 @@ import {
 } from "@/lib/billing/ai-action-counter";
 import { AnalysisResultSchema } from "@/lib/analyze/schema";
 import { validateAnalysis } from "@/lib/analyze/validate-analysis";
+import { extractTextFromResponse, extractJson } from "@/lib/analyze/utils";
 
 export const maxDuration = 120;
 
@@ -96,29 +97,6 @@ function buildConstraints(
 
   if (constraints.length === 0) return "";
   return `\n\nAdditional constraints:\n${constraints.map((c) => `- ${c}`).join("\n")}`;
-}
-
-/** Extract the first text block from a Claude response (skipping thinking blocks). */
-function extractTextFromResponse(
-  response: Anthropic.Messages.Message
-): string {
-  const textBlock = response.content.find(
-    (b): b is Anthropic.Messages.TextBlock => b.type === "text"
-  );
-  if (!textBlock) throw new Error("No text block in Claude response");
-  return textBlock.text;
-}
-
-/** Extract JSON from a raw text response that may include markdown fences or surrounding text. */
-function extractJson(rawText: string): string {
-  let text = rawText.trim();
-  text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start === -1 || end === -1 || end < start) {
-    throw new Error("Response did not contain a JSON object");
-  }
-  return text.slice(start, end + 1);
 }
 
 function shouldUseTwoPass(
