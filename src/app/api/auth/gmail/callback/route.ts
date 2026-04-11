@@ -49,16 +49,43 @@ export async function GET(request: NextRequest) {
 
     const supabase = getServiceClient();
 
-    // Check for existing connection
-    const { data: existing } = await supabase
+    const alreadyConnectedUrl = `${appUrl}/parts-database?gmail_error=${encodeURIComponent(
+      "This email is already connected to another account"
+    )}`;
+
+    // Reject if this email is already connected to a different user
+    const { data: otherUser, error: dupCheckError } = await supabase
+      .from("email_connections")
+      .select("id")
+      .eq("provider", "gmail")
+      .eq("email_address", emailAddress)
+      .neq("user_id", stateResult.userId)
+      .maybeSingle();
+
+    if (dupCheckError) {
+      console.error("Duplicate-user check failed:", dupCheckError);
+      return NextResponse.redirect(`${appUrl}/parts-database?gmail_error=connection_check_failed`);
+    }
+
+    if (otherUser) {
+      return NextResponse.redirect(alreadyConnectedUrl);
+    }
+
+    // Check for existing connection by this user
+    const { data: existing, error: existingCheckError } = await supabase
       .from("email_connections")
       .select("id")
       .eq("user_id", stateResult.userId)
       .eq("email_address", emailAddress)
       .maybeSingle();
 
+    if (existingCheckError) {
+      console.error("Existing connection check failed:", existingCheckError);
+      return NextResponse.redirect(`${appUrl}/parts-database?gmail_error=connection_check_failed`);
+    }
+
     if (existing) {
-      await supabase
+      const { error: updateError } = await supabase
         .from("email_connections")
         .update({
           access_token: tokens.access_token,
@@ -70,6 +97,11 @@ export async function GET(request: NextRequest) {
           last_sync_error: null,
         })
         .eq("id", existing.id);
+
+      if (updateError) {
+        console.error("Failed to update connection:", updateError);
+        return NextResponse.redirect(`${appUrl}/parts-database?gmail_error=save_failed`);
+      }
     } else {
       const { error: insertError } = await supabase
         .from("email_connections")
@@ -84,6 +116,9 @@ export async function GET(request: NextRequest) {
         });
 
       if (insertError) {
+        if (insertError.code === "23505") {
+          return NextResponse.redirect(alreadyConnectedUrl);
+        }
         console.error("Failed to save connection:", insertError);
         return NextResponse.redirect(`${appUrl}/parts-database?gmail_error=save_failed`);
       }
