@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import Anthropic from "@anthropic-ai/sdk";
-import { anthropic, SYSTEM_PROMPT, DOCAI_STRUCTURING_PROMPT, DOCAI_HYBRID_PROMPT } from "@/lib/anthropic";
+import { anthropic, SYSTEM_PROMPT, GEOMETRY_LABELING_PROMPT, formatPolygonsForPrompt } from "@/lib/anthropic";
 import { createClient } from "@/lib/supabase/server";
 import {
   checkAiActionLimit,
@@ -11,8 +11,9 @@ import { AnalysisResultSchema } from "@/lib/analyze/schema";
 import { validateAnalysis } from "@/lib/analyze/validate-analysis";
 import { extractJson } from "@/lib/analyze/utils";
 import { ocrDocument } from "@/lib/document-ai/client";
+import { extractGeometry, GeometryServiceError } from "@/lib/geometry/client";
 
-export const maxDuration = 120;
+export const maxDuration = 180;
 
 const BuildingInfoSchema = z
   .object({
@@ -122,6 +123,29 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ fallback: true });
   }
 
+  // Run geometry extraction on each page image
+  type PolygonsByFloor = { floor: number; polygons: import("@/lib/geometry/client").RoomPolygon[] };
+  const polygonsByFloor: PolygonsByFloor[] = [];
+
+  for (const img of images) {
+    const imageBuffer = Buffer.from(img.base64, "base64");
+    try {
+      const geometry = await extractGeometry(imageBuffer, img.mediaType);
+      polygonsByFloor.push({
+        floor: img.pageNum ?? polygonsByFloor.length + 1,
+        polygons: geometry.polygons,
+      });
+    } catch (err) {
+      if (err instanceof GeometryServiceError) {
+        return NextResponse.json(
+          { error: err.message, code: "geometry_failed" },
+          { status: 422 },
+        );
+      }
+      throw err;
+    }
+  }
+
   // Build Claude message: images + OCR text (hybrid approach)
   const content: Anthropic.Messages.ContentBlockParam[] = [];
 
@@ -141,9 +165,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // Add OCR text + prompt
-  const prompt = images.length > 0
-    ? DOCAI_HYBRID_PROMPT + ocrResult.text + buildConstraints(buildingInfo)
-    : DOCAI_STRUCTURING_PROMPT + ocrResult.text + buildConstraints(buildingInfo);
+  const polygonText = formatPolygonsForPrompt(polygonsByFloor);
+  const prompt = GEOMETRY_LABELING_PROMPT + polygonText
+    + "\n\n--- OCR TEXT ---\n" + ocrResult.text
+    + buildConstraints(buildingInfo);
   content.push({ type: "text", text: prompt });
 
   let rawText: string;

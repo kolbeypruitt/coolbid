@@ -7,6 +7,8 @@ import {
   ANALYSIS_PROMPT,
   PASS1_EXTRACTION_PROMPT,
   PASS2_STRUCTURING_PROMPT,
+  GEOMETRY_LABELING_PROMPT,
+  formatPolygonsForPrompt,
 } from "@/lib/anthropic";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -16,8 +18,9 @@ import {
 import { AnalysisResultSchema } from "@/lib/analyze/schema";
 import { validateAnalysis } from "@/lib/analyze/validate-analysis";
 import { extractTextFromResponse, extractJson } from "@/lib/analyze/utils";
+import { extractGeometry, GeometryServiceError } from "@/lib/geometry/client";
 
-export const maxDuration = 120;
+export const maxDuration = 180;
 
 const ImageSchema = z.object({
   base64: z.string().min(1),
@@ -110,9 +113,11 @@ function shouldUseTwoPass(
 
 async function singlePassAnalysis(
   imageContent: Anthropic.Messages.ContentBlockParam[],
-  buildingInfo: z.infer<typeof RequestSchema>["buildingInfo"]
+  buildingInfo: z.infer<typeof RequestSchema>["buildingInfo"],
+  polygonsByFloor: { floor: number; polygons: import("@/lib/geometry/client").RoomPolygon[] }[],
 ): Promise<string> {
-  const userPrompt = ANALYSIS_PROMPT + buildConstraints(buildingInfo);
+  const polygonText = formatPolygonsForPrompt(polygonsByFloor);
+  const userPrompt = GEOMETRY_LABELING_PROMPT + polygonText + buildConstraints(buildingInfo);
   const content: Anthropic.Messages.ContentBlockParam[] = [
     ...imageContent,
     { type: "text", text: userPrompt },
@@ -133,7 +138,8 @@ async function singlePassAnalysis(
 
 async function twoPassAnalysis(
   imageContent: Anthropic.Messages.ContentBlockParam[],
-  buildingInfo: z.infer<typeof RequestSchema>["buildingInfo"]
+  buildingInfo: z.infer<typeof RequestSchema>["buildingInfo"],
+  polygonsByFloor: { floor: number; polygons: import("@/lib/geometry/client").RoomPolygon[] }[],
 ): Promise<string> {
   // Pass 1: Raw annotation extraction (vision + extended thinking)
   const pass1Content: Anthropic.Messages.ContentBlockParam[] = [
@@ -151,7 +157,11 @@ async function twoPassAnalysis(
 
   const rawExtraction = extractTextFromResponse(pass1Response);
 
-  // Pass 2: Structure the extraction into JSON (text-only, no images)
+  // Pass 2: Structure the extraction into JSON using geometry data
+  const polygonText = formatPolygonsForPrompt(polygonsByFloor);
+  const pass2Prompt = GEOMETRY_LABELING_PROMPT + polygonText
+    + "\n\n--- RAW EXTRACTION ---\n" + rawExtraction;
+
   const pass2Response = await anthropic.messages.create({
     model: "claude-sonnet-4-20250514",
     max_tokens: 16000,
@@ -159,7 +169,7 @@ async function twoPassAnalysis(
     messages: [
       {
         role: "user",
-        content: PASS2_STRUCTURING_PROMPT + rawExtraction,
+        content: pass2Prompt,
       },
     ],
   });
@@ -212,13 +222,36 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const { images, buildingInfo } = parsed.data;
   const imageContent = buildImageContent(images);
 
+  // Extract geometry from each page
+  type PolygonsByFloor = { floor: number; polygons: import("@/lib/geometry/client").RoomPolygon[] };
+  const polygonsByFloor: PolygonsByFloor[] = [];
+
+  for (const img of images) {
+    const imageBuffer = Buffer.from(img.base64, "base64");
+    try {
+      const geometry = await extractGeometry(imageBuffer, img.mediaType);
+      polygonsByFloor.push({
+        floor: img.pageNum ?? polygonsByFloor.length + 1,
+        polygons: geometry.polygons,
+      });
+    } catch (err) {
+      if (err instanceof GeometryServiceError) {
+        return NextResponse.json(
+          { error: err.message, code: "geometry_failed" },
+          { status: 422 },
+        );
+      }
+      throw err;
+    }
+  }
+
   // Analyze: two-pass for complex plans, single-pass otherwise
   let rawText: string;
   try {
     if (shouldUseTwoPass(images.length, buildingInfo?.totalSqft)) {
-      rawText = await twoPassAnalysis(imageContent, buildingInfo);
+      rawText = await twoPassAnalysis(imageContent, buildingInfo, polygonsByFloor);
     } else {
-      rawText = await singlePassAnalysis(imageContent, buildingInfo);
+      rawText = await singlePassAnalysis(imageContent, buildingInfo, polygonsByFloor);
     }
   } catch (err) {
     console.error("Claude API error:", err);
