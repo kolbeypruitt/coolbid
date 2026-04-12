@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Save, FileText, Download, AlertTriangle } from "lucide-react";
 import { useEstimator } from "@/hooks/use-estimator";
@@ -46,6 +46,7 @@ export function BomStep() {
     setStep,
     setError,
   } = useEstimator();
+  const [saving, setSaving] = useState(false);
 
   if (!bom) return null;
 
@@ -97,8 +98,9 @@ export function BomStep() {
 
   async function handleFinish() {
     const currentBom = bom;
-    if (!currentBom || !estimateId) return;
+    if (!currentBom || !estimateId || saving) return;
     setError(null);
+    setSaving(true);
     try {
       const supabase = createClient();
 
@@ -127,8 +129,6 @@ export function BomStep() {
 
       if (estErr) throw new Error(estErr.message);
 
-      // Clear and re-insert rooms
-      await supabase.from("estimate_rooms").delete().eq("estimate_id", estimateId);
       if (rooms.length > 0) {
         const roomRows = rooms.map((r) => ({
           estimate_id: estimateId,
@@ -151,21 +151,54 @@ export function BomStep() {
           adjacent_rooms: r.adjacent_rooms,
           conditioned: r.conditioned,
         }));
-        const { error: roomErr } = await supabase.from("estimate_rooms").insert(roomRows);
+        const { data: newRooms, error: roomErr } = await supabase
+          .from("estimate_rooms")
+          .insert(roomRows)
+          .select("id");
         if (roomErr) throw new Error(roomErr.message);
+
+        const newRoomIds = (newRooms ?? []).map((r) => r.id);
+        const { error: delRoomErr } = await supabase
+          .from("estimate_rooms")
+          .delete()
+          .eq("estimate_id", estimateId)
+          .not("id", "in", `(${newRoomIds.join(",")})`);
+        if (delRoomErr) throw new Error(delRoomErr.message);
+      } else {
+        const { error: delRoomErr } = await supabase
+          .from("estimate_rooms")
+          .delete()
+          .eq("estimate_id", estimateId);
+        if (delRoomErr) throw new Error(delRoomErr.message);
       }
 
-      // Clear and re-insert BOM items
-      await supabase.from("estimate_bom_items").delete().eq("estimate_id", estimateId);
       if (currentBom.items.length > 0) {
         const bomRows = toBomInsertRows(currentBom.items, estimateId);
-        const { error: bomErr } = await supabase.from("estimate_bom_items").insert(bomRows);
+        const { data: newBom, error: bomErr } = await supabase
+          .from("estimate_bom_items")
+          .insert(bomRows)
+          .select("id");
         if (bomErr) throw new Error(bomErr.message);
+
+        const newBomIds = (newBom ?? []).map((r) => r.id);
+        const { error: delBomErr } = await supabase
+          .from("estimate_bom_items")
+          .delete()
+          .eq("estimate_id", estimateId)
+          .not("id", "in", `(${newBomIds.join(",")})`);
+        if (delBomErr) throw new Error(delBomErr.message);
+      } else {
+        const { error: delBomErr } = await supabase
+          .from("estimate_bom_items")
+          .delete()
+          .eq("estimate_id", estimateId);
+        if (delBomErr) throw new Error(delBomErr.message);
       }
 
       router.push(`/estimates/${estimateId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save estimate");
+      setSaving(false);
     }
   }
 
@@ -392,9 +425,9 @@ export function BomStep() {
           <Download />
           Export CSV
         </Button>
-        <Button onClick={handleFinish} className="bg-gradient-brand hover-lift">
+        <Button onClick={handleFinish} disabled={saving} className="bg-gradient-brand hover-lift">
           <Save />
-          Done — View Estimate
+          {saving ? "Saving…" : "Done — View Estimate"}
         </Button>
       </div>
     </div>
