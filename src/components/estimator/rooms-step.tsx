@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { Trash2, Plus } from "lucide-react";
 import { useEstimator } from "@/hooks/use-estimator";
 import { ROOM_TYPES, LOAD_FACTORS } from "@/lib/hvac/parts-db";
@@ -92,7 +92,6 @@ export function RoomsStep() {
 
   const [hoveredRoomIndex, setHoveredRoomIndex] = useState<number | null>(null);
   const [activeFloor, setActiveFloor] = useState(1);
-  const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
   const floors = [...new Set(rooms.map((r) => r.floor))].sort((a, b) => a - b);
 
@@ -112,14 +111,6 @@ export function RoomsStep() {
   const floorRoomsWithIndex = rooms
     .map((room, index) => ({ room, index }))
     .filter(({ room }) => room.floor === activeFloor);
-
-  // Scroll selected card into view
-  useEffect(() => {
-    if (selectedRoomIndex != null) {
-      const el = cardRefs.current.get(selectedRoomIndex);
-      el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
-  }, [selectedRoomIndex]);
 
   const totalSqft = rooms.reduce((sum, r) => sum + (r.estimated_sqft ?? 0), 0);
   const conditionedSqft = rooms
@@ -155,11 +146,10 @@ export function RoomsStep() {
         </div>
       </div>
 
-      {/* Two-column: canvas + cards */}
-      <div className="grid gap-4 lg:grid-cols-[minmax(300px,1fr)_minmax(300px,1.2fr)]">
-        {/* Left: Floorplan canvas (only when image available) */}
+      <div className="space-y-4">
+        {/* Floorplan canvas (only when image available) */}
         {displayImage && (
-          <div className="lg:sticky lg:top-4 lg:self-start space-y-2">
+          <div className="space-y-2">
             {floors.length > 1 && (
               <div className="flex gap-1">
                 {floors.map((f) => (
@@ -238,7 +228,7 @@ export function RoomsStep() {
                 </div>
               )}
 
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {floorRooms.map(({ room, index: i }) => {
                   const factor = LOAD_FACTORS[room.type] ?? LOAD_FACTORS.bedroom;
                   const estBtu = Math.round((room.estimated_sqft ?? 0) * factor.btu);
@@ -246,7 +236,6 @@ export function RoomsStep() {
                   return (
                     <div
                       key={i}
-                      ref={(el) => { if (el) cardRefs.current.set(i, el); }}
                       onClick={() => {
                         const newIdx = selectedRoomIndex === i ? null : i;
                         setSelectedRoomIndex(newIdx);
@@ -255,7 +244,7 @@ export function RoomsStep() {
                           if (room.floor !== activeFloor) setActiveFloor(room.floor);
                         }
                       }}
-                      className={`bg-gradient-card border-border hover:border-b-accent hover-glow hover-lift transition-all duration-[250ms] rounded-xl p-4 shadow-sm cursor-pointer ${
+                      className={`bg-gradient-card border-border hover:border-b-accent hover-glow hover-lift transition-all duration-[250ms] rounded-xl p-3 shadow-sm cursor-pointer ${
                         selectedRoomIndex === i
                           ? "ring-2 ring-primary border-primary"
                           : hoveredRoomIndex === i
@@ -263,7 +252,7 @@ export function RoomsStep() {
                             : ""
                       }`}
                     >
-                      <div className="mb-3 flex items-center justify-between gap-2">
+                      <div className="mb-2 flex items-center justify-between gap-2">
                         <Input
                           value={room.name}
                           onClick={(e) => e.stopPropagation()}
@@ -279,7 +268,7 @@ export function RoomsStep() {
                       </div>
 
                       {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
-                      <div className="grid grid-cols-2 gap-2" onClick={(e) => e.stopPropagation()}>
+                      <div className="grid grid-cols-2 gap-1.5" onClick={(e) => e.stopPropagation()}>
                         <div className="space-y-1">
                           <Label className="text-xs text-txt-tertiary uppercase tracking-wider">Type</Label>
                           <Select
@@ -335,7 +324,7 @@ export function RoomsStep() {
                           />
                         </div>
                         {unitCount > 1 && (
-                          <div className="space-y-1">
+                          <div className="space-y-0.5">
                             <Label className="text-xs text-txt-tertiary uppercase tracking-wider">Unit</Label>
                             <Select
                               value={String(room.unit ?? 1)}
@@ -356,7 +345,7 @@ export function RoomsStep() {
                         )}
                       </div>
 
-                      <div className="mt-3 flex items-center justify-between">
+                      <div className="mt-2 flex items-center justify-between">
                         <div className="flex items-center gap-2 text-xs text-txt-tertiary">
                           <span>{room.width_ft || "?"}' × {room.length_ft || "?"}'</span>
                           <span>·</span>
