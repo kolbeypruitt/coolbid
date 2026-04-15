@@ -88,7 +88,7 @@ export function PreferencesForm({ initialValue, onSave, submitLabel, saving }: P
 
       <div className="space-y-2">
         <Label>Supply register style</Label>
-        <Select value={registerStyle} onValueChange={setRegisterStyle}>
+        <Select value={registerStyle} onValueChange={(v) => setRegisterStyle(v ?? "")}>
           <SelectTrigger>
             <SelectValue placeholder="Select a style" />
           </SelectTrigger>
@@ -104,7 +104,7 @@ export function PreferencesForm({ initialValue, onSave, submitLabel, saving }: P
 
       <div className="space-y-2">
         <Label>Return grille sizing</Label>
-        <Select value={returnGrille} onValueChange={setReturnGrille}>
+        <Select value={returnGrille} onValueChange={(v) => setReturnGrille(v ?? "")}>
           <SelectTrigger>
             <SelectValue placeholder="Select sizing" />
           </SelectTrigger>
@@ -120,7 +120,7 @@ export function PreferencesForm({ initialValue, onSave, submitLabel, saving }: P
 
       <div className="space-y-2">
         <Label>Duct trunk material</Label>
-        <Select value={trunkMaterial} onValueChange={setTrunkMaterial}>
+        <Select value={trunkMaterial} onValueChange={(v) => setTrunkMaterial(v ?? "")}>
           <SelectTrigger>
             <SelectValue placeholder="Select material" />
           </SelectTrigger>
@@ -136,7 +136,7 @@ export function PreferencesForm({ initialValue, onSave, submitLabel, saving }: P
 
       <div className="space-y-2">
         <Label>Filter size</Label>
-        <Select value={filterSize} onValueChange={setFilterSize}>
+        <Select value={filterSize} onValueChange={(v) => setFilterSize(v ?? "")}>
           <SelectTrigger>
             <SelectValue placeholder="Select size" />
           </SelectTrigger>
@@ -152,7 +152,7 @@ export function PreferencesForm({ initialValue, onSave, submitLabel, saving }: P
 
       <div className="space-y-2">
         <Label>Filter MERV rating</Label>
-        <Select value={merv} onValueChange={setMerv}>
+        <Select value={merv} onValueChange={(v) => setMerv(v ?? "")}>
           <SelectTrigger>
             <SelectValue placeholder="Select MERV rating" />
           </SelectTrigger>
@@ -168,7 +168,7 @@ export function PreferencesForm({ initialValue, onSave, submitLabel, saving }: P
 
       <div className="space-y-2">
         <Label>Thermostat brand</Label>
-        <Select value={thermostat} onValueChange={setThermostat}>
+        <Select value={thermostat} onValueChange={(v) => setThermostat(v ?? "")}>
           <SelectTrigger>
             <SelectValue placeholder="Select brand" />
           </SelectTrigger>
