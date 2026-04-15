@@ -31,7 +31,6 @@ export function StarterSupplierToggles() {
           .from("suppliers")
           .select("*")
           .eq("user_id", user.id)
-          .eq("is_starter", true)
           .order("name");
 
         setSuppliers(data ?? []);
@@ -80,10 +79,10 @@ export function StarterSupplierToggles() {
   return (
     <Card className="bg-gradient-card border-border">
       <CardHeader>
-        <CardTitle className="text-txt-primary">Starter Parts Lists</CardTitle>
+        <CardTitle className="text-txt-primary">My suppliers</CardTitle>
         <CardDescription className="text-txt-secondary">
-          Toggle off a supplier to hide their starter equipment from your catalog
-          and estimates. Changes save automatically.
+          Toggle off a supplier to hide their catalog and products from
+          search and estimates. Changes save automatically.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

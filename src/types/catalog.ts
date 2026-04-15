@@ -15,7 +15,11 @@ export type EquipmentType =
   | "electrical"
   | "installation";
 
-export type CatalogSource = "starter" | "quote" | "manual";
+// `starter` remains in the union purely so old DB rows (and the historical
+// BomItem.source type in @/types/hvac) still typecheck. Migration 016
+// deletes every source='starter' row from `equipment_catalog`; new writes
+// should use 'quote' | 'manual' | 'imported' instead.
+export type CatalogSource = "starter" | "quote" | "manual" | "imported";
 
 export type Supplier = {
   id: string;
@@ -26,13 +30,47 @@ export type Supplier = {
   brands: string[];
   is_starter: boolean;
   is_active: boolean;
+  vendor_id: string | null;
   created_at: string;
+};
+
+export type Vendor = {
+  id: string;
+  slug: string;
+  name: string;
+  base_url: string;
+  is_active: boolean;
+  created_at: string;
+};
+
+/**
+ * A vendor_products row as returned by `GET /api/catalog?browse=vendor`.
+ * Joined with its parent vendor for display.
+ */
+export type VendorProductRow = {
+  id: string;
+  vendor_id: string;
+  sku: string;
+  mpn: string | null;
+  name: string;
+  brand: string | null;
+  image_url: string | null;
+  short_description: string | null;
+  category_root: string | null;
+  category_path: string | null;
+  category_leaf: string | null;
+  detail_url: string | null;
+  price: number | null;
+  price_text: string | null;
+  last_priced_at: string | null;
+  vendor: { id: string; slug: string; name: string } | null;
 };
 
 export type CatalogItem = {
   id: string;
   user_id: string;
   supplier_id: string | null;
+  vendor_product_id: string | null;
   model_number: string;
   description: string;
   equipment_type: EquipmentType;

@@ -226,8 +226,9 @@ export const useEstimator = create<EstimatorState & EstimatorActions>((set, get)
         .from("equipment_catalog")
         .select("*, supplier:suppliers(*)")
         .order("usage_count", { ascending: false });
+      // Hide items from inactive suppliers (user toggled them off).
       const activeCatalog = ((catalog ?? []) as CatalogItem[]).filter(
-        (item) => item.source !== "starter" || item.supplier?.is_active !== false,
+        (item) => item.supplier?.is_active !== false,
       );
       const bom = generateBOM(
         rooms,

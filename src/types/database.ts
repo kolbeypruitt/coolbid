@@ -271,6 +271,7 @@ export type Database = {
           brands: string[];
           is_starter: boolean;
           is_active: boolean;
+          vendor_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -282,8 +283,83 @@ export type Database = {
           brands?: string[];
           is_starter?: boolean;
           is_active?: boolean;
+          vendor_id?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["suppliers"]["Insert"]>;
+        Relationships: [];
+      };
+      vendors: {
+        Row: {
+          id: string;
+          slug: string;
+          name: string;
+          base_url: string;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          slug: string;
+          name: string;
+          base_url: string;
+          is_active?: boolean;
+        };
+        Update: Partial<Database["public"]["Tables"]["vendors"]["Insert"]>;
+        Relationships: [];
+      };
+      vendor_products: {
+        Row: {
+          id: string;
+          vendor_id: string;
+          sku: string;
+          mpn: string | null;
+          name: string;
+          brand: string | null;
+          image_url: string | null;
+          short_description: string | null;
+          catalog_page: string | null;
+          category_root: string | null;
+          category_path: string | null;
+          category_leaf: string | null;
+          cat1: string | null;
+          detail_url: string | null;
+          raw: Json | null;
+          price: number | null;
+          price_text: string | null;
+          last_priced_at: string | null;
+          specifications: Json | null;
+          features: Json | null;
+          documents: Json | null;
+          additional_images: Json | null;
+          scraped_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          vendor_id: string;
+          sku: string;
+          name: string;
+          mpn?: string | null;
+          brand?: string | null;
+          image_url?: string | null;
+          short_description?: string | null;
+          catalog_page?: string | null;
+          category_root?: string | null;
+          category_path?: string | null;
+          category_leaf?: string | null;
+          cat1?: string | null;
+          detail_url?: string | null;
+          raw?: Json | null;
+          price?: number | null;
+          price_text?: string | null;
+          last_priced_at?: string | null;
+          specifications?: Json | null;
+          features?: Json | null;
+          documents?: Json | null;
+          additional_images?: Json | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["vendor_products"]["Insert"]>;
         Relationships: [];
       };
       equipment_catalog: {
@@ -291,6 +367,7 @@ export type Database = {
           id: string;
           user_id: string;
           supplier_id: string | null;
+          vendor_product_id: string | null;
           model_number: string;
           description: string;
           equipment_type: string;
@@ -313,6 +390,7 @@ export type Database = {
           id?: string;
           user_id: string;
           supplier_id?: string | null;
+          vendor_product_id?: string | null;
           model_number: string;
           description?: string;
           equipment_type: string;

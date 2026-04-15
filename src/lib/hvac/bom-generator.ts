@@ -21,45 +21,35 @@ function findCatalogItem(
       (c.system_type === "universal" || c.system_type === systemType),
   );
 
-  const realParts = typeMatch.filter((c) => c.source !== "starter");
+  if (typeMatch.length === 0) return null;
 
-  if (realParts.length > 0) {
-    if (tonnage === null) {
-      return { item: sortByUsage(realParts)[0], notes: "" };
-    }
+  if (tonnage === null) {
+    return { item: sortByUsage(typeMatch)[0], notes: "" };
+  }
 
-    // Pass 1: exact tonnage match (±0.5T) from quote/manual
-    const exact = sortByUsage(
-      realParts.filter((c) => c.tonnage !== null && Math.abs(c.tonnage - tonnage) <= 0.5),
-    );
-    if (exact.length > 0) return { item: exact[0], notes: "" };
+  // Pass 1: exact tonnage match (±0.5T)
+  const exact = sortByUsage(
+    typeMatch.filter((c) => c.tonnage !== null && Math.abs(c.tonnage - tonnage) <= 0.5),
+  );
+  if (exact.length > 0) return { item: exact[0], notes: "" };
 
-    // Pass 2: closest tonnage from quote/manual
-    const withTonnage = realParts.filter((c) => c.tonnage !== null);
-    if (withTonnage.length > 0) {
-      withTonnage.sort((a, b) => Math.abs(a.tonnage! - tonnage) - Math.abs(b.tonnage! - tonnage));
-      const closest = withTonnage[0];
-      const supplier = closest.supplier?.name ?? closest.brand;
-      return {
-        item: closest,
-        notes: `Need ${tonnage}T — closest quoted is ${closest.tonnage}T from ${supplier}`,
-      };
-    }
-
-    // Real parts exist but none have tonnage data
+  // Pass 2: closest tonnage
+  const withTonnage = typeMatch.filter((c) => c.tonnage !== null);
+  if (withTonnage.length > 0) {
+    withTonnage.sort((a, b) => Math.abs(a.tonnage! - tonnage) - Math.abs(b.tonnage! - tonnage));
+    const closest = withTonnage[0];
+    const supplier = closest.supplier?.name ?? closest.brand;
     return {
-      item: sortByUsage(realParts)[0],
-      notes: `Need ${tonnage}T — quoted part has no tonnage specified`,
+      item: closest,
+      notes: `Need ${tonnage}T — closest is ${closest.tonnage}T from ${supplier}`,
     };
   }
 
-  // Pass 3: no real parts — allow starters
-  const starters = sortByUsage(
-    typeMatch.filter(
-      (c) => tonnage === null || c.tonnage === null || Math.abs(c.tonnage - tonnage) <= 0.5,
-    ),
-  );
-  return starters.length > 0 ? { item: starters[0], notes: "" } : null;
+  // Type matches exist but none have tonnage data
+  return {
+    item: sortByUsage(typeMatch)[0],
+    notes: `Need ${tonnage}T — available part has no tonnage specified`,
+  };
 }
 
 function findCatalogItemByKeyword(
@@ -82,17 +72,8 @@ function findCatalogItemByKeyword(
       (c.system_type === "universal" || c.system_type === systemType),
   );
 
-  const realParts = typeMatch.filter((c) => c.source !== "starter");
-
-  if (realParts.length > 0) {
-    // Match keyword among quote/manual parts only
-    const kwMatch = sortByUsage(realParts.filter(matchesKeyword));
-    if (kwMatch.length > 0) return { item: kwMatch[0], notes: "" };
-  }
-
-  // Pass 3: no real parts — allow starters with keyword match
-  const starters = sortByUsage(typeMatch.filter(matchesKeyword));
-  return starters.length > 0 ? { item: starters[0], notes: "" } : null;
+  const kwMatch = sortByUsage(typeMatch.filter(matchesKeyword));
+  return kwMatch.length > 0 ? { item: kwMatch[0], notes: "" } : null;
 }
 
 function getCategoryFromType(type: EquipmentType): string {

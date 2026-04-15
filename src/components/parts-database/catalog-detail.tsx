@@ -47,6 +47,7 @@ const SOURCE_BADGE: Record<
   starter: { label: "Starter", variant: "outline" },
   quote: { label: "Quoted", variant: "default" },
   manual: { label: "Manual", variant: "secondary" },
+  imported: { label: "Imported", variant: "default" },
 };
 
 function toEditableFields(item: CatalogItem): EditableFields {
