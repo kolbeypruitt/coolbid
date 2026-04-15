@@ -3,6 +3,8 @@ import type { AnalysisResult, BomResult, ClimateZoneKey, Room } from "@/types/hv
 import type { CatalogItem, SystemType } from "@/types/catalog";
 import { generateBOM } from "@/lib/hvac/bom-generator";
 import { createClient } from "@/lib/supabase/client";
+import { renderContractorPreferencesPrompt } from "@/lib/contractor-preferences/render-prompt";
+import type { ContractorPreferences } from "@/types/contractor-preferences";
 
 type EstimatorStep = "customer" | "upload" | "select_pages" | "analyzing" | "rooms" | "bom";
 
@@ -229,6 +231,28 @@ export const useEstimator = create<EstimatorState & EstimatorActions>((set, get)
       const activeCatalog = ((catalog ?? []) as CatalogItem[]).filter(
         (item) => item.source !== "starter" || item.supplier?.is_active !== false,
       );
+
+      // TODO(ai-bom-generator): when the AI-powered BOM generator lands, pass
+      // `preferencesPrompt` as additional system-prompt context. For now the
+      // deterministic generator ignores it; we render + debug-log to prove the
+      // data pipeline works end-to-end.
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        const { data: prefsRow } = await supabase
+          .from("profiles")
+          .select("contractor_preferences")
+          .eq("id", user.id)
+          .single();
+        const preferences =
+          (prefsRow?.contractor_preferences as ContractorPreferences | null) ?? null;
+        const preferencesPrompt = renderContractorPreferencesPrompt(preferences);
+        if (preferencesPrompt && process.env.NODE_ENV !== "production") {
+          console.debug("[contractor-prefs-prompt][use-estimator]", preferencesPrompt);
+        }
+      }
+
       const bom = generateBOM(
         rooms,
         climateZone,
