@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -15,9 +16,12 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import type { CatalogItem, VendorProductRow } from "@/types/catalog";
 import type { Database } from "@/types/database";
 
-type CatalogRow = Database["public"]["Tables"]["equipment_catalog"]["Row"];
+type SearchHit =
+  | { kind: "catalog"; item: CatalogItem }
+  | { kind: "vendor"; item: VendorProductRow };
 
 export interface AddPartDialogProps {
   estimateId: string;
@@ -40,7 +44,7 @@ export function AddPartDialog({
 
   // Search state
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<CatalogRow[]>([]);
+  const [results, setResults] = useState<SearchHit[]>([]);
   const [searching, setSearching] = useState(false);
 
   // Custom form state
@@ -52,7 +56,6 @@ export function AddPartDialog({
     unit_cost: 0,
   });
 
-  // Reset on open
   useEffect(() => {
     if (open) {
       setMode("search");
@@ -66,15 +69,39 @@ export function AddPartDialog({
   async function handleSearch() {
     if (!query.trim()) return;
     setSearching(true);
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("equipment_catalog")
-      .select("*")
-      .or(`description.ilike.%${query.trim()}%,model_number.ilike.%${query.trim()}%`)
-      .order("usage_count", { ascending: false })
-      .limit(20);
-    setResults(data ?? []);
-    setSearching(false);
+    try {
+      const [catalogRes, browseRes] = await Promise.all([
+        fetch(
+          `/api/catalog?q=${encodeURIComponent(query.trim())}`,
+        ).then((r) => r.json()),
+        fetch(
+          `/api/catalog?browse=vendor&q=${encodeURIComponent(query.trim())}`,
+        ).then((r) => r.json()),
+      ]);
+
+      const catalogRows = ((catalogRes.items ?? []) as CatalogItem[]).slice(0, 12);
+      const vendorRows = ((browseRes.items ?? []) as VendorProductRow[]).slice(0, 12);
+
+      const catalogSkus = new Set(
+        catalogRows.map((r) => r.model_number.toLowerCase()),
+      );
+      const filteredVendor = vendorRows.filter(
+        (r) => !catalogSkus.has(r.sku.toLowerCase()),
+      );
+
+      const catalogItems: SearchHit[] = catalogRows.map((item) => ({
+        kind: "catalog" as const,
+        item,
+      }));
+      const vendorItems: SearchHit[] = filteredVendor.map((item) => ({
+        kind: "vendor" as const,
+        item,
+      }));
+
+      setResults([...catalogItems, ...vendorItems]);
+    } finally {
+      setSearching(false);
+    }
   }
 
   async function insertItem(row: Database["public"]["Tables"]["estimate_bom_items"]["Insert"]) {
@@ -91,7 +118,6 @@ export function AddPartDialog({
       return;
     }
 
-    // Flip sent → draft
     await supabase
       .from("estimates")
       .update({ status: "draft" })
@@ -104,20 +130,66 @@ export function AddPartDialog({
     router.refresh();
   }
 
-  async function handleCatalogSelect(item: CatalogRow) {
+  async function handleSelect(hit: SearchHit) {
     const qty = 1;
-    await insertItem({
-      estimate_id: estimateId,
-      category: item.equipment_type,
-      description: item.description,
-      quantity: qty,
-      unit: item.unit_of_measure,
-      unit_cost: item.unit_price ?? 0,
-      total_cost: (item.unit_price ?? 0) * qty,
-      part_id: item.id,
-      supplier: item.brand || null,
-      source: "starter",
-    });
+
+    if (hit.kind === "catalog") {
+      const item = hit.item;
+      await insertItem({
+        estimate_id: estimateId,
+        category: item.equipment_type,
+        description: item.description,
+        quantity: qty,
+        unit: item.unit_of_measure,
+        unit_cost: item.unit_price ?? 0,
+        total_cost: (item.unit_price ?? 0) * qty,
+        part_id: item.id,
+        supplier: item.brand || null,
+        source: "manual",
+      });
+      return;
+    }
+
+    // Vendor pick: materialize into equipment_catalog first, then add
+    // the BOM line against that imported row.
+    const row = hit.item;
+    setSaving(true);
+    setError(null);
+    try {
+      const importRes = await fetch("/api/catalog", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source: "imported",
+          vendor_product_id: row.id,
+          model_number: row.sku,
+          description: row.name,
+          equipment_type: "installation",
+          brand: row.brand ?? "",
+          unit_price: row.price ?? null,
+          unit_of_measure: "ea",
+        }),
+      });
+      if (!importRes.ok) {
+        throw new Error(`Import failed: ${importRes.status}`);
+      }
+      const imported = (await importRes.json()) as CatalogItem;
+      await insertItem({
+        estimate_id: estimateId,
+        category: imported.equipment_type,
+        description: imported.description,
+        quantity: qty,
+        unit: imported.unit_of_measure,
+        unit_cost: imported.unit_price ?? 0,
+        total_cost: (imported.unit_price ?? 0) * qty,
+        part_id: imported.id,
+        supplier: imported.brand || null,
+        source: "manual",
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Import failed");
+      setSaving(false);
+    }
   }
 
   async function handleCustomSubmit(e: React.FormEvent) {
@@ -142,13 +214,14 @@ export function AddPartDialog({
           <DialogHeader>
             <DialogTitle>Add part</DialogTitle>
             <DialogDescription>
-              Search the catalog or add a custom item.
+              Search your catalog and active supplier product lines, or add a
+              custom item.
             </DialogDescription>
           </DialogHeader>
 
           <div className="flex gap-2">
             <Input
-              placeholder="Search parts..."
+              placeholder="Search by name, model, brand, SKU…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
@@ -158,33 +231,54 @@ export function AddPartDialog({
             </Button>
           </div>
 
-          <div className="max-h-64 overflow-y-auto">
+          <div className="max-h-80 overflow-y-auto">
             {searching && (
               <p className="py-4 text-center text-sm text-txt-tertiary">Searching...</p>
             )}
             {!searching && results.length === 0 && query.trim() && (
               <p className="py-4 text-center text-sm text-txt-tertiary">No results found.</p>
             )}
-            {results.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => handleCatalogSelect(item)}
-                disabled={saving}
-                className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-[rgba(6,182,212,0.05)] transition-colors"
-              >
-                <div>
-                  <p className="font-medium text-txt-primary">{item.description}</p>
-                  <p className="text-xs text-txt-tertiary">
-                    {item.brand} · {item.model_number}
-                    {item.tonnage ? ` · ${item.tonnage}T` : ""}
-                  </p>
-                </div>
-                <span className="tabular-nums text-txt-primary font-medium">
-                  {item.unit_price != null ? `$${item.unit_price.toFixed(2)}` : "No price"}
-                </span>
-              </button>
-            ))}
+            {results.map((hit) => {
+              const isCatalog = hit.kind === "catalog";
+              const key = isCatalog ? `c-${hit.item.id}` : `v-${hit.item.id}`;
+              const title = isCatalog ? hit.item.description : hit.item.name;
+              const sub = isCatalog
+                ? `${hit.item.brand} · ${hit.item.model_number}${
+                    hit.item.tonnage ? ` · ${hit.item.tonnage}T` : ""
+                  }`
+                : `${hit.item.brand ?? "—"} · ${hit.item.sku}${
+                    hit.item.vendor?.name ? ` · ${hit.item.vendor.name}` : ""
+                  }`;
+              const price = isCatalog ? hit.item.unit_price : hit.item.price;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => handleSelect(hit)}
+                  disabled={saving}
+                  className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm hover:bg-[rgba(6,182,212,0.05)] transition-colors disabled:opacity-50"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-txt-primary truncate">{title}</p>
+                      <Badge
+                        className={
+                          isCatalog
+                            ? "bg-success-bg text-success border-none text-[10px]"
+                            : "bg-cool-blue-glow text-cool-blue-light border-none text-[10px]"
+                        }
+                      >
+                        {isCatalog ? "Used before" : "Supplier"}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-txt-tertiary truncate">{sub}</p>
+                  </div>
+                  <span className="tabular-nums text-txt-primary font-medium shrink-0">
+                    {price != null ? `$${price.toFixed(2)}` : "No price"}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           {error && <p className="text-sm text-error">{error}</p>}

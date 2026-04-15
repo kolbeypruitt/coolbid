@@ -22,13 +22,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { CatalogSearchDialog } from "./catalog-search-dialog";
+import {
+  CatalogSearchDialog,
+  type CatalogSearchResult,
+} from "./catalog-search-dialog";
 import { SourceBadge } from "@/components/ui/source-badge";
 import { AddPartDialog } from "./add-part-dialog";
 import type { Database } from "@/types/database";
 
 type BomRow = Database["public"]["Tables"]["estimate_bom_items"]["Row"];
-type CatalogRow = Database["public"]["Tables"]["equipment_catalog"]["Row"];
 
 export interface BomCategoryTableProps {
   estimateId: string;
@@ -98,23 +100,67 @@ export function BomCategoryTable({
     router.refresh();
   }
 
-  async function handleSwap(catalogItem: CatalogRow) {
+  async function handleSwap(result: CatalogSearchResult) {
     if (!swapItemId) return;
     const supabase = createClient();
     const currentItem = items.find((i) => i.id === swapItemId);
     const qty = currentItem?.quantity ?? 1;
-    const unitCost = catalogItem.unit_price ?? 0;
+
+    // Vendor-catalog picks need to be materialized into equipment_catalog
+    // first so the BOM row has a real `part_id` FK and future swaps find
+    // the same imported row instead of re-importing.
+    let description: string;
+    let unitCost: number;
+    let brand: string | null;
+    let sku: string | null;
+    let partId: string;
+
+    if (result.kind === "vendor") {
+      const importRes = await fetch("/api/catalog", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source: "imported",
+          vendor_product_id: result.item.id,
+          model_number: result.item.sku,
+          description: result.item.name,
+          equipment_type: "installation",
+          brand: result.item.brand ?? "",
+          unit_price: result.item.price ?? null,
+          unit_of_measure: "ea",
+        }),
+      });
+      if (!importRes.ok) return;
+      const imported = (await importRes.json()) as {
+        id: string;
+        description: string;
+        unit_price: number | null;
+        brand: string;
+        model_number: string;
+      };
+      description = imported.description;
+      unitCost = imported.unit_price ?? 0;
+      brand = imported.brand || null;
+      sku = imported.model_number || null;
+      partId = imported.id;
+    } else {
+      description = result.item.description;
+      unitCost = result.item.unit_price ?? 0;
+      brand = result.item.brand || null;
+      sku = result.item.model_number || null;
+      partId = result.item.id;
+    }
 
     const { error } = await supabase
       .from("estimate_bom_items")
       .update({
-        description: catalogItem.description,
+        description,
         unit_cost: unitCost,
         total_cost: unitCost * qty,
-        part_id: catalogItem.id,
-        supplier: catalogItem.brand || null,
-        sku: catalogItem.model_number || null,
-        source: "starter",
+        part_id: partId,
+        supplier: brand,
+        sku,
+        source: "manual",
       })
       .eq("id", swapItemId);
 
