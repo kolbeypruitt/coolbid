@@ -360,19 +360,49 @@ def _html_escape(s: str) -> str:
     )
 
 
+IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
+
+
+def _discover_fixtures(fixtures_dir: Path) -> list[Path]:
+    """Return all image files in fixtures_dir (non-recursive, sorted)."""
+    if not fixtures_dir.is_dir():
+        raise SystemExit(f"Fixtures dir not found: {fixtures_dir}")
+    return sorted(
+        f for f in fixtures_dir.iterdir()
+        if f.is_file() and f.suffix.lower() in IMAGE_EXTS
+    )
+
+
+def _prepare_fixture(path: Path) -> str:
+    """Load, preprocess, JPEG-encode, and base64 a fixture image."""
+    img = cv2.imread(str(path))
+    if img is None:
+        raise SystemExit(f"Could not decode image: {path}")
+    prepared = prepare_image_for_vision(img)
+    ok, jpeg = cv2.imencode(".jpg", prepared, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
+    if not ok:
+        raise SystemExit(f"Failed to JPEG-encode: {path}")
+    return base64.standard_b64encode(jpeg.tobytes()).decode("ascii")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--image", default="fixtures/wright-residence.jpg")
+    parser.add_argument(
+        "--image",
+        default=None,
+        help="Run a single fixture (overrides auto-discovery in fixtures/).",
+    )
+    parser.add_argument(
+        "--fixtures-dir",
+        default="fixtures",
+        help="Directory to scan for fixture images (.jpg, .jpeg, .png, .webp).",
+    )
     parser.add_argument("--variants", default="variants/*.md")
     parser.add_argument("--model", default="claude-sonnet-4-6")
     parser.add_argument("--thinking-budget", type=int, default=8000)
     parser.add_argument("--max-tokens", type=int, default=16000)
     parser.add_argument("--no-open", action="store_true")
     args = parser.parse_args()
-
-    image_path = Path(args.image).resolve()
-    if not image_path.exists():
-        raise SystemExit(f"Image not found: {image_path}")
 
     variant_paths = sorted(_HERE.glob(args.variants))
     if not variant_paths:
@@ -382,33 +412,45 @@ def main() -> None:
         "Loaded %d variants: %s", len(variants), ", ".join(v.name for v in variants)
     )
 
-    # Preprocess the image once (same pipeline production uses).
-    img = cv2.imread(str(image_path))
-    if img is None:
-        raise SystemExit(f"Could not decode image: {image_path}")
-    prepared = prepare_image_for_vision(img)
-    ok, jpeg = cv2.imencode(".jpg", prepared, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
-    if not ok:
-        raise SystemExit("Failed to JPEG-encode preprocessed image")
-    image_b64 = base64.standard_b64encode(jpeg.tobytes()).decode("ascii")
+    if args.image:
+        fixture_paths = [Path(args.image).resolve()]
+        if not fixture_paths[0].exists():
+            raise SystemExit(f"Image not found: {fixture_paths[0]}")
+    else:
+        fixture_paths = _discover_fixtures((_HERE / args.fixtures_dir).resolve())
+        if not fixture_paths:
+            raise SystemExit(f"No images found in {args.fixtures_dir}/")
 
-    results = asyncio.run(
-        _run_all(
-            image_b64,
-            variants,
-            model=args.model,
-            max_tokens=args.max_tokens,
-            thinking_budget=args.thinking_budget,
+    logger.info("Running %d variants × %d fixtures", len(variants), len(fixture_paths))
+
+    timestamp = time.strftime("%Y-%m-%d_%H%M%S")
+    reports_written: list[Path] = []
+
+    for fixture_path in fixture_paths:
+        logger.info("━━━ Fixture: %s ━━━", fixture_path.name)
+        image_b64 = _prepare_fixture(fixture_path)
+
+        results = asyncio.run(
+            _run_all(
+                image_b64,
+                variants,
+                model=args.model,
+                max_tokens=args.max_tokens,
+                thinking_budget=args.thinking_budget,
+            )
         )
-    )
 
-    report_html = _render_report(results, image_b64, image_path.name, args.model)
-    out_path = _HERE / "reports" / f"{time.strftime('%Y-%m-%d_%H%M%S')}.html"
-    out_path.write_text(report_html)
-    print(f"\nReport written: {out_path}")
+        report_html = _render_report(results, image_b64, fixture_path.name, args.model)
+        out_path = _HERE / "reports" / f"{timestamp}_{fixture_path.stem}.html"
+        out_path.write_text(report_html)
+        reports_written.append(out_path)
+        print(f"  → Report: {out_path}")
+
+    print(f"\n{len(reports_written)} report(s) written under {_HERE}/reports/")
 
     if not args.no_open:
-        webbrowser.open(out_path.as_uri())
+        # Open the first report; user can navigate to others if needed.
+        webbrowser.open(reports_written[0].as_uri())
 
 
 if __name__ == "__main__":

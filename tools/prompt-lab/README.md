@@ -1,6 +1,6 @@
 # Prompt Lab
 
-Run N vision-LLM prompt variants against one floor plan in parallel and render a side-by-side HTML report of the resulting polygon overlays. Lets you compare prompt approaches without redeploying Modal.
+Run N vision-LLM prompt variants against M floor-plan fixtures in parallel and render side-by-side HTML reports of the resulting polygon overlays. Lets you compare prompt approaches — and test consistency across hand-drawn vs CAD plans — without redeploying Modal.
 
 ## Setup
 
@@ -11,14 +11,13 @@ cd tools/prompt-lab
 
 # Use the geometry-service venv (same Python deps)
 source ../../geometry-service/venv/bin/activate
-# Or create a fresh venv: python -m venv venv && source venv/bin/activate && pip install anthropic opencv-python-headless shapely pydantic numpy
 
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-## Drop a test image
+## Drop fixtures
 
-Put a floor plan photo at `fixtures/wright-residence.jpg` (or any path you pass to `--image`).
+Put any `.jpg`, `.jpeg`, `.png`, or `.webp` floor-plan images under `fixtures/`. The runner will auto-discover them — any number, any mix of hand-drawn and CAD.
 
 ## Run
 
@@ -28,10 +27,10 @@ python run.py
 
 This:
 1. Loads every `variants/*.md` file as a prompt variant.
-2. Preprocesses the image via the same `preprocess.py` pipeline production uses.
-3. Calls Anthropic (default `claude-sonnet-4-6` + 8k thinking budget) for each variant, in parallel.
-4. Postprocesses polygons via the same `postprocess.py` pipeline.
-5. Writes `reports/<timestamp>.html` and opens it in your browser.
+2. Discovers all image files in `fixtures/`.
+3. For each fixture: preprocesses via the same pipeline production uses, calls Anthropic for every variant in parallel (default `claude-sonnet-4-6` + 8k thinking budget), postprocesses polygons.
+4. Writes one report per fixture: `reports/<timestamp>_<fixture-stem>.html`.
+5. Opens the first report in your browser.
 
 ## Variant files
 
@@ -48,19 +47,36 @@ description: One-line description shown in the report header
 
 The system prompt is shared across all variants (hardcoded in `run.py`).
 
-Add new variants by dropping more `.md` files in `variants/`. Rerun.
+Variants we've already tested and discarded live in `variants/archive/` for reference. They're not loaded by default.
 
 ## Options
 
 | Flag | Default | Purpose |
 |------|---------|---------|
-| `--image PATH` | `fixtures/wright-residence.jpg` | Floor plan photo |
+| `--image PATH` | (auto-discover) | Run a single fixture, bypassing auto-discovery |
+| `--fixtures-dir DIR` | `fixtures` | Directory to scan for images |
 | `--variants GLOB` | `variants/*.md` | Which variants to run |
 | `--model NAME` | `claude-sonnet-4-6` | Anthropic model |
 | `--thinking-budget N` | `8000` | Extended-thinking budget |
 | `--max-tokens N` | `16000` | Max output tokens |
 | `--no-open` | off | Don't auto-open the report |
 
+## Running only finalists
+
+To A/B the top 4 variants against every fixture:
+
+```bash
+python run.py --variants 'variants/v0[456]*.md' --variants 'variants/v1[16]*.md'
+```
+
+Or archive the others (`git mv variants/v14-tri-mesh.md variants/archive/` etc.) so the default `variants/*.md` glob picks up just the active set.
+
 ## Cost + time
 
-10 parallel calls on Sonnet 4.6 at 8k thinking + 16k output budget: roughly $0.50–$1 and 30–60 seconds total per run. Opus is ~5× more expensive.
+Per fixture: ~13 parallel Sonnet 4.6 calls at 8k thinking + 16k output ≈ $1-2 and 60-90s. With 4 fixtures that's ~$4-8 total. Opus is ~5× more expensive.
+
+## Troubleshooting
+
+**JSON parse error**: the runner auto-cleans trailing commas. If a variant still fails, check `reports/failed_<variant-name>_<ts>.txt` for the raw model output — that'll show exactly what the model emitted.
+
+**Rate-limit 429**: too many concurrent variants. Archive a few and re-run, or run fewer variants at once.
