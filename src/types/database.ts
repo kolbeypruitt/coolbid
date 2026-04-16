@@ -341,6 +341,10 @@ export type Database = {
           scraped_at: string;
           created_at: string;
           updated_at: string;
+          bom_slot: string | null;
+          bom_specs: Json | null;
+          bom_classifier_v: number | null;
+          bom_classified_at: string | null;
         };
         Insert: {
           id?: string;
@@ -365,6 +369,10 @@ export type Database = {
           features?: Json | null;
           documents?: Json | null;
           additional_images?: Json | null;
+          bom_slot?: string | null;
+          bom_specs?: Json | null;
+          bom_classifier_v?: number | null;
+          bom_classified_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["vendor_products"]["Insert"]>;
         Relationships: [];
