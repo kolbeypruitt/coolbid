@@ -5,10 +5,16 @@ export type LayoutRoom = {
   name: string;
   type: RoomType;
   floor: number;
+  /** Bounding box in SVG coords — used for duct routing and register placement. */
   x: number;
   y: number;
   width: number;
   height: number;
+  /**
+   * Full polygon in SVG coords — at least 3 points when the LLM detected a
+   * polygon, otherwise empty and the consumer falls back to the bbox rect.
+   */
+  polygon: { x: number; y: number }[];
   sqft: number;
   cfm: number;
   regs: number;

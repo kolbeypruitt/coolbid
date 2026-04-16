@@ -164,26 +164,43 @@ export function FloorplanSchematic({
             ))}
 
           {/* Rooms */}
-          {rooms.map((room) => (
+          {rooms.map((room) => {
+            const tooltip = (
+              <title>
+                {room.name} ({room.type}){"\n"}
+                {room.sqft} sqft · {room.cfm} CFM{"\n"}
+                {room.regs} supply register{room.regs !== 1 ? "s" : ""}
+                {room.hasReturn ? " · Return grille" : ""}
+              </title>
+            );
+            const useRect = room.polygon.length < 3;
+            return (
             <g key={room.id}>
-              <rect
-                x={room.x}
-                y={room.y}
-                width={room.width}
-                height={room.height}
-                fill="url(#schematic-roomGlow)"
-                stroke="rgba(34,211,238,0.55)"
-                strokeWidth="1.5"
-              >
-                <title>
-                  {room.name} ({room.type}){"\n"}
-                  {room.sqft} sqft · {room.cfm} CFM{"\n"}
-                  {room.regs} supply register{room.regs !== 1 ? "s" : ""}
-                  {room.hasReturn ? " · Return grille" : ""}
-                </title>
-              </rect>
+              {useRect ? (
+                <rect
+                  x={room.x}
+                  y={room.y}
+                  width={room.width}
+                  height={room.height}
+                  fill="url(#schematic-roomGlow)"
+                  stroke="rgba(34,211,238,0.55)"
+                  strokeWidth="1.5"
+                >
+                  {tooltip}
+                </rect>
+              ) : (
+                <polygon
+                  points={room.polygon.map((p) => `${p.x},${p.y}`).join(" ")}
+                  fill="url(#schematic-roomGlow)"
+                  stroke="rgba(34,211,238,0.55)"
+                  strokeWidth="1.5"
+                  strokeLinejoin="round"
+                >
+                  {tooltip}
+                </polygon>
+              )}
 
-              {/* Room name label (inside room, small) */}
+              {/* Room name label (centered on bbox) */}
               {room.width > 30 && room.height > 20 && (
                 <text
                   x={room.x + room.width / 2}
@@ -197,7 +214,8 @@ export function FloorplanSchematic({
                 </text>
               )}
             </g>
-          ))}
+            );
+          })}
 
           {/* Supply register dots */}
           {rooms.flatMap((room) =>
