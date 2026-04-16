@@ -84,21 +84,41 @@ type EstimatorActions = {
   reset: () => void;
 };
 
+// Coords are normalized 0–1 relative to the floorplan canvas. Spawn a
+// small square centered on the canvas so the room is visible and can be
+// dragged/resized from the start; width_ft/length_ft carry the logical
+// dimensions (4×4 ft = 16 sqft) while the vertices carry the visual
+// handle. Without real vertices, floorplan-canvas.tsx's computeBbox
+// collapses to 0×0 on the first drag and the room disappears.
+const DEFAULT_ROOM_SIZE = 0.1; // 10% of canvas width/height
+const DEFAULT_ROOM_MIN = 0.5 - DEFAULT_ROOM_SIZE / 2;
+const DEFAULT_ROOM_MAX = 0.5 + DEFAULT_ROOM_SIZE / 2;
+
 const DEFAULT_ROOM: Room = {
   name: "New Room",
   type: "bedroom",
   floor: 1,
-  estimated_sqft: 120,
-  width_ft: 10,
-  length_ft: 12,
-  window_count: 1,
-  exterior_walls: 1,
+  estimated_sqft: 16,
+  width_ft: 4,
+  length_ft: 4,
+  window_count: 0,
+  exterior_walls: 0,
   ceiling_height: 8,
   notes: "",
   conditioned: true,
   polygon_id: "room_0",
-  vertices: [],
-  bbox: { x: 0, y: 0, width: 1, height: 1 },
+  vertices: [
+    { x: DEFAULT_ROOM_MIN, y: DEFAULT_ROOM_MIN },
+    { x: DEFAULT_ROOM_MAX, y: DEFAULT_ROOM_MIN },
+    { x: DEFAULT_ROOM_MAX, y: DEFAULT_ROOM_MAX },
+    { x: DEFAULT_ROOM_MIN, y: DEFAULT_ROOM_MAX },
+  ],
+  bbox: {
+    x: DEFAULT_ROOM_MIN,
+    y: DEFAULT_ROOM_MIN,
+    width: DEFAULT_ROOM_SIZE,
+    height: DEFAULT_ROOM_SIZE,
+  },
   centroid: { x: 0.5, y: 0.5 },
   adjacent_rooms: [],
 };
