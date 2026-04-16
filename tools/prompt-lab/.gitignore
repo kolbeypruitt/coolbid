@@ -1,0 +1,4 @@
+fixtures/*
+!fixtures/.gitkeep
+reports/*
+!reports/.gitkeep
