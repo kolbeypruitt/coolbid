@@ -7,10 +7,19 @@ import type { ContractorPreferences } from "@/types/contractor-preferences";
 type FindResult = { item: CatalogItem; notes: string };
 
 function sortByPreference(items: CatalogItem[], preferredBrands?: string[]): CatalogItem[] {
+  // Normalize once outside the sort so per-comparison work is cheap and we
+  // tolerate null brand on DB rows + null/empty entries in user-stored
+  // contractor_preferences.equipment_brands (JSONB blob has no constraint).
+  const normPrefs = (preferredBrands ?? [])
+    .map((pb) => pb?.toLowerCase().trim())
+    .filter((pb): pb is string => Boolean(pb));
+
   return [...items].sort((a, b) => {
-    if (preferredBrands?.length) {
-      const aMatch = preferredBrands.some((pb) => a.brand.toLowerCase() === pb.toLowerCase());
-      const bMatch = preferredBrands.some((pb) => b.brand.toLowerCase() === pb.toLowerCase());
+    if (normPrefs.length) {
+      const aBrand = a.brand?.toLowerCase() ?? "";
+      const bBrand = b.brand?.toLowerCase() ?? "";
+      const aMatch = aBrand !== "" && normPrefs.includes(aBrand);
+      const bMatch = bBrand !== "" && normPrefs.includes(bBrand);
       if (aMatch && !bMatch) return -1;
       if (!aMatch && bMatch) return 1;
     }
@@ -108,16 +117,16 @@ function getCategoryFromType(type: EquipmentType): string {
 function catalogToBomItem(item: CatalogItem, qty: number, notes: string): BomItem {
   return {
     partId: item.id,
-    name: item.description,
+    name: item.description ?? "",
     category: getCategoryFromType(item.equipment_type),
     qty,
-    unit: item.unit_of_measure,
+    unit: item.unit_of_measure ?? "ea",
     price: item.unit_price,
-    supplier: item.supplier?.name ?? item.brand,
-    sku: item.mpn,
+    supplier: item.supplier?.name ?? item.brand ?? "",
+    sku: item.mpn ?? "",
     notes,
     source: item.source,
-    brand: item.brand,
+    brand: item.brand ?? "",
   };
 }
 
