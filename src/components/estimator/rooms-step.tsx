@@ -88,6 +88,8 @@ export function RoomsStep() {
     addRoom,
     generateBom,
     setStep,
+    saveStatus,
+    saveError,
   } = useEstimator();
 
   const [hoveredRoomIndex, setHoveredRoomIndex] = useState<number | null>(null);
@@ -136,11 +138,33 @@ export function RoomsStep() {
           <Badge variant={CONFIDENCE_VARIANT[confidence] ?? "secondary"}>
             {confidence} confidence
           </Badge>
+          <span
+            className={`text-xs ${
+              saveStatus === "error"
+                ? "text-red-400"
+                : saveStatus === "saving"
+                ? "text-txt-secondary"
+                : saveStatus === "saved"
+                ? "text-green-400"
+                : "text-txt-secondary/60"
+            }`}
+            title={saveError ?? undefined}
+          >
+            {saveStatus === "saving" && "Saving…"}
+            {saveStatus === "saved" && "✓ Saved"}
+            {saveStatus === "error" && "⚠ Save failed"}
+          </span>
           <Button size="sm" variant="outline" onClick={addRoom}>
             <Plus className="mr-1 h-4 w-4" />
             Add Room
           </Button>
-          <Button size="sm" onClick={generateBom} disabled={rooms.length === 0} className="bg-gradient-brand hover-lift">
+          <Button
+            size="sm"
+            onClick={generateBom}
+            disabled={rooms.length === 0 || saveStatus === "saving"}
+            className="bg-gradient-brand hover-lift"
+            title={saveStatus === "saving" ? "Saving edits…" : undefined}
+          >
             Generate Estimate →
           </Button>
         </div>
