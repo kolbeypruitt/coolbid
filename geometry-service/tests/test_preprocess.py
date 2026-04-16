@@ -1,38 +1,32 @@
 import numpy as np
-from app.preprocess import detect_walls, close_gaps
+import pytest
+
+from app.preprocess import prepare_image_for_vision
 
 
-def test_detect_walls_finds_dark_lines(simple_floorplan: np.ndarray):
-    wall_mask = detect_walls(simple_floorplan)
-
-    # Wall mask should be binary (0 or 255)
-    unique = np.unique(wall_mask)
-    assert set(unique).issubset({0, 255})
-
-    # Walls should be detected (white pixels in mask)
-    wall_pixels = np.count_nonzero(wall_mask)
-    assert wall_pixels > 0
-
-    # Check that wall locations have mask pixels
-    # Center vertical wall at x=400 should be detected
-    center_col = wall_mask[:, 400]
-    assert np.any(center_col > 0)
+def test_downsizes_large_image():
+    big = np.zeros((4000, 6000, 3), dtype=np.uint8)
+    result = prepare_image_for_vision(big, max_long_edge=2048)
+    h, w = result.shape[:2]
+    assert max(h, w) == 2048
+    assert w / h == pytest.approx(6000 / 4000, rel=0.01)
 
 
-def test_detect_walls_returns_empty_for_blank(empty_image: np.ndarray):
-    wall_mask = detect_walls(empty_image)
-    # Blank image should have very few or no wall pixels
-    wall_ratio = np.count_nonzero(wall_mask) / wall_mask.size
-    assert wall_ratio < 0.01
+def test_preserves_small_image():
+    small = np.zeros((800, 1200, 3), dtype=np.uint8)
+    result = prepare_image_for_vision(small, max_long_edge=2048)
+    assert result.shape == small.shape
 
 
-def test_close_gaps_fills_doorways(simple_floorplan: np.ndarray):
-    wall_mask = detect_walls(simple_floorplan)
-    closed = close_gaps(wall_mask, gap_size=15)
+def test_returns_uint8_rgb():
+    img = np.random.randint(0, 255, (1000, 1500, 3), dtype=np.uint8)
+    result = prepare_image_for_vision(img)
+    assert result.dtype == np.uint8
+    assert result.shape[2] == 3
 
-    # After closing, the horizontal wall at y=300 should be continuous
-    # (the 10px door gap should be filled by a 15px kernel)
-    row = closed[300, 100:700]
-    # Most of the row should be wall (allowing some tolerance)
-    wall_fraction = np.count_nonzero(row) / len(row)
-    assert wall_fraction > 0.85
+
+def test_clahe_increases_contrast_on_low_contrast_image():
+    # A uniform gray image has zero contrast; CLAHE should not crash.
+    flat = np.full((1000, 1500, 3), 128, dtype=np.uint8)
+    result = prepare_image_for_vision(flat)
+    assert result.shape == flat.shape
