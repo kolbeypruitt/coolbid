@@ -1,53 +1,108 @@
+from unittest.mock import AsyncMock, patch
+
 import cv2
 import numpy as np
 import pytest
-from httpx import AsyncClient, ASGITransport
+from fastapi.testclient import TestClient
+
 from app.main import app
 
+client = TestClient(app)
 
-@pytest.fixture
-def simple_floorplan_bytes(simple_floorplan: np.ndarray) -> bytes:
-    """Encode the synthetic floor plan fixture as JPEG bytes."""
-    _, buf = cv2.imencode(".jpg", simple_floorplan)
+
+def _jpeg_bytes(w: int = 1000, h: int = 800) -> bytes:
+    img = np.full((h, w, 3), 200, dtype=np.uint8)
+    ok, buf = cv2.imencode(".jpg", img)
+    assert ok
     return buf.tobytes()
 
 
-@pytest.mark.anyio
-async def test_extract_geometry_returns_polygons(simple_floorplan_bytes: bytes):
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.post(
-            "/extract-geometry",
-            files={"image": ("plan.jpg", simple_floorplan_bytes, "image/jpeg")},
-        )
-
+def test_health_endpoint():
+    response = client.get("/health")
     assert response.status_code == 200
-    data = response.json()
-    assert "polygons" in data
-    assert len(data["polygons"]) == 4
-    assert "image_width" in data
-    assert "image_height" in data
+    body = response.json()
+    assert body["status"] == "ok"
+    assert "anthropic_key_set" in body
 
 
-@pytest.mark.anyio
-async def test_extract_geometry_fails_on_blank_image(empty_image: np.ndarray):
-    _, buf = cv2.imencode(".jpg", empty_image)
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.post(
-            "/extract-geometry",
-            files={"image": ("blank.jpg", buf.tobytes(), "image/jpeg")},
-        )
-
+def test_analyze_rejects_invalid_image():
+    response = client.post(
+        "/analyze", files={"image": ("bad.jpg", b"not an image", "image/jpeg")}
+    )
     assert response.status_code == 422
-    data = response.json()
-    assert "detail" in data
 
 
-@pytest.mark.anyio
-async def test_extract_geometry_rejects_missing_file():
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.post("/extract-geometry")
+@patch("app.main.analyze_floor_plan", new_callable=AsyncMock)
+def test_analyze_happy_path(mock_vision):
+    mock_vision.return_value = {
+        "floorplan_type": "residential",
+        "confidence": "high",
+        "building": {
+            "stories": 1,
+            "total_sqft": 1000,
+            "units": 1,
+            "has_garage": False,
+            "building_shape": "rectangle",
+        },
+        "rooms": [
+            {
+                "name": "Living Room",
+                "type": "living_room",
+                "floor": 1,
+                "estimated_sqft": 300,
+                "width_ft": 15,
+                "length_ft": 20,
+                "window_count": 2,
+                "exterior_walls": 2,
+                "ceiling_height": 9,
+                "notes": "",
+                "polygon_id": "room_0",
+                "vertices": [
+                    {"x": 0.1, "y": 0.1}, {"x": 0.5, "y": 0.1},
+                    {"x": 0.5, "y": 0.4}, {"x": 0.1, "y": 0.4},
+                ],
+                "adjacent_rooms": [],
+            }
+        ],
+        "hvac_notes": {
+            "suggested_equipment_location": "attic",
+            "suggested_zones": 1,
+            "special_considerations": [],
+        },
+        "analysis_notes": "",
+    }
 
+    response = client.post(
+        "/analyze",
+        files={"image": ("plan.jpg", _jpeg_bytes(), "image/jpeg")},
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert len(body["rooms"]) == 1
+    assert body["rooms"][0]["polygon_id"] == "room_0"
+    assert body["rooms"][0]["bbox"]["width"] == pytest.approx(0.4)
+
+
+@patch("app.main.analyze_floor_plan", new_callable=AsyncMock)
+def test_analyze_returns_422_on_no_valid_rooms(mock_vision):
+    mock_vision.return_value = {
+        "floorplan_type": "residential",
+        "confidence": "low",
+        "building": {
+            "stories": 1, "total_sqft": 0, "units": 1,
+            "has_garage": False, "building_shape": "unknown",
+        },
+        "rooms": [],  # no rooms
+        "hvac_notes": {
+            "suggested_equipment_location": "",
+            "suggested_zones": 1,
+            "special_considerations": [],
+        },
+        "analysis_notes": "",
+    }
+
+    response = client.post(
+        "/analyze",
+        files={"image": ("plan.jpg", _jpeg_bytes(), "image/jpeg")},
+    )
     assert response.status_code == 422
