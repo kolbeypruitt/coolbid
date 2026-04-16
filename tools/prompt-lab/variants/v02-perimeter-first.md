@@ -39,14 +39,14 @@ Return ONE valid JSON object. No markdown, no code fences.
 {
   "floorplan_type": "string",
   "confidence": "high" | "medium" | "low",
-  "building": {"stories": 1, "total_sqft": 1725, "units": 1, "has_garage": true, "building_shape": "L-shape", "unit_sqft": [1725]},
+  "building": {"stories": 1, "total_sqft": 2500, "units": 1, "has_garage": true, "building_shape": "L-shape", "unit_sqft": [2500]},
   "building_outline": {"vertices": [{"x": 0.1, "y": 0.2}, {"x": 0.9, "y": 0.2}, {"x": 0.9, "y": 0.8}, {"x": 0.1, "y": 0.8}]},
   "rooms": [
     {
       "name": "exact label from plan",
       "type": "master_bedroom | bedroom | living_room | family_room | kitchen | dining_room | bathroom | half_bath | hallway | laundry | office | foyer | sunroom | bonus_room | basement | closet | garage",
-      "floor": 1, "unit": 1, "estimated_sqft": 240,
-      "width_ft": 12, "length_ft": 20, "window_count": 2, "exterior_walls": 2, "ceiling_height": 9, "notes": "",
+      "floor": 1, "unit": 1, "estimated_sqft": 180,
+      "width_ft": 15, "length_ft": 12, "window_count": 2, "exterior_walls": 2, "ceiling_height": 9, "notes": "",
       "polygon_id": "room_0",
       "vertices": [{"x": 0.12, "y": 0.30}, {"x": 0.35, "y": 0.30}, {"x": 0.35, "y": 0.55}, {"x": 0.12, "y": 0.55}],
       "adjacent_rooms": ["Hallway", "Kitchen"]

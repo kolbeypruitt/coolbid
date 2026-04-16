@@ -33,13 +33,13 @@ Each room's `position_description` field contains your Step 2 sentence.
 {
   "floorplan_type": "string",
   "confidence": "high" | "medium" | "low",
-  "building": {"stories": 1, "total_sqft": 1725, "units": 1, "has_garage": true, "building_shape": "L-shape", "unit_sqft": [1725]},
+  "building": {"stories": 1, "total_sqft": 2500, "units": 1, "has_garage": true, "building_shape": "L-shape", "unit_sqft": [2500]},
   "rooms": [
     {
       "name": "exact label from plan",
       "type": "master_bedroom | bedroom | living_room | family_room | kitchen | dining_room | bathroom | half_bath | hallway | laundry | office | foyer | sunroom | bonus_room | basement | closet | garage",
-      "floor": 1, "unit": 1, "estimated_sqft": 240,
-      "width_ft": 12, "length_ft": 20, "window_count": 2, "exterior_walls": 2, "ceiling_height": 9, "notes": "",
+      "floor": 1, "unit": 1, "estimated_sqft": 180,
+      "width_ft": 15, "length_ft": 12, "window_count": 2, "exterior_walls": 2, "ceiling_height": 9, "notes": "",
       "polygon_id": "room_0",
       "position_description": "The {room} is located at the {direction}. It is bordered on the north by {x}, east by {y}, south by {z}, west by {w}. It is X feet wide and Y feet deep.",
       "vertices": [{"x": 0.12, "y": 0.30}, {"x": 0.35, "y": 0.30}, {"x": 0.35, "y": 0.55}, {"x": 0.12, "y": 0.55}],

@@ -40,13 +40,13 @@ For each room, include BOTH `grid_range` (your reasoning artifact) AND `vertices
 {
   "floorplan_type": "string",
   "confidence": "high" | "medium" | "low",
-  "building": {"stories": 1, "total_sqft": 1725, "units": 1, "has_garage": true, "building_shape": "L-shape", "unit_sqft": [1725]},
+  "building": {"stories": 1, "total_sqft": 2500, "units": 1, "has_garage": true, "building_shape": "L-shape", "unit_sqft": [2500]},
   "rooms": [
     {
       "name": "exact label from plan",
       "type": "master_bedroom | bedroom | living_room | family_room | kitchen | dining_room | bathroom | half_bath | hallway | laundry | office | foyer | sunroom | bonus_room | basement | closet | garage",
-      "floor": 1, "unit": 1, "estimated_sqft": 240,
-      "width_ft": 12, "length_ft": 20, "window_count": 2, "exterior_walls": 2, "ceiling_height": 9, "notes": "",
+      "floor": 1, "unit": 1, "estimated_sqft": 180,
+      "width_ft": 15, "length_ft": 12, "window_count": 2, "exterior_walls": 2, "ceiling_height": 9, "notes": "",
       "polygon_id": "room_0",
       "grid_range": [{"top_left": "B3", "bottom_right": "E8"}],
       "vertices": [{"x": 0.05, "y": 0.10}, {"x": 0.25, "y": 0.10}, {"x": 0.25, "y": 0.40}, {"x": 0.05, "y": 0.40}],
