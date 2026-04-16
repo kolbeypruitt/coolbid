@@ -4,7 +4,7 @@ import time
 
 import cv2
 import numpy as np
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, HTTPException, Request
 
 from .postprocess import postprocess_analysis
 from .preprocess import prepare_image_for_vision
@@ -18,11 +18,20 @@ app = FastAPI(title="CoolBid Floor Plan Analyzer")
 
 
 @app.post("/analyze", response_model=AnalysisResponse)
-async def analyze(image: UploadFile = File(...)) -> AnalysisResponse:
-    """Analyze a floor plan image end-to-end: preprocess → vision → postprocess."""
+async def analyze(request: Request) -> AnalysisResponse:
+    """Analyze a floor plan image end-to-end: preprocess → vision → postprocess.
+
+    Accepts the raw image bytes as the request body with the image Content-Type
+    header (e.g. image/jpeg). No multipart — Node's fetch + undici serializes
+    multipart File uploads unreliably, and raw bytes are simpler anyway.
+    """
     start = time.monotonic()
 
-    contents = await image.read()
+    contents = await request.body()
+    logger.info("Received %d bytes (%s)", len(contents), request.headers.get("content-type", "?"))
+    if not contents:
+        raise HTTPException(status_code=400, detail={"error": "Empty request body"})
+
     arr = np.frombuffer(contents, np.uint8)
     img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
     if img is None:

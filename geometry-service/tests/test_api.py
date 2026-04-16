@@ -27,9 +27,16 @@ def test_health_endpoint():
 
 def test_analyze_rejects_invalid_image():
     response = client.post(
-        "/analyze", files={"image": ("bad.jpg", b"not an image", "image/jpeg")}
+        "/analyze",
+        content=b"not an image",
+        headers={"Content-Type": "image/jpeg"},
     )
     assert response.status_code == 422
+
+
+def test_analyze_rejects_empty_body():
+    response = client.post("/analyze", content=b"", headers={"Content-Type": "image/jpeg"})
+    assert response.status_code == 400
 
 
 @patch("app.main.analyze_floor_plan", new_callable=AsyncMock)
@@ -74,7 +81,8 @@ def test_analyze_happy_path(mock_vision):
 
     response = client.post(
         "/analyze",
-        files={"image": ("plan.jpg", _jpeg_bytes(), "image/jpeg")},
+        content=_jpeg_bytes(),
+        headers={"Content-Type": "image/jpeg"},
     )
     assert response.status_code == 200, response.text
     body = response.json()
@@ -103,6 +111,7 @@ def test_analyze_returns_422_on_no_valid_rooms(mock_vision):
 
     response = client.post(
         "/analyze",
-        files={"image": ("plan.jpg", _jpeg_bytes(), "image/jpeg")},
+        content=_jpeg_bytes(),
+        headers={"Content-Type": "image/jpeg"},
     )
     assert response.status_code == 422

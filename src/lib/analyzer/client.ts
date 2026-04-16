@@ -20,19 +20,16 @@ export async function analyzeFloorPlan(
     throw new AnalyzerServiceError("Empty image buffer — upstream decoded empty base64");
   }
 
-  const filename = `floorplan.${mediaType.split("/")[1] || "jpg"}`;
   // Copy Buffer bytes into a fresh Uint8Array with a plain ArrayBuffer.
-  // (Node Buffer.buffer is ArrayBufferLike, which DOM File/Blob types reject.)
+  // (Node Buffer.buffer is ArrayBufferLike, which fetch's BodyInit types reject.)
   const bytes = Uint8Array.from(imageBuffer);
-  const file = new File([bytes], filename, { type: mediaType });
-  const formData = new FormData();
-  formData.append("image", file);
 
   let response: Response;
   try {
     response = await fetch(`${baseUrl}/analyze`, {
       method: "POST",
-      body: formData,
+      headers: { "Content-Type": mediaType, "Content-Length": String(bytes.length) },
+      body: bytes,
     });
   } catch (err) {
     throw new AnalyzerServiceError(
