@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
-import { Search, Loader2, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Search, Loader2, Plus, ExternalLink } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import {
@@ -298,6 +299,7 @@ function MyPartsTab() {
 }
 
 function BrowseTab() {
+  const router = useRouter();
   const [items, setItems] = useState<VendorProductRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -305,7 +307,7 @@ function BrowseTab() {
   const [query, setQuery] = useState("");
   const [categoryRoot, setCategoryRoot] = useState("all");
   const [importing, setImporting] = useState<string | null>(null);
-  const [importedIds, setImportedIds] = useState<Set<string>>(new Set());
+  const [importedIds, setImportedIds] = useState<Map<string, string>>(new Map());
   const [error, setError] = useState<string | null>(null);
 
   const fetchPage = useCallback(
@@ -372,7 +374,12 @@ function BrowseTab() {
       .finally(() => setLoadingMore(false));
   }
 
-  async function handleImport(row: VendorProductRow) {
+  async function handleImport(row: VendorProductRow, navigate = false) {
+    const existing = importedIds.get(row.id);
+    if (existing && navigate) {
+      router.push(`/parts-database/${existing}`);
+      return;
+    }
     setImporting(row.id);
     setError(null);
     try {
@@ -384,10 +391,6 @@ function BrowseTab() {
           vendor_product_id: row.id,
           mpn: row.sku,
           description: row.name,
-          // No reliable category → equipment_type mapping from vendor
-          // catalogs yet; pick the most generic bucket so the row at
-          // least lands and is searchable. User can re-categorize in
-          // /parts-database/{id}.
           equipment_type: "installation",
           brand: row.brand ?? "",
           unit_price: row.price ?? null,
@@ -397,7 +400,11 @@ function BrowseTab() {
       if (!res.ok) {
         throw new Error(`Import failed: ${res.status}`);
       }
-      setImportedIds((prev) => new Set(prev).add(row.id));
+      const catalogItem = (await res.json()) as { id: string };
+      setImportedIds((prev) => new Map(prev).set(row.id, catalogItem.id));
+      if (navigate) {
+        router.push(`/parts-database/${catalogItem.id}`);
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Import failed");
     } finally {
@@ -474,13 +481,27 @@ function BrowseTab() {
                     className="hover:bg-[rgba(6,182,212,0.03)] transition-colors border-b border-border"
                   >
                     <TableCell className="text-sm text-txt-secondary py-3 px-3">
-                      {row.name}
+                      <button
+                        type="button"
+                        onClick={() => handleImport(row, true)}
+                        disabled={importing === row.id}
+                        className="text-left hover:underline cursor-pointer disabled:cursor-wait"
+                      >
+                        {row.name}
+                      </button>
                     </TableCell>
                     <TableCell className="text-sm text-txt-secondary py-3 px-3">
                       {row.brand ?? "—"}
                     </TableCell>
                     <TableCell className="font-mono text-xs py-3 px-3 text-txt-secondary">
-                      {row.sku}
+                      <button
+                        type="button"
+                        onClick={() => handleImport(row, true)}
+                        disabled={importing === row.id}
+                        className="text-left hover:underline cursor-pointer disabled:cursor-wait"
+                      >
+                        {row.sku}
+                      </button>
                     </TableCell>
                     <TableCell className="text-xs py-3 px-3 text-txt-tertiary">
                       {row.category_leaf ?? row.category_root ?? "—"}
@@ -493,7 +514,18 @@ function BrowseTab() {
                         ? `$${row.price.toFixed(2)}`
                         : "No price"}
                     </TableCell>
-                    <TableCell className="py-3 px-3 text-right">
+                    <TableCell className="py-3 px-3 text-right flex items-center justify-end gap-1">
+                      {row.detail_url && (
+                        <a
+                          href={row.detail_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center rounded-md p-1.5 text-txt-tertiary hover:text-txt-primary hover:bg-muted/50 transition-colors"
+                          title="View on supplier site"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
