@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -21,7 +22,9 @@ export default function PartsDatabasePage() {
         </Link>
       </div>
       <EmailConnectionsSection />
-      <CatalogTable />
+      <Suspense>
+        <CatalogTable />
+      </Suspense>
     </div>
   );
 }
