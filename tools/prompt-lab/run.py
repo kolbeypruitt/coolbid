@@ -213,24 +213,25 @@ async def _run_all(
     model: str,
     max_tokens: int,
     thinking_budget: int,
+    max_concurrency: int = 2,
 ) -> list[Result]:
     api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     if not api_key:
         raise SystemExit("ANTHROPIC_API_KEY is not set")
+
+    # Cap concurrent Anthropic calls so we don't dogpile the rate limit.
+    # Extended thinking + 16k max_tokens is heavy; 2 in flight is the sweet spot.
+    sem = asyncio.Semaphore(max_concurrency)
+
+    async def _with_sem(v: Variant) -> Result:
+        async with sem:
+            return await _run_variant(
+                client, image_b64, v,
+                model=model, max_tokens=max_tokens, thinking_budget=thinking_budget,
+            )
+
     async with AsyncAnthropic(api_key=api_key) as client:
-        return await asyncio.gather(
-            *[
-                _run_variant(
-                    client,
-                    image_b64,
-                    v,
-                    model=model,
-                    max_tokens=max_tokens,
-                    thinking_budget=thinking_budget,
-                )
-                for v in variants
-            ]
-        )
+        return await asyncio.gather(*(_with_sem(v) for v in variants))
 
 
 def _render_report(
