@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CatalogItem, VendorProductRow } from "@/types/catalog";
-import { classifyVendorProducts } from "@/lib/hvac/vendor-classifier";
+import {
+  classifyVendorProducts,
+  classifiedRowToCatalogItem,
+  type ClassifiedVendorRow,
+} from "@/lib/hvac/vendor-classifier";
 
 const VENDOR_SELECT =
   "id, vendor_id, sku, mpn, name, brand, image_url, short_description, category_root, category_path, category_leaf, detail_url, price, price_text, last_priced_at, vendor:vendors(id, slug, name)";
@@ -80,15 +84,24 @@ export async function loadBomCatalog(
 
   const { data: vendorRows, error: vendorErr } = await supabase
     .from("vendor_products")
-    .select(VENDOR_SELECT)
+    .select(VENDOR_SELECT + ", bom_slot, bom_specs")
     .in("vendor_id", vendorIds)
     .or(VENDOR_CATEGORY_FILTERS)
     .limit(VENDOR_FETCH_LIMIT);
 
   if (vendorErr) throw new Error(`vendor_products: ${vendorErr.message}`);
 
-  const classified = classifyVendorProducts(
-    (vendorRows ?? []) as unknown as VendorProductRow[],
-  );
-  return [...activeUserCat, ...classified];
+  const classifiedItems: CatalogItem[] = [];
+  const unclassifiedRows: VendorProductRow[] = [];
+  for (const row of (vendorRows ?? []) as unknown as ClassifiedVendorRow[]) {
+    if (row.bom_slot) {
+      const item = classifiedRowToCatalogItem(row);
+      if (item) classifiedItems.push(item);
+    } else {
+      unclassifiedRows.push(row);
+    }
+  }
+
+  const runtimeClassified = classifyVendorProducts(unclassifiedRows);
+  return [...activeUserCat, ...classifiedItems, ...runtimeClassified];
 }

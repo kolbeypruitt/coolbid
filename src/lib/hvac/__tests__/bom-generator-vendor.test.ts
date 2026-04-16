@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { generateBOM } from "../bom-generator";
-import { classifyVendorProducts } from "../vendor-classifier";
+import {
+  classifyVendorProducts,
+  classifiedRowToCatalogItem,
+  type ClassifiedVendorRow,
+} from "../vendor-classifier";
 import type { VendorProductRow } from "@/types/catalog";
 import type { Room } from "@/types/hvac";
 
@@ -197,5 +201,58 @@ describe("generateBOM with classified vendor_products", () => {
       (i) => i.category === "Major Equipment" && i.name.includes("Condenser"),
     );
     expect(condenser?.brand).toBe("Carrier");
+  });
+});
+
+describe("classifiedRowToCatalogItem", () => {
+  it("maps an LLM-classified ac_condenser row to a CatalogItem with tonnage", () => {
+    const row: ClassifiedVendorRow = {
+      id: "abc",
+      vendor_id: "v1",
+      sku: "SKU",
+      mpn: "GSX160361",
+      name: "3 Ton AC Condensing Unit",
+      brand: "Goodman",
+      image_url: null,
+      short_description: null,
+      category_root: null,
+      category_path: null,
+      category_leaf: null,
+      detail_url: null,
+      price: 2000,
+      price_text: null,
+      last_priced_at: null,
+      vendor: null,
+      bom_slot: "ac_condenser",
+      bom_specs: { tonnage: 3, seer: 16, refrigerant: "r410a" },
+    };
+    const item = classifiedRowToCatalogItem(row);
+    expect(item?.equipment_type).toBe("ac_condenser");
+    expect(item?.tonnage).toBe(3);
+    expect(item?.brand).toBe("Goodman");
+  });
+
+  it("returns null for rows where bom_slot is null", () => {
+    const row: ClassifiedVendorRow = {
+      id: "abc",
+      vendor_id: "v1",
+      sku: "SKU",
+      mpn: null,
+      name: "Hole Saw",
+      brand: "Greenlee",
+      image_url: null,
+      short_description: null,
+      category_root: null,
+      category_path: null,
+      category_leaf: null,
+      detail_url: null,
+      price: null,
+      price_text: null,
+      last_priced_at: null,
+      vendor: null,
+      bom_slot: null,
+      bom_specs: null,
+    };
+    expect(classifiedRowToCatalogItem(row)).toBeNull();
   });
 });
