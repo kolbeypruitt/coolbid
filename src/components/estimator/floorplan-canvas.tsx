@@ -688,7 +688,9 @@ export function FloorplanCanvas({
                   onPointerEnter={() => setHoveredVertex(vIdx)}
                   onPointerLeave={() => setHoveredVertex((prev) => (prev === vIdx ? null : prev))}
                   style={{ cursor }}
-                />
+                >
+                  <title>Drag to move · Press Delete or Backspace to remove</title>
+                </circle>
                 {/* Visible dot */}
                 <circle
                   cx={cx}

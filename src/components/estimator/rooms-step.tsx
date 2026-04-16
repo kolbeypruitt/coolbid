@@ -5,6 +5,7 @@ import { Trash2, Plus } from "lucide-react";
 import { useEstimator } from "@/hooks/use-estimator";
 import { ROOM_TYPES, LOAD_FACTORS } from "@/lib/hvac/parts-db";
 import { formatRoomType } from "@/lib/utils";
+import { formatRoomDimensions } from "@/lib/format-feet-inches";
 import type { RoomType, Room } from "@/types/hvac";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -377,7 +378,7 @@ export function RoomsStep() {
 
                       <div className="mt-2 flex items-center justify-between">
                         <div className="flex items-center gap-2 text-xs text-txt-tertiary">
-                          <span>{room.width_ft || "?"}' × {room.length_ft || "?"}'</span>
+                          <span>{formatRoomDimensions(room.width_ft, room.length_ft)}</span>
                           <span>·</span>
                           <span>{estBtu.toLocaleString()} BTU</span>
                         </div>
