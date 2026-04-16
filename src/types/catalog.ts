@@ -71,7 +71,7 @@ export type CatalogItem = {
   user_id: string;
   supplier_id: string | null;
   vendor_product_id: string | null;
-  model_number: string;
+  mpn: string;
   description: string;
   equipment_type: EquipmentType;
   system_type: SystemType | "universal";
@@ -124,6 +124,21 @@ export type QuoteLine = {
   unit_price: number | null;
   extended_price: number | null;
   selected: boolean;
+};
+
+export type VendorProductDetail = {
+  image_url: string | null;
+  mpn: string | null;
+  sku: string;
+  specifications: Record<string, unknown> | null;
+  features: Record<string, unknown> | null;
+  detail_url: string | null;
+  short_description: string | null;
+};
+
+export type CatalogItemDetail = CatalogItem & {
+  price_history?: PriceHistoryEntry[];
+  vendor_product?: VendorProductDetail | null;
 };
 
 export type PriceHistoryEntry = {

@@ -136,7 +136,7 @@ export function QuoteReview({
           .from("equipment_catalog")
           .select("id, usage_count")
           .eq("user_id", user.id)
-          .eq("model_number", item.model_number.trim())
+          .eq("mpn", item.model_number.trim())
           .maybeSingle();
 
         if (existing) {
@@ -157,7 +157,7 @@ export function QuoteReview({
             .insert({
               user_id: user.id,
               supplier_id: supplierId,
-              model_number: item.model_number.trim(),
+              mpn: item.model_number.trim(),
               description: item.description,
               equipment_type: item.equipment_type,
               system_type: "universal",

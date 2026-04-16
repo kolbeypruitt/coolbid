@@ -20,19 +20,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import Image from "next/image";
+import { ExternalLink } from "lucide-react";
 import {
   type CatalogItem,
+  type CatalogItemDetail,
   type PriceHistoryEntry,
   EQUIPMENT_TYPE_LABELS,
   SYSTEM_TYPE_LABELS,
 } from "@/types/catalog";
 
-type DetailResponse = CatalogItem & {
-  price_history?: PriceHistoryEntry[];
-};
+type DetailResponse = CatalogItemDetail;
 
 type EditableFields = {
-  model_number: string;
+  mpn: string;
   description: string;
   brand: string;
   tonnage: string;
@@ -52,7 +53,7 @@ const SOURCE_BADGE: Record<
 
 function toEditableFields(item: CatalogItem): EditableFields {
   return {
-    model_number: item.model_number ?? "",
+    mpn: item.mpn ?? "",
     description: item.description ?? "",
     brand: item.brand ?? "",
     tonnage: item.tonnage != null ? String(item.tonnage) : "",
@@ -71,7 +72,7 @@ export function CatalogDetail({ itemId }: CatalogDetailProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fields, setFields] = useState<EditableFields>({
-    model_number: "",
+    mpn: "",
     description: "",
     brand: "",
     tonnage: "",
@@ -112,7 +113,7 @@ export function CatalogDetail({ itemId }: CatalogDetailProps) {
       const parsedSeer = parseFloat(fields.seer_rating);
       const parsedPrice = parseFloat(fields.unit_price);
       const body: Record<string, string | number | null> = {
-        model_number: fields.model_number.trim() || null,
+        mpn: fields.mpn.trim() || null,
         description: fields.description.trim() || null,
         brand: fields.brand.trim() || null,
         tonnage:
@@ -195,12 +196,50 @@ export function CatalogDetail({ itemId }: CatalogDetailProps) {
     return db.localeCompare(da);
   });
 
+  const vp = item.vendor_product;
+  const imageUrl = vp?.image_url;
+  const specs = vp?.specifications as Record<string, string> | null;
+  const features = vp?.features as Record<string, string> | null;
+
   return (
     <div className="space-y-6 p-6">
       {/* Attributes */}
       <Card className="bg-gradient-card border-b-accent">
         <CardHeader>
-          <CardTitle className="text-txt-primary">{item.description || item.model_number || "Item Detail"}</CardTitle>
+          <div className="flex items-start gap-6">
+            {imageUrl && (
+              <div className="shrink-0 rounded-md border border-border bg-white overflow-hidden">
+                <Image
+                  src={imageUrl}
+                  alt={item.description || "Product image"}
+                  width={160}
+                  height={160}
+                  className="object-contain"
+                  unoptimized
+                />
+              </div>
+            )}
+            <div className="space-y-1">
+              <CardTitle className="text-txt-primary">{item.description || item.mpn || "Item Detail"}</CardTitle>
+              {item.mpn && (
+                <p className="font-mono text-sm text-txt-secondary">{item.mpn}</p>
+              )}
+              {item.brand && (
+                <p className="text-sm text-txt-tertiary">{item.brand}</p>
+              )}
+              {vp?.detail_url && (
+                <a
+                  href={vp.detail_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-accent hover:underline mt-1"
+                >
+                  View on supplier site
+                  <ExternalLink className="size-3" />
+                </a>
+              )}
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
@@ -258,6 +297,44 @@ export function CatalogDetail({ itemId }: CatalogDetailProps) {
         </CardContent>
       </Card>
 
+      {/* Specifications from vendor product */}
+      {specs && Object.keys(specs).length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold text-txt-primary">Specifications</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <dl className="grid grid-cols-1 gap-y-2 text-sm sm:grid-cols-2">
+              {Object.entries(specs).map(([key, value]) => (
+                <div key={key} className="flex gap-2">
+                  <dt className="text-txt-tertiary min-w-[140px]">{key}</dt>
+                  <dd className="text-txt-primary font-medium">{String(value)}</dd>
+                </div>
+              ))}
+            </dl>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Features from vendor product */}
+      {features && Object.keys(features).length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold text-txt-primary">Features</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <dl className="grid grid-cols-1 gap-y-2 text-sm sm:grid-cols-2">
+              {Object.entries(features).map(([key, value]) => (
+                <div key={key} className="flex gap-2">
+                  <dt className="text-txt-tertiary min-w-[140px]">{key}</dt>
+                  <dd className="text-txt-primary font-medium">{String(value)}</dd>
+                </div>
+              ))}
+            </dl>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Edit */}
       <Card>
         <CardHeader>
@@ -267,7 +344,7 @@ export function CatalogDetail({ itemId }: CatalogDetailProps) {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {(
               [
-                { key: "model_number", label: "Model Number" },
+                { key: "mpn", label: "MPN" },
                 { key: "description", label: "Description" },
                 { key: "brand", label: "Brand" },
                 { key: "tonnage", label: "Tonnage" },

@@ -122,7 +122,7 @@ export function BomCategoryTable({
         body: JSON.stringify({
           source: "imported",
           vendor_product_id: result.item.id,
-          model_number: result.item.sku,
+          mpn: result.item.sku,
           description: result.item.name,
           equipment_type: "installation",
           brand: result.item.brand ?? "",
@@ -136,18 +136,18 @@ export function BomCategoryTable({
         description: string;
         unit_price: number | null;
         brand: string;
-        model_number: string;
+        mpn: string;
       };
       description = imported.description;
       unitCost = imported.unit_price ?? 0;
       brand = imported.brand || null;
-      sku = imported.model_number || null;
+      sku = imported.mpn || null;
       partId = imported.id;
     } else {
       description = result.item.description;
       unitCost = result.item.unit_price ?? 0;
       brand = result.item.brand || null;
-      sku = result.item.model_number || null;
+      sku = result.item.mpn || null;
       partId = result.item.id;
     }
 

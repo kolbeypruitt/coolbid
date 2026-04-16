@@ -82,7 +82,7 @@ export function CatalogSearchDialog({
       // Dedupe: if a vendor row is already imported into the user's
       // catalog (matching SKU), prefer the catalog row.
       const catalogSkus = new Set(
-        catalogRows.map((r) => r.model_number.toLowerCase()),
+        catalogRows.map((r) => r.mpn.toLowerCase()),
       );
       const filteredVendor = vendorRows.filter(
         (r) => !catalogSkus.has(r.sku.toLowerCase()),
@@ -150,7 +150,7 @@ export function CatalogSearchDialog({
               ? result.item.description
               : result.item.name;
             const sub = isCatalog
-              ? `${result.item.brand} · ${result.item.model_number}${
+              ? `${result.item.brand} · ${result.item.mpn}${
                   result.item.tonnage ? ` · ${result.item.tonnage}T` : ""
                 }`
               : `${result.item.brand ?? "—"} · ${result.item.sku}${

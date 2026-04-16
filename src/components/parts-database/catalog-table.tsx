@@ -219,7 +219,7 @@ function MyPartsTab() {
                 <TableRow>
                   <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary py-3 px-3 bg-bg-card">Description</TableHead>
                   <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary py-3 px-3 bg-bg-card">Brand</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary py-3 px-3 bg-bg-card">Model #</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary py-3 px-3 bg-bg-card">MPN</TableHead>
                   <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary py-3 px-3 bg-bg-card">Tonnage</TableHead>
                   <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary py-3 px-3 bg-bg-card">SEER</TableHead>
                   <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-txt-tertiary py-3 px-3 bg-bg-card">Price</TableHead>
@@ -243,7 +243,12 @@ function MyPartsTab() {
                       </TableCell>
                       <TableCell className="text-sm text-txt-secondary py-3 px-3">{item.brand || "—"}</TableCell>
                       <TableCell className="font-mono text-xs py-3 px-3 text-txt-secondary">
-                        {item.model_number || "—"}
+                        <Link
+                          href={`/parts-database/${item.id}`}
+                          className="block hover:underline"
+                        >
+                          {item.mpn || "—"}
+                        </Link>
                       </TableCell>
                       <TableCell className="text-sm py-3 px-3 tabular-nums text-txt-primary font-medium">
                         {item.tonnage != null ? `${item.tonnage} ton` : "—"}
@@ -377,7 +382,7 @@ function BrowseTab() {
         body: JSON.stringify({
           source: "imported",
           vendor_product_id: row.id,
-          model_number: row.sku,
+          mpn: row.sku,
           description: row.name,
           // No reliable category → equipment_type mapping from vendor
           // catalogs yet; pick the most generic bucket so the row at

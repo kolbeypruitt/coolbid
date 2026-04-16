@@ -6,7 +6,7 @@ import type { CatalogItem, EquipmentType, VendorProductRow } from "@/types/catal
 const VALID_SORTS = ["usage_count", "unit_price", "updated_at"] as const;
 
 const createCatalogSchema = z.object({
-  model_number: z.string().trim().min(1),
+  mpn: z.string().trim().min(1),
   description: z.string().trim().min(1),
   equipment_type: z.enum([
     "ac_condenser",
@@ -93,7 +93,7 @@ export async function GET(req: Request) {
 
   if (q) {
     query = query.or(
-      `model_number.ilike.%${q}%,description.ilike.%${q}%,brand.ilike.%${q}%`,
+      `mpn.ilike.%${q}%,description.ilike.%${q}%,brand.ilike.%${q}%`,
     );
   }
 

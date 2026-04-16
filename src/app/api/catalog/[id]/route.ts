@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 
 const updateCatalogSchema = z.object({
-  model_number: z.string().trim().min(1).optional(),
+  mpn: z.string().trim().min(1).optional(),
   description: z.string().trim().min(1).optional(),
   equipment_type: z
     .enum([
@@ -54,7 +54,7 @@ export async function GET(
   const { data, error } = await supabase
     .from("equipment_catalog")
     .select(
-      "*, supplier:suppliers(name), price_history(*), quote_lines(*)"
+      "*, supplier:suppliers(name), price_history(*), quote_lines(*), vendor_product:vendor_products(image_url, mpn, sku, specifications, features, detail_url, short_description)"
     )
     .eq("id", id)
     .eq("user_id", user.id)
