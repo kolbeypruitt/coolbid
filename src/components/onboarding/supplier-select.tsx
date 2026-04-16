@@ -5,45 +5,35 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
-type SupplierCard = {
-  name: string;
-  brands: string[];
-};
-
-const STARTER_SUPPLIER_CARDS: SupplierCard[] = [
-  { name: "Johnstone Supply", brands: ["Goodman", "Daikin"] },
-  { name: "Sanders Supply", brands: ["Carrier", "Bryant", "Tempstar"] },
-  { name: "Shearer Supply", brands: ["Lennox"] },
-  { name: "Locke Supply", brands: ["Goodman", "Rheem", "Ruud"] },
-  { name: "Amsco Supply", brands: ["Rheem", "Ruud", "York"] },
-];
+import type { SupplierCard } from "@/lib/hvac/starter-kits";
 
 type Props = {
-  onComplete: (selectedSuppliers: string[], customSupplier?: string) => void;
+  vendors: SupplierCard[];
+  /** Called on continue. First arg is the list of picked vendor slugs. */
+  onComplete: (selectedVendorSlugs: string[], customSupplier?: string) => void;
 };
 
-export function SupplierSelect({ onComplete }: Props) {
+export function SupplierSelect({ vendors, onComplete }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [otherActive, setOtherActive] = useState(false);
   const [customName, setCustomName] = useState("");
 
-  function toggleSupplier(name: string) {
+  function toggleSupplier(slug: string) {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(name)) {
-        next.delete(name);
+      if (next.has(slug)) {
+        next.delete(slug);
       } else {
-        next.add(name);
+        next.add(slug);
       }
       return next;
     });
   }
 
   function handleContinue() {
-    const suppliers = Array.from(selected);
+    const slugs = Array.from(selected);
     const custom = otherActive && customName.trim() ? customName.trim() : undefined;
-    onComplete(suppliers, custom);
+    onComplete(slugs, custom);
   }
 
   const hasSelection = selected.size > 0 || (otherActive && customName.trim().length > 0);
@@ -53,18 +43,19 @@ export function SupplierSelect({ onComplete }: Props) {
       <div>
         <h2 className="text-xl font-semibold">Select your suppliers</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Choose the suppliers you buy from. We'll pre-load their equipment into your catalog.
+          Choose the supply houses you buy from. You&apos;ll be able to browse
+          their product catalogs from your parts database and estimates.
         </p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {STARTER_SUPPLIER_CARDS.map((supplier) => {
-          const isSelected = selected.has(supplier.name);
+        {vendors.map((vendor) => {
+          const isSelected = selected.has(vendor.slug);
           return (
             <button
-              key={supplier.name}
+              key={vendor.slug}
               type="button"
-              onClick={() => toggleSupplier(supplier.name)}
+              onClick={() => toggleSupplier(vendor.slug)}
               className={cn(
                 "flex flex-col gap-1 rounded-xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 isSelected
@@ -72,10 +63,12 @@ export function SupplierSelect({ onComplete }: Props) {
                   : "bg-gradient-card border-border hover-glow hover-lift cursor-pointer"
               )}
             >
-              <span className="text-sm font-semibold text-txt-primary">{supplier.name}</span>
-              <span className="text-xs text-txt-tertiary">
-                {supplier.brands.join(", ")}
-              </span>
+              <span className="text-sm font-semibold text-txt-primary">{vendor.name}</span>
+              {vendor.brands.length > 0 && (
+                <span className="text-xs text-txt-tertiary">
+                  {vendor.brands.join(", ")}
+                </span>
+              )}
             </button>
           );
         })}

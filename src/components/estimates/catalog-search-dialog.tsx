@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { Search } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -12,16 +11,31 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import type { VendorProductRow } from "@/types/catalog";
 import type { Database } from "@/types/database";
 
-type CatalogRow = Database["public"]["Tables"]["equipment_catalog"]["Row"];
+type CatalogRow = Database["public"]["Tables"]["equipment_catalog"]["Row"] & {
+  supplier?: { name: string; is_active: boolean } | null;
+};
+
+/**
+ * A unified search result. `kind: 'catalog'` rows already live in the
+ * user's equipment_catalog; picking one is a direct insert into
+ * estimate_bom_items. `kind: 'vendor'` rows come from a supplier's
+ * global vendor_products catalog; picking one hands the caller the
+ * vendor row and lets them decide how to materialize it (typically
+ * POST /api/catalog with source='imported', then insert).
+ */
+export type CatalogSearchResult =
+  | { kind: "catalog"; item: CatalogRow }
+  | { kind: "vendor"; item: VendorProductRow };
 
 export interface CatalogSearchDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Called when the user picks a catalog item */
-  onSelect: (item: CatalogRow) => void;
-  /** Optional filter to a specific equipment_type category */
+  onSelect: (result: CatalogSearchResult) => void;
+  /** Optional equipment_type filter — only applied to catalog rows. */
   filterCategory?: string;
   title?: string;
 }
@@ -34,10 +48,9 @@ export function CatalogSearchDialog({
   title = "Search catalog",
 }: CatalogSearchDialogProps) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<CatalogRow[]>([]);
+  const [results, setResults] = useState<CatalogSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Reset on open
   useEffect(() => {
     if (open) {
       setQuery("");
@@ -48,28 +61,46 @@ export function CatalogSearchDialog({
   async function handleSearch() {
     if (!query.trim()) return;
     setLoading(true);
-    const supabase = createClient();
-    let q = supabase
-      .from("equipment_catalog")
-      .select("*, supplier:suppliers(name, is_active)")
-      .or(
-        `description.ilike.%${query.trim()}%,model_number.ilike.%${query.trim()}%`
-      )
-      .order("usage_count", { ascending: false })
-      .limit(40);
 
-    if (filterCategory) {
-      q = q.eq("equipment_type", filterCategory);
-    }
+    const params = new URLSearchParams({ q: query.trim() });
+    if (filterCategory) params.set("equipment_type", filterCategory);
 
-    const { data } = await q;
-    const rows = (data ?? []) as (CatalogRow & { supplier: { name: string; is_active: boolean } | null })[];
-    const visible = rows.filter((item) => {
-      if (item.source !== "starter") return true;
-      return item.supplier?.is_active !== false;
+    const browseParams = new URLSearchParams({
+      browse: "vendor",
+      q: query.trim(),
     });
-    setResults(visible.slice(0, 20));
-    setLoading(false);
+
+    try {
+      const [catalogRes, browseRes] = await Promise.all([
+        fetch(`/api/catalog?${params.toString()}`).then((r) => r.json()),
+        fetch(`/api/catalog?${browseParams.toString()}`).then((r) => r.json()),
+      ]);
+
+      const catalogRows = ((catalogRes.items ?? []) as CatalogRow[]).slice(0, 12);
+      const vendorRows = ((browseRes.items ?? []) as VendorProductRow[]).slice(0, 12);
+
+      // Dedupe: if a vendor row is already imported into the user's
+      // catalog (matching SKU), prefer the catalog row.
+      const catalogSkus = new Set(
+        catalogRows.map((r) => r.model_number.toLowerCase()),
+      );
+      const filteredVendor = vendorRows.filter(
+        (r) => !catalogSkus.has(r.sku.toLowerCase()),
+      );
+
+      const catalogItems: CatalogSearchResult[] = catalogRows.map((item) => ({
+        kind: "catalog" as const,
+        item,
+      }));
+      const vendorItems: CatalogSearchResult[] = filteredVendor.map((item) => ({
+        kind: "vendor" as const,
+        item,
+      }));
+
+      setResults([...catalogItems, ...vendorItems]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -78,13 +109,13 @@ export function CatalogSearchDialog({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            Search by description, model number, or SKU.
+            Searches your catalog and your active supplier product lines.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex gap-2">
           <Input
-            placeholder="Search parts..."
+            placeholder="Search by name, model, brand, SKU…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
@@ -99,7 +130,7 @@ export function CatalogSearchDialog({
           </Button>
         </div>
 
-        <div className="max-h-64 overflow-y-auto">
+        <div className="max-h-80 overflow-y-auto">
           {loading && (
             <p className="py-4 text-center text-sm text-txt-tertiary">
               Searching...
@@ -110,32 +141,56 @@ export function CatalogSearchDialog({
               No results found.
             </p>
           )}
-          {results.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => {
-                onSelect(item);
-                onOpenChange(false);
-              }}
-              className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-[rgba(6,182,212,0.05)] transition-colors"
-            >
-              <div>
-                <p className="font-medium text-txt-primary">
-                  {item.description}
-                </p>
-                <p className="text-xs text-txt-tertiary">
-                  {item.brand} · {item.model_number}
-                  {item.tonnage ? ` · ${item.tonnage}T` : ""}
-                </p>
-              </div>
-              <span className="tabular-nums text-txt-primary font-medium">
-                {item.unit_price != null
-                  ? `$${item.unit_price.toFixed(2)}`
-                  : "No price"}
-              </span>
-            </button>
-          ))}
+          {results.map((result) => {
+            const isCatalog = result.kind === "catalog";
+            const key = isCatalog
+              ? `catalog-${result.item.id}`
+              : `vendor-${result.item.id}`;
+            const title = isCatalog
+              ? result.item.description
+              : result.item.name;
+            const sub = isCatalog
+              ? `${result.item.brand} · ${result.item.model_number}${
+                  result.item.tonnage ? ` · ${result.item.tonnage}T` : ""
+                }`
+              : `${result.item.brand ?? "—"} · ${result.item.sku}${
+                  result.item.vendor?.name ? ` · ${result.item.vendor.name}` : ""
+                }`;
+            const price = isCatalog ? result.item.unit_price : result.item.price;
+
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => {
+                  onSelect(result);
+                  onOpenChange(false);
+                }}
+                className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm hover:bg-[rgba(6,182,212,0.05)] transition-colors"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-txt-primary truncate">
+                      {title}
+                    </p>
+                    <Badge
+                      className={
+                        isCatalog
+                          ? "bg-success-bg text-success border-none text-[10px]"
+                          : "bg-cool-blue-glow text-cool-blue-light border-none text-[10px]"
+                      }
+                    >
+                      {isCatalog ? "Used before" : "Supplier"}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-txt-tertiary truncate">{sub}</p>
+                </div>
+                <span className="tabular-nums text-txt-primary font-medium shrink-0">
+                  {price != null ? `$${price.toFixed(2)}` : "No price"}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </DialogContent>
     </Dialog>

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { AlertTriangle, ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { formatRoomType } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { CustomerCard } from "@/components/estimates/customer-card";
 import { ShareBlock } from "@/components/estimates/share-block";
 import { EstimateActions } from "@/components/estimates/estimate-actions";
+import { DeleteEstimateButton } from "@/components/estimates/delete-estimate-button";
 import { FinancialsCard } from "@/components/estimates/financials-card";
 import { BomCategoryTable } from "@/components/estimates/bom-category-table";
 import { UnsavedShareBanner } from "@/components/estimates/unsaved-share-banner";
@@ -192,7 +193,10 @@ export default async function EstimateDetailPage({
             </p>
           )}
         </div>
-        <ShareBlock estimate={est} activeShare={activeShare} hasUnpricedItems={hasUnpricedItems} />
+        <div className="flex items-center gap-2">
+          <ShareBlock estimate={est} activeShare={activeShare} hasUnpricedItems={hasUnpricedItems} />
+          <DeleteEstimateButton estimateId={est.id} projectName={est.project_name} />
+        </div>
       </div>
 
       {/* Unsaved share banner */}
@@ -201,6 +205,17 @@ export default async function EstimateDetailPage({
         hasActiveShare={activeShare !== null}
         hasUnpricedItems={hasUnpricedItems}
       />
+
+      {/* Recovery banner for broken estimates (no rooms saved) */}
+      {roomList.length === 0 && bom.length === 0 && (
+        <div className="flex items-start gap-2 rounded-lg border border-warning bg-warning-bg px-4 py-3 text-sm text-warning">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            This estimate has no rooms or BOM data. The drawing analysis may not
+            have been saved. You can delete this estimate and create a new one.
+          </span>
+        </div>
+      )}
 
       {/* Customer */}
       <CustomerCard

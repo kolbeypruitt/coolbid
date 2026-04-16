@@ -60,8 +60,9 @@ export async function regenerateBom(estimateId: string): Promise<{ error?: strin
 
   if (catErr) return { error: "Failed to load equipment catalog" };
 
+  // Hide items from inactive suppliers (user toggled them off).
   const activeCatalog = ((catalog ?? []) as CatalogItem[]).filter(
-    (item) => item.source !== "starter" || item.supplier?.is_active !== false,
+    (item) => item.supplier?.is_active !== false,
   );
 
   // TODO(ai-bom-generator): when the AI-powered BOM generator lands, pass

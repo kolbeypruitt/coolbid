@@ -1,4 +1,4 @@
--- 014_contractor_preferences.sql
+-- 017_contractor_preferences.sql
 -- Add JSONB column to store contractor parts-selection preferences captured in
 -- onboarding (equipment brands, register styles, filter preferences, etc.) so
 -- they can be rendered as natural-language context for the future AI-powered

@@ -3,40 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { STARTER_SUPPLIERS, UNIVERSAL_STARTER_ITEMS } from "@/lib/hvac/starter-kits";
-import type { StarterEquipment } from "@/lib/hvac/starter-kits";
+import type { SupplierCard } from "@/lib/hvac/starter-kits";
 import { SupplierSelect } from "@/components/onboarding/supplier-select";
 import { PreferencesForm } from "@/components/preferences/preferences-form";
 import {
   emptyContractorPreferences,
   type ContractorPreferences,
 } from "@/types/contractor-preferences";
-
-function toEquipmentRow(
-  item: StarterEquipment,
-  userId: string,
-  supplierId: string | null
-) {
-  return {
-    user_id: userId,
-    supplier_id: supplierId,
-    model_number: item.model_number,
-    description: item.description,
-    equipment_type: item.equipment_type,
-    system_type: item.system_type,
-    brand: item.brand,
-    tonnage: item.tonnage,
-    seer_rating: item.seer_rating,
-    btu_capacity: item.btu_capacity,
-    stages: null,
-    refrigerant_type: null,
-    unit_price: item.unit_price,
-    unit_of_measure: item.unit_of_measure,
-    source: "starter" as const,
-    usage_count: 0,
-    last_quoted_date: null,
-  };
-}
 
 type Step = "suppliers" | "preferences";
 
@@ -45,6 +18,7 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState<Step>("suppliers");
+  const [vendors, setVendors] = useState<SupplierCard[]>([]);
 
   useEffect(() => {
     async function checkOnboarding() {
@@ -69,6 +43,20 @@ export default function OnboardingPage() {
         return;
       }
 
+      const { data: vendorRows } = await supabase
+        .from("vendors")
+        .select("id, slug, name")
+        .eq("is_active", true)
+        .order("name");
+
+      setVendors(
+        (vendorRows ?? []).map((v) => ({
+          slug: v.slug,
+          name: v.name,
+          brands: [],
+        })),
+      );
+
       setLoading(false);
     }
 
@@ -76,8 +64,8 @@ export default function OnboardingPage() {
   }, [router]);
 
   async function handleSuppliersComplete(
-    selectedSuppliers: string[],
-    customSupplier?: string
+    selectedSlugs: string[],
+    customSupplier?: string,
   ) {
     setSaving(true);
     const supabase = createClient();
@@ -92,56 +80,41 @@ export default function OnboardingPage() {
     }
 
     try {
-      await Promise.all(
-        selectedSuppliers.map(async (supplierName) => {
-          const starterSupplier = STARTER_SUPPLIERS.find((s) => s.name === supplierName);
-          if (!starterSupplier) return;
+      const { data: vendorRows } = await supabase
+        .from("vendors")
+        .select("id, slug, name")
+        .in("slug", selectedSlugs);
 
-          const { data: supplierRecord, error: supplierError } = await supabase
-            .from("suppliers")
-            .insert({
-              user_id: user.id,
-              name: starterSupplier.name,
-              brands: starterSupplier.brands,
-              is_starter: true,
-              contact_email: "",
-              contact_phone: "",
-            })
-            .select("id")
-            .single();
+      if (vendorRows && vendorRows.length > 0) {
+        const supplierInserts = vendorRows.map((v) => ({
+          user_id: user.id,
+          name: v.name,
+          brands: [] as string[],
+          is_starter: false,
+          vendor_id: v.id,
+          contact_email: "",
+          contact_phone: "",
+        }));
 
-          if (supplierError || !supplierRecord) {
-            console.error("Failed to insert supplier", supplierName, supplierError);
-            return;
-          }
+        const { error: supplierError } = await supabase
+          .from("suppliers")
+          .insert(supplierInserts);
 
-          const { error: equipmentError } = await supabase
-            .from("equipment_catalog")
-            .insert(
-              starterSupplier.equipment.map((item) =>
-                toEquipmentRow(item, user.id, supplierRecord.id)
-              )
-            );
+        if (supplierError) {
+          console.error("Failed to insert suppliers", supplierError);
+        }
 
-          if (equipmentError) {
-            console.error("Failed to insert equipment for", supplierName, equipmentError);
-          }
-
+        for (const v of vendorRows) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (supabase as any).rpc("seed_starter_supplier_domains", {
-            p_user_id: user.id,
-            p_supplier_id: supplierRecord.id,
-            p_supplier_name: starterSupplier.name,
-          });
-        })
-      );
-
-      const { error: universalError } = await supabase
-        .from("equipment_catalog")
-        .insert(UNIVERSAL_STARTER_ITEMS.map((item) => toEquipmentRow(item, user.id, null)));
-
-      if (universalError) {
-        console.error("Failed to insert universal items", universalError);
+          await (supabase as any)
+            .rpc("seed_starter_supplier_domains", {
+              p_user_id: user.id,
+              p_supplier_id: null,
+              p_supplier_name: v.name,
+            })
+            .then(() => null)
+            .catch(() => null);
+        }
       }
 
       if (customSupplier) {
@@ -150,6 +123,7 @@ export default function OnboardingPage() {
           name: customSupplier,
           brands: [],
           is_starter: false,
+          vendor_id: null,
           contact_email: "",
           contact_phone: "",
         });
@@ -213,7 +187,7 @@ export default function OnboardingPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="mx-auto w-full max-w-2xl">
         {step === "suppliers" ? (
-          <SupplierSelect onComplete={handleSuppliersComplete} />
+          <SupplierSelect vendors={vendors} onComplete={handleSuppliersComplete} />
         ) : (
           <div className="space-y-6">
             <div>
