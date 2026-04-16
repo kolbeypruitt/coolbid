@@ -177,6 +177,7 @@ export type Database = {
           centroid_y: number | null;
           adjacent_rooms: string[];
           conditioned: boolean;
+          vertices: { x: number; y: number }[];
         };
         Insert: {
           id?: string;
@@ -202,6 +203,7 @@ export type Database = {
           centroid_y?: number | null;
           adjacent_rooms?: string[];
           conditioned?: boolean;
+          vertices?: { x: number; y: number }[];
         };
         Update: Partial<Database["public"]["Tables"]["estimate_rooms"]["Insert"]>;
         Relationships: [];
@@ -247,9 +249,9 @@ export type Database = {
         Row: {
           id: string;
           estimate_id: string;
-          storage_path: string;
-          file_name: string;
-          file_type: string;
+          storage_path: string | null;
+          file_name: string | null;
+          file_type: string | null;
           page_numbers: number[];
           analysis_result: Json | null;
           created_at: string;
@@ -257,9 +259,9 @@ export type Database = {
         Insert: {
           id?: string;
           estimate_id: string;
-          storage_path: string;
-          file_name: string;
-          file_type: string;
+          storage_path?: string | null;
+          file_name?: string | null;
+          file_type?: string | null;
           page_numbers?: number[];
           analysis_result?: Json | null;
         };

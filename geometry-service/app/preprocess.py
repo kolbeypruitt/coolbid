@@ -1,99 +1,114 @@
+"""Image preprocessing for vision-LLM floor plan analysis.
+
+Pipeline: crop-to-paper (removes desk/mouse/margin dead space so Claude's
+normalized coords anchor to the actual drawing) → downscale → CLAHE contrast.
+The crop is a best-effort largest-bright-quad detector; if it can't find a
+confident paper rectangle it falls back to the original image so a bad crop
+never makes things worse.
+"""
+from __future__ import annotations
+
+import logging
+
 import cv2
 import numpy as np
 
+logger = logging.getLogger(__name__)
 
-def normalize_scan(image: np.ndarray) -> np.ndarray:
-    """Normalize a floor plan image so lines are dark and background is white.
 
-    Handles photographed blueprints (dark paper, blue tint, shadows),
-    scanned documents (off-white paper), and clean CAD exports alike.
+def prepare_image_for_vision(
+    img: np.ndarray, *, max_long_edge: int = 2048
+) -> np.ndarray:
+    """Crop to paper, downscale, and contrast-normalize a floor plan image."""
+    img = _crop_to_paper(img)
 
-    Steps:
-        1. Convert to grayscale using the channel with best line contrast
-        2. CLAHE for local contrast enhancement (handles uneven lighting)
-        3. Percentile stretch — map paper to white, lines to black
+    h, w = img.shape[:2]
+    long_edge = max(h, w)
+    if long_edge > max_long_edge:
+        scale = max_long_edge / long_edge
+        new_w = round(w * scale)
+        new_h = round(h * scale)
+        img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
+    # CLAHE on the luminance channel preserves color while boosting local contrast.
+    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
+    l = clahe.apply(l)
+    lab = cv2.merge((l, a, b))
+    return cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+
+
+def _crop_to_paper(img: np.ndarray) -> np.ndarray:
+    """Best-effort: detect the paper rectangle in the photo and crop+warp to it.
+
+    Returns the original image unchanged if no confident quadrilateral is found.
     """
-    # Use the channel with the widest intensity range (best line/paper contrast).
-    # For blue blueprints, the red channel often has best separation since
-    # blue paper absorbs red light while dark ink absorbs all channels.
-    channels = cv2.split(image)
-    ranges = [float(np.percentile(ch, 98) - np.percentile(ch, 2)) for ch in channels]
-    gray = channels[int(np.argmax(ranges))]
+    h, w = img.shape[:2]
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    # CLAHE — equalize contrast locally so uneven lighting / shadows don't matter
-    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
-    equalized = clahe.apply(gray)
+    # Blur + Otsu threshold separates bright paper from darker desk/background.
+    blurred = cv2.GaussianBlur(gray, (9, 9), 0)
+    _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-    # Percentile stretch: map paper (bright) to 255, lines (dark) to 0
-    low = float(np.percentile(equalized, 2))
-    high = float(np.percentile(equalized, 98))
-    if high - low < 30:
-        # Very low contrast image — stretch harder
-        low = float(np.percentile(equalized, 1))
-        high = float(np.percentile(equalized, 99))
-    if high <= low:
-        return equalized
+    # Morphological close to seal small gaps (mouse shadow edges, fold lines).
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
+    closed = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
 
-    stretched = np.clip((equalized.astype(np.float32) - low) / (high - low) * 255, 0, 255)
-    normalized = stretched.astype(np.uint8)
+    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        logger.info("crop: no contours found, keeping original")
+        return img
 
-    # If the image is inverted (dark background, light lines), flip it.
-    # Check median of the image — paper is the majority, so median should be bright.
-    if np.median(normalized) < 128:
-        normalized = cv2.bitwise_not(normalized)
+    image_area = h * w
+    largest = max(contours, key=cv2.contourArea)
+    paper_area = cv2.contourArea(largest)
+    if paper_area < 0.35 * image_area:
+        # Paper should fill at least ~35% of the frame in any reasonable scan.
+        logger.info("crop: largest contour too small, keeping original")
+        return img
+    if paper_area > 0.97 * image_area:
+        # Already fills the frame — a warp would only shave pixels and distort.
+        logger.info("crop: paper already fills frame, keeping original")
+        return img
 
-    return normalized
+    # Approximate to a polygon and require ~quadrilateral.
+    peri = cv2.arcLength(largest, True)
+    approx = cv2.approxPolyDP(largest, 0.02 * peri, True)
+    if len(approx) != 4:
+        logger.info("crop: largest contour has %d corners, keeping original", len(approx))
+        return img
 
+    quad = _order_quad(approx.reshape(4, 2).astype(np.float32))
+    (tl, tr, br, bl) = quad
+    target_w = int(max(np.linalg.norm(br - bl), np.linalg.norm(tr - tl)))
+    target_h = int(max(np.linalg.norm(tr - br), np.linalg.norm(tl - bl)))
+    if target_w < 400 or target_h < 400:
+        logger.info("crop: target size %dx%d too small, keeping original", target_w, target_h)
+        return img
 
-def detect_walls(image: np.ndarray) -> np.ndarray:
-    """Detect wall lines via adaptive thresholding on a floor plan image.
-
-    Args:
-        image: BGR floor plan image (numpy array).
-
-    Returns:
-        Binary mask where 255 = wall pixel, 0 = non-wall.
-    """
-    # Normalize the scan first — handles photos, blueprints, dark paper, etc.
-    gray = normalize_scan(image)
-
-    # Adaptive threshold isolates dark lines (walls) against lighter background.
-    binary = cv2.adaptiveThreshold(
-        gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 51, 15
+    dst = np.array(
+        [[0, 0], [target_w - 1, 0], [target_w - 1, target_h - 1], [0, target_h - 1]],
+        dtype=np.float32,
     )
-
-    # Extract only long straight lines (walls), filtering out text and symbols.
-    # Walls in architectural drawings are long horizontal or vertical segments.
-    # Text characters, dimension ticks, and symbols are short and irregular.
-    h, w = image.shape[:2]
-    line_len = max(20, min(h, w) // 50)
-
-    h_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (line_len, 1))
-    h_lines = cv2.morphologyEx(binary, cv2.MORPH_OPEN, h_kernel)
-
-    v_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, line_len))
-    v_lines = cv2.morphologyEx(binary, cv2.MORPH_OPEN, v_kernel)
-
-    # Combine horizontal and vertical wall segments
-    walls = cv2.bitwise_or(h_lines, v_lines)
-
-    # Thicken the detected lines slightly so they connect at corners
-    thicken = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-    walls = cv2.dilate(walls, thicken, iterations=1)
-
-    return walls
+    matrix = cv2.getPerspectiveTransform(quad, dst)
+    warped = cv2.warpPerspective(img, matrix, (target_w, target_h))
+    logger.info("crop: warped %dx%d -> %dx%d", w, h, target_w, target_h)
+    return warped
 
 
-def close_gaps(wall_mask: np.ndarray, gap_size: int = 15) -> np.ndarray:
-    """Close small gaps in wall mask (doorways, windows) to create enclosed rooms.
-
-    Args:
-        wall_mask: Binary wall mask (255 = wall).
-        gap_size: Maximum gap width in pixels to close.
-
-    Returns:
-        Wall mask with gaps closed.
-    """
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (gap_size, gap_size))
-    closed = cv2.morphologyEx(wall_mask, cv2.MORPH_CLOSE, kernel, iterations=1)
-    return closed
+def _order_quad(pts: np.ndarray) -> np.ndarray:
+    """Order 4 points as top-left, top-right, bottom-right, bottom-left."""
+    # Top-left has smallest sum, bottom-right has largest sum.
+    # Top-right has smallest diff (x - y), bottom-left has largest diff.
+    s = pts.sum(axis=1)
+    d = np.diff(pts, axis=1).ravel()
+    return np.array(
+        [
+            pts[np.argmin(s)],
+            pts[np.argmin(d)],
+            pts[np.argmax(s)],
+            pts[np.argmax(d)],
+        ],
+        dtype=np.float32,
+    )

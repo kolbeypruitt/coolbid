@@ -1,13 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import Anthropic from "@anthropic-ai/sdk";
-import {
-  anthropic,
-  SYSTEM_PROMPT,
-  PASS1_EXTRACTION_PROMPT,
-  GEOMETRY_LABELING_PROMPT,
-  formatPolygonsForPrompt,
-} from "@/lib/anthropic";
 import { createClient } from "@/lib/supabase/server";
 import {
   checkAiActionLimit,
@@ -15,8 +7,7 @@ import {
 } from "@/lib/billing/ai-action-counter";
 import { AnalysisResultSchema } from "@/lib/analyze/schema";
 import { validateAnalysis } from "@/lib/analyze/validate-analysis";
-import { extractTextFromResponse, extractJson } from "@/lib/analyze/utils";
-import { extractGeometry, GeometryServiceError } from "@/lib/geometry/client";
+import { analyzeFloorPlan, AnalyzerServiceError } from "@/lib/analyzer/client";
 
 export const maxDuration = 180;
 
@@ -36,146 +27,6 @@ const RequestSchema = z.object({
     })
     .optional(),
 });
-
-function buildImageContent(
-  images: z.infer<typeof RequestSchema>["images"]
-): Anthropic.Messages.ContentBlockParam[] {
-  const content: Anthropic.Messages.ContentBlockParam[] = [];
-  if (images.length === 1) {
-    content.push({
-      type: "image",
-      source: {
-        type: "base64",
-        media_type: images[0].mediaType,
-        data: images[0].base64,
-      },
-    });
-  } else {
-    for (const img of images) {
-      const label =
-        img.pageNum != null ? `Page ${img.pageNum}` : `Floor plan`;
-      content.push({ type: "text", text: `[${label}]` });
-      content.push({
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: img.mediaType,
-          data: img.base64,
-        },
-      });
-    }
-  }
-  return content;
-}
-
-function buildConstraints(
-  buildingInfo: z.infer<typeof RequestSchema>["buildingInfo"]
-): string {
-  if (!buildingInfo) return "";
-  const constraints: string[] = [];
-
-  const units = buildingInfo.units ?? 1;
-  const perUnit = units > 1 && (buildingInfo.hvacPerUnit ?? false);
-
-  if (buildingInfo.totalSqft != null) {
-    const anchorSqft = perUnit
-      ? Math.round(buildingInfo.totalSqft / units)
-      : buildingInfo.totalSqft;
-    constraints.push(
-      `The ${perUnit ? "per-unit" : "building total"} conditioned square footage is ${anchorSqft} sqft — use this as your anchor when extracting room sizes.`
-    );
-  }
-
-  if (units > 1) {
-    constraints.push(
-      `This is a ${units}-unit building. ${
-        perUnit
-          ? "Analyze one unit only. The sqft anchor above reflects one unit."
-          : "Extract the full building layout."
-      }`
-    );
-  }
-
-  if (constraints.length === 0) return "";
-  return `\n\nAdditional constraints:\n${constraints.map((c) => `- ${c}`).join("\n")}`;
-}
-
-function shouldUseTwoPass(
-  imageCount: number,
-  totalSqft: number | undefined
-): boolean {
-  return imageCount > 2 || (totalSqft != null && totalSqft > 2500);
-}
-
-/* ── Single-pass analysis (with extended thinking) ──────────────────── */
-
-async function singlePassAnalysis(
-  imageContent: Anthropic.Messages.ContentBlockParam[],
-  buildingInfo: z.infer<typeof RequestSchema>["buildingInfo"],
-  polygonsByFloor: { floor: number; polygons: import("@/lib/geometry/client").RoomPolygon[] }[],
-): Promise<string> {
-  const polygonText = formatPolygonsForPrompt(polygonsByFloor);
-  const userPrompt = GEOMETRY_LABELING_PROMPT + polygonText + buildConstraints(buildingInfo);
-  const content: Anthropic.Messages.ContentBlockParam[] = [
-    ...imageContent,
-    { type: "text", text: userPrompt },
-  ];
-
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 16000,
-    thinking: { type: "enabled", budget_tokens: 4000 },
-    system: SYSTEM_PROMPT,
-    messages: [{ role: "user", content }],
-  });
-
-  return extractTextFromResponse(response);
-}
-
-/* ── Two-pass analysis (perception then structuring) ────────────────── */
-
-async function twoPassAnalysis(
-  imageContent: Anthropic.Messages.ContentBlockParam[],
-  buildingInfo: z.infer<typeof RequestSchema>["buildingInfo"],
-  polygonsByFloor: { floor: number; polygons: import("@/lib/geometry/client").RoomPolygon[] }[],
-): Promise<string> {
-  // Pass 1: Raw annotation extraction (vision + extended thinking)
-  const pass1Content: Anthropic.Messages.ContentBlockParam[] = [
-    ...imageContent,
-    { type: "text", text: PASS1_EXTRACTION_PROMPT + buildConstraints(buildingInfo) },
-  ];
-
-  const pass1Response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 8000,
-    thinking: { type: "enabled", budget_tokens: 10000 },
-    system: SYSTEM_PROMPT,
-    messages: [{ role: "user", content: pass1Content }],
-  });
-
-  const rawExtraction = extractTextFromResponse(pass1Response);
-
-  // Pass 2: Structure the extraction into JSON using geometry data
-  const polygonText = formatPolygonsForPrompt(polygonsByFloor);
-  const pass2Prompt = GEOMETRY_LABELING_PROMPT + polygonText
-    + "\n\n--- RAW EXTRACTION ---\n" + rawExtraction;
-
-  const pass2Response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 16000,
-    system: "You are an expert HVAC engineer structuring floor plan data into JSON for load calculations.",
-    messages: [
-      {
-        role: "user",
-        content: pass2Prompt,
-      },
-    ],
-  });
-
-  return extractTextFromResponse(pass2Response);
-}
-
-/* ── Route handler ──────────────────────────────────────────────────── */
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const supabase = await createClient();
@@ -218,73 +69,36 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const { images, buildingInfo } = parsed.data;
-  const imageContent = buildImageContent(images);
 
-  // Extract geometry from all pages in parallel
-  console.log("analyze: starting geometry extraction for", images.length, "images");
-  type PolygonsByFloor = { floor: number; polygons: import("@/lib/geometry/client").RoomPolygon[] };
-  let polygonsByFloor: PolygonsByFloor[];
+  // Analyze each page in parallel, then merge rooms (tagging each room with its floor).
+  let perFloor: Array<{ floor: number; raw: unknown }>;
   try {
-    polygonsByFloor = await Promise.all(
+    perFloor = await Promise.all(
       images.map(async (img, idx) => {
-        const imageBuffer = Buffer.from(img.base64, "base64");
-        const geometry = await extractGeometry(imageBuffer, img.mediaType);
-        return { floor: img.pageNum ?? idx + 1, polygons: geometry.polygons };
-      }),
+        const buffer = Buffer.from(img.base64, "base64");
+        const raw = await analyzeFloorPlan(buffer, img.mediaType);
+        return { floor: img.pageNum ?? idx + 1, raw };
+      })
     );
-    console.log("analyze: geometry extracted, floors:", polygonsByFloor.length, "total polygons:", polygonsByFloor.reduce((s, f) => s + f.polygons.length, 0));
   } catch (err) {
-    console.error("analyze: geometry extraction error:", err);
-    if (err instanceof GeometryServiceError) {
+    console.error("analyzer service error:", err);
+    if (err instanceof AnalyzerServiceError) {
       return NextResponse.json(
-        { error: err.message, code: "geometry_failed" },
-        { status: 422 },
+        { error: err.message, code: "analyzer_failed" },
+        { status: err.statusCode ?? 502 }
       );
     }
-    throw err;
-  }
-
-  // Analyze: two-pass for complex plans, single-pass otherwise
-  let rawText: string;
-  try {
-    if (shouldUseTwoPass(images.length, buildingInfo?.totalSqft)) {
-      rawText = await twoPassAnalysis(imageContent, buildingInfo, polygonsByFloor);
-    } else {
-      rawText = await singlePassAnalysis(imageContent, buildingInfo, polygonsByFloor);
-    }
-  } catch (err) {
-    console.error("Claude API error:", err);
     return NextResponse.json(
-      { error: "Analysis failed", details: "Claude API call failed" },
+      { error: "Analysis failed", details: "Analyzer service error" },
       { status: 500 }
     );
   }
 
-  // Parse JSON from response
-  let jsonText: string;
-  try {
-    jsonText = extractJson(rawText);
-  } catch {
-    console.error("No JSON object found in Claude response:", rawText);
-    return NextResponse.json(
-      { error: "Analysis failed", details: "Response did not contain JSON" },
-      { status: 500 }
-    );
-  }
+  // Merge per-floor analyses into a single AnalysisResult shape.
+  const merged = mergeFloors(perFloor);
 
-  let rawParsed: unknown;
-  try {
-    rawParsed = JSON.parse(jsonText);
-  } catch (err) {
-    console.error("JSON parse error:", err, "Raw text:", rawText);
-    return NextResponse.json(
-      { error: "Analysis failed", details: "Could not parse analysis result" },
-      { status: 500 }
-    );
-  }
-
-  // Validate with Zod schema (coerces types, applies defaults, normalizes room types)
-  const validated = AnalysisResultSchema.safeParse(rawParsed);
+  // Validate with Zod schema (coerces types, normalizes room types, applies defaults).
+  const validated = AnalysisResultSchema.safeParse(merged);
   if (!validated.success) {
     console.error("Schema validation failed:", validated.error.flatten());
     return NextResponse.json(
@@ -297,28 +111,56 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Post-processing: fix sqft inconsistencies, flag anomalies, apply defaults
   const perUnitAnalysis =
     (buildingInfo?.hvacPerUnit ?? false) && (buildingInfo?.units ?? 1) > 1;
   const result = validateAnalysis(validated.data, { perUnitAnalysis });
-
-  // Build a lookup: polygon_id → vertices from the geometry service
-  const vertexLookup = new Map<string, { x: number; y: number }[]>();
-  for (const { polygons } of polygonsByFloor) {
-    for (const p of polygons) {
-      vertexLookup.set(p.id, p.vertices);
-    }
-  }
-
-  // Attach vertices to each room by polygon_id
-  result.rooms = result.rooms.map((room) => ({
-    ...room,
-    vertices: vertexLookup.get(room.polygon_id) ?? [],
-  }));
 
   if (limitCheck.shouldIncrement) {
     await incrementAiActionCount(supabase, user.id);
   }
 
   return NextResponse.json(result);
+}
+
+/** Combine per-page analyses into one AnalysisResult, stamping each room with its floor. */
+function mergeFloors(perFloor: Array<{ floor: number; raw: unknown }>): unknown {
+  if (perFloor.length === 1) {
+    const { floor, raw } = perFloor[0];
+    if (raw && typeof raw === "object" && "rooms" in raw) {
+      const r = raw as { rooms?: Array<Record<string, unknown>> };
+      r.rooms = (r.rooms ?? []).map((room) => ({ ...room, floor }));
+    }
+    return raw;
+  }
+
+  const first = perFloor[0].raw as Record<string, unknown>;
+  const allRooms: Array<Record<string, unknown>> = [];
+  let totalSqft = 0;
+  let stories = 0;
+
+  for (const { floor, raw } of perFloor) {
+    const r = raw as Record<string, unknown>;
+    const rooms = (r.rooms as Array<Record<string, unknown>>) ?? [];
+    for (const room of rooms) {
+      allRooms.push({
+        ...room,
+        floor,
+        polygon_id: `floor${floor}_${room.polygon_id ?? `room_${allRooms.length}`}`,
+      });
+    }
+    const building = r.building as Record<string, unknown> | undefined;
+    const sqft = typeof building?.total_sqft === "number" ? building.total_sqft : 0;
+    totalSqft += sqft;
+    stories = Math.max(stories, floor);
+  }
+
+  return {
+    ...first,
+    building: {
+      ...(first.building as Record<string, unknown>),
+      stories: Math.max(stories, 1),
+      total_sqft: totalSqft || (first.building as { total_sqft?: number })?.total_sqft || 0,
+    },
+    rooms: allRooms,
+  };
 }

@@ -9,20 +9,31 @@ const PADDING = 30;
 const LABEL_HEIGHT = 16;
 
 /**
- * Normalize room bboxes within a floor so they fill the available space.
- *
- * The raw bboxes from the geometry service are relative to the full image.
- * When floors share a page, rooms on floor 2 might occupy only the top-right
- * quadrant. This function re-normalizes each floor's rooms to 0–1 within
- * that floor's bounding box, so each floor fills its SVG section.
+ * Normalize room bboxes AND vertices within a floor so they fill the available
+ * space. The raw coords from the vision LLM are relative to the full image;
+ * when floors share a page, rooms on floor 2 might occupy only the top-right
+ * quadrant, so we re-normalize each floor's rooms to 0–1 within that floor's
+ * bounding box.
  */
-function normalizeBboxesForFloor(
+function normalizeRoomsForFloor(
   rooms: RoomLoad[],
-): { x: number; y: number; width: number; height: number }[] {
+): Array<{
+  bbox: { x: number; y: number; width: number; height: number };
+  vertices: { x: number; y: number }[];
+}> {
   if (rooms.length === 0) return [];
   if (rooms.length === 1) {
-    // Single room — center it
-    return [{ x: 0.15, y: 0.15, width: 0.7, height: 0.7 }];
+    // Single room — center it; remap its vertices into that centered box.
+    const r = rooms[0];
+    const bbox = { x: 0.15, y: 0.15, width: 0.7, height: 0.7 };
+    const verts =
+      r.vertices.length >= 3 && r.bbox.width > 0 && r.bbox.height > 0
+        ? r.vertices.map((v) => ({
+            x: bbox.x + ((v.x - r.bbox.x) / r.bbox.width) * bbox.width,
+            y: bbox.y + ((v.y - r.bbox.y) / r.bbox.height) * bbox.height,
+          }))
+        : [];
+    return [{ bbox, vertices: verts }];
   }
 
   // Compute bounding box of all rooms on this floor
@@ -37,25 +48,35 @@ function normalizeBboxesForFloor(
   const rangeX = maxX - minX;
   const rangeY = maxY - minY;
 
-  // If all rooms are at the same point, space them out
+  // If all rooms are at the same point, space them out in a grid
   if (rangeX < 0.01 && rangeY < 0.01) {
     const cols = Math.ceil(Math.sqrt(rooms.length));
     return rooms.map((_, i) => ({
-      x: (i % cols) / cols,
-      y: Math.floor(i / cols) / Math.ceil(rooms.length / cols),
-      width: 1 / cols * 0.85,
-      height: 1 / Math.ceil(rooms.length / cols) * 0.85,
+      bbox: {
+        x: (i % cols) / cols,
+        y: Math.floor(i / cols) / Math.ceil(rooms.length / cols),
+        width: (1 / cols) * 0.85,
+        height: (1 / Math.ceil(rooms.length / cols)) * 0.85,
+      },
+      vertices: [],
     }));
   }
 
-  // Add small margin around the group
+  // Affine remap for any point (vx, vy) in full-image coords → floor coords.
   const margin = 0.05;
-  return rooms.map((r) => ({
-    x: margin + (rangeX > 0.01 ? ((r.bbox.x - minX) / rangeX) * (1 - margin * 2) : 0.15),
-    y: margin + (rangeY > 0.01 ? ((r.bbox.y - minY) / rangeY) * (1 - margin * 2) : 0.15),
-    width: rangeX > 0.01 ? (r.bbox.width / rangeX) * (1 - margin * 2) : 0.7,
-    height: rangeY > 0.01 ? (r.bbox.height / rangeY) * (1 - margin * 2) : 0.7,
-  }));
+  const remap = (vx: number, vy: number) => ({
+    x: margin + (rangeX > 0.01 ? ((vx - minX) / rangeX) * (1 - margin * 2) : 0.15),
+    y: margin + (rangeY > 0.01 ? ((vy - minY) / rangeY) * (1 - margin * 2) : 0.15),
+  });
+
+  return rooms.map((r) => {
+    const tl = remap(r.bbox.x, r.bbox.y);
+    const br = remap(r.bbox.x + r.bbox.width, r.bbox.y + r.bbox.height);
+    return {
+      bbox: { x: tl.x, y: tl.y, width: br.x - tl.x, height: br.y - tl.y },
+      vertices: r.vertices.length >= 3 ? r.vertices.map((v) => remap(v.x, v.y)) : [],
+    };
+  });
 }
 
 function placeRegisters(
@@ -214,12 +235,12 @@ export function generateFloorplanLayout(
     const contentTopY = floorCount > 1 ? floorTopY + LABEL_HEIGHT : floorTopY;
     const contentH = floorCount > 1 ? FLOOR_HEIGHT - LABEL_HEIGHT : FLOOR_HEIGHT;
 
-    // Normalize bboxes so this floor's rooms fill the available space
-    const normalizedBboxes = normalizeBboxesForFloor(floorRooms);
+    // Normalize bboxes + vertices so this floor's rooms fill the available space
+    const normalized = normalizeRoomsForFloor(floorRooms);
 
     for (let ri = 0; ri < floorRooms.length; ri++) {
       const room = floorRooms[ri];
-      const nb = normalizedBboxes[ri];
+      const nb = normalized[ri].bbox;
 
       const x = PADDING + nb.x * innerW;
       const y = contentTopY + nb.y * contentH;
@@ -227,6 +248,10 @@ export function generateFloorplanLayout(
       const height = Math.max(nb.height * contentH, 4);
 
       const svgRect = { x, y, width, height };
+      const polygon = normalized[ri].vertices.map((v) => ({
+        x: PADDING + v.x * innerW,
+        y: contentTopY + v.y * contentH,
+      }));
 
       layoutRooms.push({
         id: room.polygon_id || `room-${layoutRooms.length}`,
@@ -237,6 +262,7 @@ export function generateFloorplanLayout(
         y: svgRect.y,
         width: svgRect.width,
         height: svgRect.height,
+        polygon,
         sqft: room.estimated_sqft,
         cfm: room.cfm,
         regs: room.regs,

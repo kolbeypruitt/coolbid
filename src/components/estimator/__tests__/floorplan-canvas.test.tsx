@@ -98,7 +98,7 @@ describe("FloorplanCanvas", () => {
     expect(rects).toHaveLength(1);
   });
 
-  it("calls onSelectRoom with room index when polygon is clicked", () => {
+  it("calls onSelectRoom with room index when polygon is tapped (no drag)", () => {
     const onSelectRoom = vi.fn();
 
     const { getByLabelText } = render(
@@ -113,13 +113,15 @@ describe("FloorplanCanvas", () => {
     const svg = getByLabelText("Floorplan room overlay");
     const polygon = svg.querySelector("polygon")!;
 
-    fireEvent.click(polygon);
+    // pointerdown + pointerup at the same position = tap, not drag
+    fireEvent.pointerDown(polygon, { pointerId: 1, clientX: 100, clientY: 100 });
+    fireEvent.pointerUp(svg, { pointerId: 1, clientX: 100, clientY: 100 });
 
     expect(onSelectRoom).toHaveBeenCalledOnce();
     expect(onSelectRoom).toHaveBeenCalledWith(0);
   });
 
-  it("deselects when clicking an already-selected room", () => {
+  it("deselects when tapping an already-selected room", () => {
     const onSelectRoom = vi.fn();
 
     const { getByLabelText } = render(
@@ -134,13 +136,14 @@ describe("FloorplanCanvas", () => {
     const svg = getByLabelText("Floorplan room overlay");
     const polygon = svg.querySelector("polygon")!;
 
-    fireEvent.click(polygon);
+    fireEvent.pointerDown(polygon, { pointerId: 1, clientX: 100, clientY: 100 });
+    fireEvent.pointerUp(svg, { pointerId: 1, clientX: 100, clientY: 100 });
 
     expect(onSelectRoom).toHaveBeenCalledOnce();
     expect(onSelectRoom).toHaveBeenCalledWith(null);
   });
 
-  it("calls onHoverRoom on mouseEnter and mouseLeave", () => {
+  it("calls onHoverRoom on pointerEnter and pointerLeave", () => {
     const onHoverRoom = vi.fn();
 
     const { getByLabelText } = render(
@@ -157,17 +160,135 @@ describe("FloorplanCanvas", () => {
     const elements = svg.querySelectorAll("polygon, rect");
 
     // First element is the polygon (room index 0)
-    fireEvent.mouseEnter(elements[0]);
+    fireEvent.pointerEnter(elements[0]);
     expect(onHoverRoom).toHaveBeenCalledWith(0);
 
-    fireEvent.mouseLeave(elements[0]);
+    fireEvent.pointerLeave(elements[0]);
     expect(onHoverRoom).toHaveBeenCalledWith(null);
 
     // Second element is the rect (room index 1)
-    fireEvent.mouseEnter(elements[1]);
+    fireEvent.pointerEnter(elements[1]);
     expect(onHoverRoom).toHaveBeenCalledWith(1);
 
-    fireEvent.mouseLeave(elements[1]);
+    fireEvent.pointerLeave(elements[1]);
     expect(onHoverRoom).toHaveBeenCalledWith(null);
+  });
+
+  it("renders vertex handles on the selected polygon only", () => {
+    const { getByLabelText } = render(
+      <FloorplanCanvas
+        imageSrc={FAKE_IMAGE}
+        rooms={[ROOM_WITH_VERTICES, ROOM_WITHOUT_VERTICES]}
+        selectedIndex={0}
+        onSelectRoom={vi.fn()}
+      />,
+    );
+
+    const svg = getByLabelText("Floorplan room overlay");
+    // 4 vertex groups × 2 circles each (hit + visible) = 8 circles on the selected 4-vertex polygon
+    const circles = svg.querySelectorAll("circle");
+    expect(circles.length).toBe(8);
+  });
+
+  it("does not render vertex handles when no room is selected", () => {
+    const { getByLabelText } = render(
+      <FloorplanCanvas
+        imageSrc={FAKE_IMAGE}
+        rooms={[ROOM_WITH_VERTICES, ROOM_WITHOUT_VERTICES]}
+        selectedIndex={null}
+        onSelectRoom={vi.fn()}
+      />,
+    );
+
+    const svg = getByLabelText("Floorplan room overlay");
+    expect(svg.querySelectorAll("circle").length).toBe(0);
+  });
+
+  it("dragging a corner on an axis-aligned rectangle resizes like a crop tool", () => {
+    const onUpdateRoom = vi.fn();
+
+    const { container, getByLabelText } = render(
+      <FloorplanCanvas
+        imageSrc={FAKE_IMAGE}
+        rooms={[ROOM_WITH_VERTICES]}
+        selectedIndex={0}
+        onSelectRoom={vi.fn()}
+        onUpdateRoom={onUpdateRoom}
+      />,
+    );
+
+    const wrapper = container.firstElementChild as HTMLElement;
+    wrapper.getBoundingClientRect = () => ({
+      x: 0, y: 0, left: 0, top: 0, right: 1000, bottom: 1000, width: 1000, height: 1000, toJSON: () => ({}),
+    });
+
+    const svg = getByLabelText("Floorplan room overlay");
+    const hitCircles = svg.querySelectorAll(".vertex-handle-hit");
+
+    // Drag top-left corner (vertex 0) from (0.1, 0.1) → (0.2, 0.2)
+    fireEvent.pointerDown(hitCircles[0], { pointerId: 1, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(svg, { pointerId: 1, clientX: 200, clientY: 200 });
+    fireEvent.pointerUp(svg, { pointerId: 1, clientX: 200, clientY: 200 });
+
+    expect(onUpdateRoom).toHaveBeenCalledOnce();
+    const [, partial] = onUpdateRoom.mock.calls[0];
+    // TL moved, TR's y follows (shares y-edge with TL), BL's x follows (shares x-edge with TL), BR fixed
+    expect(partial.vertices[0]).toEqual({ x: 0.2, y: 0.2 }); // TL dragged
+    expect(partial.vertices[1]).toEqual({ x: 0.5, y: 0.2 }); // TR: y follows
+    expect(partial.vertices[2]).toEqual({ x: 0.5, y: 0.5 }); // BR: fixed
+    expect(partial.vertices[3]).toEqual({ x: 0.2, y: 0.5 }); // BL: x follows
+    expect(partial.bbox.x).toBeCloseTo(0.2);
+    expect(partial.bbox.y).toBeCloseTo(0.2);
+    expect(partial.bbox.width).toBeCloseTo(0.3);
+    expect(partial.bbox.height).toBeCloseTo(0.3);
+    // Dimensions scale with the new 0.3×0.3 bbox (was 0.4×0.4)
+    expect(partial.width_ft).toBeCloseTo(15 * 0.75);
+    expect(partial.length_ft).toBeCloseTo(20 * 0.75);
+  });
+
+  it("dragging a vertex on a non-rectangle moves only that vertex", () => {
+    const onUpdateRoom = vi.fn();
+    const lShape: Room = {
+      ...ROOM_WITH_VERTICES,
+      vertices: [
+        { x: 0.1, y: 0.1 },
+        { x: 0.4, y: 0.1 },
+        { x: 0.4, y: 0.3 },
+        { x: 0.6, y: 0.3 },
+        { x: 0.6, y: 0.5 },
+        { x: 0.1, y: 0.5 },
+      ],
+      bbox: { x: 0.1, y: 0.1, width: 0.5, height: 0.4 },
+    };
+
+    const { container, getByLabelText } = render(
+      <FloorplanCanvas
+        imageSrc={FAKE_IMAGE}
+        rooms={[lShape]}
+        selectedIndex={0}
+        onSelectRoom={vi.fn()}
+        onUpdateRoom={onUpdateRoom}
+      />,
+    );
+
+    const wrapper = container.firstElementChild as HTMLElement;
+    wrapper.getBoundingClientRect = () => ({
+      x: 0, y: 0, left: 0, top: 0, right: 1000, bottom: 1000, width: 1000, height: 1000, toJSON: () => ({}),
+    });
+
+    const svg = getByLabelText("Floorplan room overlay");
+    const hitCircles = svg.querySelectorAll(".vertex-handle-hit");
+    expect(hitCircles.length).toBe(6);
+
+    // Drag vertex 0 from (0.1, 0.1) → (0.2, 0.2)
+    fireEvent.pointerDown(hitCircles[0], { pointerId: 1, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(svg, { pointerId: 1, clientX: 200, clientY: 200 });
+    fireEvent.pointerUp(svg, { pointerId: 1, clientX: 200, clientY: 200 });
+
+    const [, partial] = onUpdateRoom.mock.calls[0];
+    expect(partial.vertices[0]).toEqual({ x: 0.2, y: 0.2 });
+    // Other vertices unchanged (free vertex drag, not rectangle resize)
+    expect(partial.vertices[1]).toEqual({ x: 0.4, y: 0.1 });
+    expect(partial.vertices[2]).toEqual({ x: 0.4, y: 0.3 });
   });
 });

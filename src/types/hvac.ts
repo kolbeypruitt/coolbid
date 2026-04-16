@@ -11,6 +11,8 @@ export type LoadFactor = { btu: number; cfm: number; reg: number };
 export type Part = { name: string; category: string; unit: string; price: number; supplier: string; sku: string };
 
 export type Room = {
+  /** Supabase row UUID for estimate_rooms. Missing until the room is persisted. */
+  id?: string;
   name: string; type: RoomType; floor: number; estimated_sqft: number;
   width_ft: number; length_ft: number; window_count: number;
   exterior_walls: number; ceiling_height: number; notes: string;

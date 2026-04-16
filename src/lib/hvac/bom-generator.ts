@@ -73,8 +73,8 @@ function findCatalogItemByKeyword(
   const kDesc = descKeyword.toLowerCase();
 
   const matchesKeyword = (c: CatalogItem): boolean =>
-    c.mpn.toLowerCase().includes(kModel) ||
-    c.description.toLowerCase().includes(kDesc);
+    (c.mpn?.toLowerCase() ?? "").includes(kModel) ||
+    (c.description?.toLowerCase() ?? "").includes(kDesc);
 
   const typeMatch = catalog.filter(
     (c) =>

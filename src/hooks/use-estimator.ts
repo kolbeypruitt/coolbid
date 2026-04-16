@@ -15,9 +15,13 @@ type PagePreview = {
   mediaType: string;
 };
 
+type SaveStatus = "idle" | "saving" | "saved" | "error";
+
 type EstimatorState = {
   step: EstimatorStep;
   estimateId: string | null;
+  saveStatus: SaveStatus;
+  saveError: string | null;
   fileName: string;
   floorplanImg: string | null;
   pdfPages: PagePreview[];
@@ -54,11 +58,11 @@ type EstimatorActions = {
   setSelectedPages: (pages: number[]) => void;
   setBuildingInfo: (info: Partial<Pick<EstimatorState, "knownTotalSqft" | "knownUnits" | "hvacPerUnit" | "identicalUnits" | "climateZone" | "systemType">>) => void;
   setAnalysisProgress: (progress: number) => void;
-  setAnalysisResult: (result: AnalysisResult) => void;
+  setAnalysisResult: (result: AnalysisResult) => Promise<void>;
   setRooms: (rooms: Room[]) => void;
   updateRoom: (index: number, partial: Partial<Room>) => void;
-  removeRoom: (index: number) => void;
-  addRoom: () => void;
+  removeRoom: (index: number) => Promise<void>;
+  addRoom: () => Promise<void>;
   generateBom: () => Promise<void>;
   setCustomerName: (name: string) => void;
   setJobAddress: (address: string) => void;
@@ -95,10 +99,45 @@ const DEFAULT_ROOM: Room = {
 
 const STEP_ORDER: EstimatorStep[] = ["customer", "upload", "select_pages", "analyzing", "rooms", "bom"];
 
+// ── Room persistence helpers ─────────────────────────────────────────
+
+/** Shape of an `estimate_rooms` row that our upsert writes. */
+function roomToRow(room: Room, estimateId: string) {
+  return {
+    id: room.id,
+    estimate_id: estimateId,
+    name: room.name,
+    type: room.type,
+    floor: room.floor,
+    sqft: room.estimated_sqft,
+    width_ft: room.width_ft,
+    length_ft: room.length_ft,
+    window_count: room.window_count,
+    exterior_walls: room.exterior_walls,
+    ceiling_height: room.ceiling_height,
+    notes: room.notes,
+    conditioned: room.conditioned,
+    bbox_x: room.bbox.x,
+    bbox_y: room.bbox.y,
+    bbox_width: room.bbox.width,
+    bbox_height: room.bbox.height,
+    centroid_x: room.centroid.x,
+    centroid_y: room.centroid.y,
+    vertices: room.vertices,
+    adjacent_rooms: room.adjacent_rooms,
+  };
+}
+
+/** Debounce timers for per-room auto-save. Keyed by room.id. */
+const roomSaveTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+const ROOM_SAVE_DEBOUNCE_MS = 500;
+
 function initialState(): EstimatorState {
   return {
     step: "customer",
     estimateId: null,
+    saveStatus: "idle",
+    saveError: null,
     fileName: "",
     floorplanImg: null,
     pdfPages: [],
@@ -191,34 +230,150 @@ export const useEstimator = create<EstimatorState & EstimatorActions>((set, get)
 
   setAnalysisProgress: (progress) => set({ analysisProgress: progress }),
 
-  setAnalysisResult: (result) =>
-    set({ analysisResult: result, rooms: result.rooms.map((r) => ({ ...r })), step: "rooms" }),
+  setAnalysisResult: async (result) => {
+    // Stamp each room with a client-side UUID so we can upsert by id.
+    const roomsWithIds: Room[] = result.rooms.map((r) => ({
+      ...r,
+      id: r.id ?? crypto.randomUUID(),
+    }));
+    set({ analysisResult: result, rooms: roomsWithIds, step: "rooms" });
+
+    // Persist: ensure a draft exists → write floorplan row → replace rooms.
+    set({ saveStatus: "saving", saveError: null });
+    try {
+      let estimateId = get().estimateId;
+      if (!estimateId) {
+        estimateId = await get().createDraft();
+        if (!estimateId) throw new Error("Could not create estimate draft");
+      }
+      const supabase = createClient();
+
+      // One floorplan row per estimate (replace any prior analysis).
+      await supabase.from("floorplans").delete().eq("estimate_id", estimateId);
+      const { error: fpErr } = await supabase.from("floorplans").insert({
+        estimate_id: estimateId,
+        file_name: get().fileName || null,
+        file_type: get().pdfPages[0]?.mediaType ?? null,
+        page_numbers: get().selectedPages.length ? get().selectedPages : [1],
+        analysis_result: result,
+      });
+      if (fpErr) throw fpErr;
+
+      // Replace all rooms for this estimate with the freshly-analyzed set.
+      await supabase.from("estimate_rooms").delete().eq("estimate_id", estimateId);
+      const rows = roomsWithIds.map((r) => roomToRow(r, estimateId!));
+      const { error: roomsErr } = await supabase.from("estimate_rooms").insert(rows);
+      if (roomsErr) throw roomsErr;
+
+      set({ saveStatus: "saved" });
+    } catch (err) {
+      console.error("setAnalysisResult persist failed:", err);
+      set({
+        saveStatus: "error",
+        saveError: err instanceof Error ? err.message : "Save failed",
+      });
+    }
+  },
 
   setRooms: (rooms) => set({ rooms }),
 
-  updateRoom: (index, partial) =>
+  updateRoom: (index, partial) => {
     set((state) => {
       const rooms = [...state.rooms];
       rooms[index] = { ...rooms[index], ...partial };
-      return { rooms };
-    }),
+      return { rooms, saveStatus: "saving" };
+    });
 
-  removeRoom: (index) =>
-    set((state) => {
-      const { selectedRoomIndex } = state;
-      let newSelected = selectedRoomIndex;
-      if (selectedRoomIndex === index) newSelected = null;
-      else if (selectedRoomIndex != null && selectedRoomIndex > index) newSelected = selectedRoomIndex - 1;
-      return {
-        rooms: state.rooms.filter((_, i) => i !== index),
-        selectedRoomIndex: newSelected,
-      };
-    }),
+    const room = get().rooms[index];
+    const estimateId = get().estimateId;
+    if (!room?.id || !estimateId) return;
 
-  addRoom: () =>
-    set((state) => ({
-      rooms: [...state.rooms, { ...DEFAULT_ROOM }],
-    })),
+    // Debounce per-room so rapid vertex drags coalesce into one write.
+    const existing = roomSaveTimers.get(room.id);
+    if (existing) clearTimeout(existing);
+    roomSaveTimers.set(
+      room.id,
+      setTimeout(async () => {
+        roomSaveTimers.delete(room.id!);
+        try {
+          const latest = get().rooms.find((r) => r.id === room.id);
+          if (!latest) return;
+          const supabase = createClient();
+          const { error } = await supabase
+            .from("estimate_rooms")
+            .update(roomToRow(latest, estimateId))
+            .eq("id", room.id!);
+          if (error) throw error;
+          // Only flip to "saved" if no other saves are pending.
+          if (roomSaveTimers.size === 0) set({ saveStatus: "saved" });
+        } catch (err) {
+          console.error("updateRoom persist failed:", err);
+          set({
+            saveStatus: "error",
+            saveError: err instanceof Error ? err.message : "Save failed",
+          });
+        }
+      }, ROOM_SAVE_DEBOUNCE_MS),
+    );
+  },
+
+  removeRoom: async (index) => {
+    const state = get();
+    const room = state.rooms[index];
+    const { selectedRoomIndex } = state;
+    let newSelected = selectedRoomIndex;
+    if (selectedRoomIndex === index) newSelected = null;
+    else if (selectedRoomIndex != null && selectedRoomIndex > index) newSelected = selectedRoomIndex - 1;
+
+    set({
+      rooms: state.rooms.filter((_, i) => i !== index),
+      selectedRoomIndex: newSelected,
+      saveStatus: room?.id ? "saving" : get().saveStatus,
+    });
+
+    if (!room?.id || !state.estimateId) return;
+    // Cancel any pending debounced save for this row.
+    const pending = roomSaveTimers.get(room.id);
+    if (pending) {
+      clearTimeout(pending);
+      roomSaveTimers.delete(room.id);
+    }
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from("estimate_rooms").delete().eq("id", room.id);
+      if (error) throw error;
+      if (roomSaveTimers.size === 0) set({ saveStatus: "saved" });
+    } catch (err) {
+      console.error("removeRoom persist failed:", err);
+      set({
+        saveStatus: "error",
+        saveError: err instanceof Error ? err.message : "Delete failed",
+      });
+    }
+  },
+
+  addRoom: async () => {
+    const newRoom: Room = { ...DEFAULT_ROOM, id: crypto.randomUUID() };
+    set((state) => ({ rooms: [...state.rooms, newRoom], saveStatus: "saving" }));
+
+    const estimateId = get().estimateId;
+    if (!estimateId) {
+      set({ saveStatus: "error", saveError: "No estimate draft — room saved locally only" });
+      return;
+    }
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from("estimate_rooms").insert(roomToRow(newRoom, estimateId));
+      if (error) throw error;
+      if (roomSaveTimers.size === 0) set({ saveStatus: "saved" });
+    } catch (err) {
+      console.error("addRoom persist failed:", err);
+      set({
+        saveStatus: "error",
+        saveError: err instanceof Error ? err.message : "Save failed",
+      });
+    }
+  },
 
   generateBom: async () => {
     const { rooms, climateZone, systemType, analysisResult, knownUnits, hvacPerUnit, identicalUnits } = get();

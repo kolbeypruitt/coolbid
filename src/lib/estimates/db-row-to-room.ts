@@ -9,6 +9,7 @@ export function dbRowToRoom(
   index: number,
 ): Room {
   return {
+    id: r.id as string | undefined,
     name: r.name as string,
     type: (r.type as string) as RoomType,
     floor: (r.floor as number) ?? 1,
@@ -23,7 +24,7 @@ export function dbRowToRoom(
       ? Boolean(r.conditioned)
       : ((r.type as string) !== "garage"),
     polygon_id: (r.polygon_id as string) ?? `room_${index}`,
-    vertices: [],
+    vertices: (r.vertices as { x: number; y: number }[]) ?? [],
     bbox: {
       x: (r.bbox_x as number) ?? 0,
       y: (r.bbox_y as number) ?? 0,
