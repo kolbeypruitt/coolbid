@@ -26,6 +26,7 @@ import { EstimateActions } from "@/components/estimates/estimate-actions";
 import { DeleteEstimateButton } from "@/components/estimates/delete-estimate-button";
 import { FinancialsCard } from "@/components/estimates/financials-card";
 import { BomCategoryTable } from "@/components/estimates/bom-category-table";
+import { EmptyBomCard } from "@/components/estimates/empty-bom-card";
 import { UnsavedShareBanner } from "@/components/estimates/unsaved-share-banner";
 import { FloorplanSchematic } from "@/components/estimates/floorplan-schematic";
 import { reconstructBomResult } from "@/lib/hvac/bom-from-saved";
@@ -226,13 +227,16 @@ export default async function EstimateDetailPage({
         customer_phone={est.customer_phone}
       />
 
-      {/* RFQ + Export actions */}
-      <EstimateActions
-        bom={bomResult}
-        rfqConfig={rfqConfig}
-        projectName={est.project_name}
-        estimateId={est.id}
-      />
+      {/* RFQ + Export actions — hidden when BOM is empty;
+          EmptyBomCard handles the generate CTA below. */}
+      {bom.length > 0 && (
+        <EstimateActions
+          bom={bomResult}
+          rfqConfig={rfqConfig}
+          projectName={est.project_name}
+          estimateId={est.id}
+        />
+      )}
 
       {/* Financials — editable margin slider, labor inputs, live totals */}
       <FinancialsCard
@@ -292,6 +296,11 @@ export default async function EstimateDetailPage({
           climateZone={climateZone}
           totalBTU={layoutSummary.designBTU}
         />
+      )}
+
+      {/* Empty-state CTA when estimate has rooms but no BOM */}
+      {bom.length === 0 && roomList.length > 0 && (
+        <EmptyBomCard estimateId={est.id} />
       )}
 
       {/* BOM Tables grouped by category — editable */}

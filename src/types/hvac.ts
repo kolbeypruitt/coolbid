@@ -29,7 +29,7 @@ export type RoomLoad = Room & { btu: number; cfm: number; regs: number };
 
 export type BomItem = {
   partId: string; name: string; category: string; qty: number; unit: string;
-  price: number | null; supplier: string; sku: string; notes: string; source: "starter" | "quote" | "manual" | "missing";
+  price: number | null; supplier: string; sku: string; notes: string; source: "starter" | "quote" | "manual" | "imported" | "missing";
   brand: string;
 };
 

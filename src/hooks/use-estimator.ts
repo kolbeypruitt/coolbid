@@ -1,9 +1,15 @@
 import { create } from "zustand";
+
+// Prevents rapid double-clicks of "Generate BOM" from interleaving
+// delete-then-insert cycles against estimate_bom_items.
+let bomGenerationInFlight = false;
 import type { AnalysisResult, BomResult, ClimateZoneKey, Room } from "@/types/hvac";
-import type { CatalogItem, SystemType } from "@/types/catalog";
+import type { SystemType } from "@/types/catalog";
 import { generateBOM } from "@/lib/hvac/bom-generator";
 import { createClient } from "@/lib/supabase/client";
 import { renderContractorPreferencesPrompt } from "@/lib/contractor-preferences/render-prompt";
+import { loadBomCatalog } from "@/lib/estimates/load-bom-catalog";
+import { toBomInsertRows } from "@/lib/estimates/bom-rows";
 import type { ContractorPreferences } from "@/types/contractor-preferences";
 
 type EstimatorStep = "customer" | "upload" | "select_pages" | "analyzing" | "rooms" | "bom";
@@ -376,32 +382,25 @@ export const useEstimator = create<EstimatorState & EstimatorActions>((set, get)
   },
 
   generateBom: async () => {
-    const { rooms, climateZone, systemType, analysisResult, knownUnits, hvacPerUnit, identicalUnits } = get();
+    if (bomGenerationInFlight) return;
+    bomGenerationInFlight = true;
+    const { rooms, climateZone, systemType, analysisResult, knownUnits, hvacPerUnit, identicalUnits, estimateId } = get();
     try {
       const supabase = createClient();
-      const { data: catalog } = await supabase
-        .from("equipment_catalog")
-        .select("*, supplier:suppliers(*)")
-        .order("usage_count", { ascending: false });
-      // Hide items from inactive suppliers (user toggled them off).
-      const activeCatalog = ((catalog ?? []) as CatalogItem[]).filter(
-        (item) => item.supplier?.is_active !== false,
-      );
-
-      // TODO(ai-bom-generator): when the AI-powered BOM generator lands, pass
-      // `preferencesPrompt` as additional system-prompt context. For now the
-      // deterministic generator ignores it; we render + debug-log to prove the
-      // data pipeline works end-to-end.
       const {
         data: { user },
       } = await supabase.auth.getUser();
+
+      const activeCatalog = user ? await loadBomCatalog(supabase, user.id) : [];
+
+      let preferences: ContractorPreferences | null = null;
       if (user) {
         const { data: prefsRow } = await supabase
           .from("profiles")
           .select("contractor_preferences")
           .eq("id", user.id)
           .single();
-        const preferences =
+        preferences =
           (prefsRow?.contractor_preferences as ContractorPreferences | null) ?? null;
         const preferencesPrompt = renderContractorPreferencesPrompt(preferences);
         if (preferencesPrompt && process.env.NODE_ENV !== "production") {
@@ -416,6 +415,7 @@ export const useEstimator = create<EstimatorState & EstimatorActions>((set, get)
         activeCatalog,
         analysisResult?.building,
         analysisResult?.hvac_notes,
+        preferences,
       );
 
       // For identical multi-unit buildings with per-unit HVAC, multiply
@@ -435,8 +435,30 @@ export const useEstimator = create<EstimatorState & EstimatorActions>((set, get)
       }
 
       set({ bom, step: "bom" });
+
+      // Auto-persist so navigating away before "Done — View Estimate"
+      // doesn't lose the generated BOM. handleFinish re-persists as a
+      // belt-and-suspenders guarantee if this fails silently (offline etc).
+      if (estimateId && bom.items.length > 0) {
+        const { error: delErr } = await supabase
+          .from("estimate_bom_items")
+          .delete()
+          .eq("estimate_id", estimateId);
+        if (delErr) {
+          set({ error: `Failed to clear old BOM: ${delErr.message}` });
+          return;
+        }
+        const { error: bomErr } = await supabase
+          .from("estimate_bom_items")
+          .insert(toBomInsertRows(bom.items, estimateId));
+        if (bomErr) {
+          set({ error: `Failed to save BOM: ${bomErr.message}` });
+        }
+      }
     } catch (err) {
       set({ error: err instanceof Error ? err.message : "Failed to generate BOM" });
+    } finally {
+      bomGenerationInFlight = false;
     }
   },
 

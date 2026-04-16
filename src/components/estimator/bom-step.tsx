@@ -172,6 +172,9 @@ export function BomStep() {
         if (delRoomErr) throw new Error(delRoomErr.message);
       }
 
+      // BOM is auto-persisted by generateBom but re-persist here to cover
+      // cases where auto-persist failed (offline, transient RLS error) and
+      // the user is now clicking Done.
       if (currentBom.items.length > 0) {
         const bomRows = toBomInsertRows(currentBom.items, estimateId);
         const { data: newBom, error: bomErr } = await supabase
