@@ -141,7 +141,7 @@ export function FloorplanSchematic({
                 strokeWidth="3"
                 filter="url(#trunk-glow)"
               >
-                <title>Trunk: {d.size}</title>
+                <title>{`Trunk: ${d.size}`}</title>
               </line>
             ))}
 
@@ -159,7 +159,7 @@ export function FloorplanSchematic({
                 strokeWidth="1.2"
                 strokeDasharray="4,3"
               >
-                <title>Branch: {d.size}</title>
+                <title>{`Branch: ${d.size}`}</title>
               </line>
             ))}
 
@@ -167,10 +167,11 @@ export function FloorplanSchematic({
           {rooms.map((room) => {
             const tooltip = (
               <title>
-                {room.name} ({room.type}){"\n"}
-                {room.sqft} sqft · {room.cfm} CFM{"\n"}
-                {room.regs} supply register{room.regs !== 1 ? "s" : ""}
-                {room.hasReturn ? " · Return grille" : ""}
+                {[
+                  `${room.name} (${room.type})`,
+                  `${room.sqft} sqft · ${room.cfm} CFM`,
+                  `${room.regs} supply register${room.regs !== 1 ? "s" : ""}${room.hasReturn ? " · Return grille" : ""}`,
+                ].join("\n")}
               </title>
             );
             const useRect = room.polygon.length < 3;
