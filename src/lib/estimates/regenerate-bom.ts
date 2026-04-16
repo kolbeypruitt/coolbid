@@ -4,9 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { generateBOM } from "@/lib/hvac/bom-generator";
 import { toBomInsertRows } from "@/lib/estimates/bom-rows";
 import { calcTotals } from "@/lib/estimates/recalc";
+import { loadBomCatalog } from "@/lib/estimates/load-bom-catalog";
 import type { ClimateZoneKey } from "@/types/hvac";
 import { dbRowToRoom } from "@/lib/estimates/db-row-to-room";
-import type { CatalogItem, SystemType } from "@/types/catalog";
+import type { SystemType } from "@/types/catalog";
 import type { Database } from "@/types/database";
 import { renderContractorPreferencesPrompt } from "@/lib/contractor-preferences/render-prompt";
 import type { ContractorPreferences } from "@/types/contractor-preferences";
@@ -52,18 +53,15 @@ export async function regenerateBom(estimateId: string): Promise<{ error?: strin
   // Convert DB rows to Room type
   const roomInputs = rooms.map((r, i) => dbRowToRoom(r as Record<string, unknown>, i));
 
-  // Fetch current catalog
-  const { data: catalog, error: catErr } = await supabase
-    .from("equipment_catalog")
-    .select("*, supplier:suppliers(*)")
-    .order("usage_count", { ascending: false });
-
-  if (catErr) return { error: "Failed to load equipment catalog" };
-
-  // Hide items from inactive suppliers (user toggled them off).
-  const activeCatalog = ((catalog ?? []) as CatalogItem[]).filter(
-    (item) => item.supplier?.is_active !== false,
-  );
+  let activeCatalog;
+  try {
+    activeCatalog = await loadBomCatalog(supabase, user.id);
+  } catch (err) {
+    console.error("[regenerate-bom] loadBomCatalog failed:", err);
+    return {
+      error: `Failed to load catalog: ${err instanceof Error ? err.message : "unknown"}`,
+    };
+  }
 
   // TODO(ai-bom-generator): when the AI-powered BOM generator lands, pass
   // `preferencesPrompt` as additional system-prompt context. For now the

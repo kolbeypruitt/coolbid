@@ -116,7 +116,7 @@ function catalogToBomItem(item: CatalogItem, qty: number, notes: string): BomIte
     supplier: item.supplier?.name ?? item.brand,
     sku: item.mpn,
     notes,
-    source: item.source as BomItem["source"],
+    source: item.source,
     brand: item.brand,
   };
 }
