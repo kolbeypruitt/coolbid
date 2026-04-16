@@ -17,8 +17,10 @@ from .prompts import ANALYZE_PROMPT, SYSTEM_PROMPT
 logger = logging.getLogger(__name__)
 
 MODEL = "claude-sonnet-4-6"
-MAX_TOKENS = 16000
-THINKING_BUDGET = 8000
+# Budget fits inside an 8k output-tokens/minute tier on Sonnet 4.6. If your
+# org has a higher tier, bump these to 16000 / 8000 for richer outputs.
+MAX_TOKENS = 6000
+THINKING_BUDGET = 3000
 
 
 class VisionError(Exception):
@@ -63,28 +65,34 @@ async def analyze_floor_plan(img: np.ndarray) -> dict[str, Any]:
     image_bytes = _encode_jpeg(img)
     image_b64 = base64.standard_b64encode(image_bytes).decode("ascii")
 
-    response = await client.messages.create(
-        model=MODEL,
-        max_tokens=MAX_TOKENS,
-        thinking={"type": "enabled", "budget_tokens": THINKING_BUDGET},
-        system=SYSTEM_PROMPT,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": "image/jpeg",
-                            "data": image_b64,
+    try:
+        response = await client.messages.create(
+            model=MODEL,
+            max_tokens=MAX_TOKENS,
+            thinking={"type": "enabled", "budget_tokens": THINKING_BUDGET},
+            system=SYSTEM_PROMPT,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/jpeg",
+                                "data": image_b64,
+                            },
                         },
-                    },
-                    {"type": "text", "text": ANALYZE_PROMPT},
-                ],
-            }
-        ],
-    )
+                        {"type": "text", "text": ANALYZE_PROMPT},
+                    ],
+                }
+            ],
+        )
+    except Exception as exc:
+        # Rate limits, auth failures, network errors — all become VisionError
+        # so the FastAPI route can map them to 502 instead of a generic 500.
+        logger.error("Anthropic API call failed: %s", exc)
+        raise VisionError(f"Anthropic API call failed: {exc}") from exc
 
     text_parts = [block.text for block in response.content if block.type == "text"]
     raw = "\n".join(text_parts).strip()
