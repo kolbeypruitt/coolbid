@@ -159,7 +159,31 @@ async def _run_variant(
         raw_text = "\n".join(text_parts).strip()
         if not raw_text:
             raise ValueError("Model returned no text content")
-        parsed = json.loads(_extract_json(raw_text))
+        json_text = _extract_json(raw_text)
+        try:
+            parsed = json.loads(json_text)
+        except json.JSONDecodeError as first_err:
+            # Common Claude mistakes: trailing commas before } or ], or a stray
+            # comma after the last value in an array. Try a targeted cleanup
+            # and retry once before giving up.
+            cleaned = re.sub(r",(\s*[}\]])", r"\1", json_text)
+            try:
+                parsed = json.loads(cleaned)
+                logger.warning(
+                    "⚠ [%s] JSON had trailing commas, auto-cleaned and parsed",
+                    variant.name,
+                )
+            except json.JSONDecodeError:
+                # Dump the raw response so we can see what the model did.
+                dump_path = _HERE / "reports" / f"failed_{variant.name}_{int(time.time())}.txt"
+                dump_path.write_text(raw_text)
+                logger.error(
+                    "✗ [%s] JSON parse failed: %s. Raw response saved to %s",
+                    variant.name,
+                    first_err,
+                    dump_path.name,
+                )
+                raise first_err
         if not isinstance(parsed, dict):
             raise ValueError("Response JSON was not an object")
 
