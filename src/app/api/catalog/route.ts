@@ -235,25 +235,42 @@ export async function POST(req: Request) {
   const { source, ...rest } = parsed.data;
   const resolvedSource = source ?? "manual";
 
-  // If this is an import from a vendor_product, idempotently upsert
-  // on (user_id, vendor_product_id) so a second pick of the same SKU
-  // reuses the existing row instead of creating a duplicate.
   if (resolvedSource === "imported" && rest.vendor_product_id) {
+    const { data: existing } = await supabase
+      .from("equipment_catalog")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("vendor_product_id", rest.vendor_product_id)
+      .maybeSingle();
+
+    if (existing) {
+      const { data, error } = await supabase
+        .from("equipment_catalog")
+        .update({ ...rest, source: resolvedSource })
+        .eq("id", existing.id)
+        .select("*, supplier:suppliers(name, is_active)")
+        .single();
+
+      if (error) {
+        console.error("[POST /api/catalog import update]", error.message);
+        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+      }
+
+      return NextResponse.json(data, { status: 200 });
+    }
+
     const { data, error } = await supabase
       .from("equipment_catalog")
-      .upsert(
-        { ...rest, source: resolvedSource, user_id: user.id },
-        { onConflict: "user_id,vendor_product_id", ignoreDuplicates: false },
-      )
+      .insert({ ...rest, source: resolvedSource, user_id: user.id })
       .select("*, supplier:suppliers(name, is_active)")
       .single();
 
     if (error) {
-      console.error("[POST /api/catalog import]", error.message);
+      console.error("[POST /api/catalog import insert]", error.message);
       return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 
-    return NextResponse.json(data, { status: 200 });
+    return NextResponse.json(data, { status: 201 });
   }
 
   const { data, error } = await supabase

@@ -53,18 +53,33 @@ export async function GET(
 
   const { data, error } = await supabase
     .from("equipment_catalog")
-    .select(
-      "*, supplier:suppliers(name), price_history(*), quote_lines(*), vendor_product:vendor_products(image_url, mpn, sku, specifications, features, detail_url, short_description)"
-    )
+    .select("*, supplier:suppliers(name), price_history(*), quote_lines(*)")
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
 
-  if (error || !data) {
+  if (error) {
+    console.error("[GET /api/catalog/:id]", error.message, error.details, error.hint);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (!data) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  return NextResponse.json(data);
+  const item = data as Record<string, unknown>;
+
+  let vendor_product = null;
+  if (item.vendor_product_id) {
+    const { data: vp } = await supabase
+      .from("vendor_products")
+      .select("image_url, mpn, sku, specifications, features, detail_url, short_description")
+      .eq("id", item.vendor_product_id as string)
+      .single();
+    vendor_product = vp;
+  }
+
+  return NextResponse.json({ ...item, vendor_product });
 }
 
 export async function PUT(

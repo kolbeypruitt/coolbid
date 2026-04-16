@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Search, Loader2, Plus, ExternalLink } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
@@ -299,7 +298,6 @@ function MyPartsTab() {
 }
 
 function BrowseTab() {
-  const router = useRouter();
   const [items, setItems] = useState<VendorProductRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -307,7 +305,7 @@ function BrowseTab() {
   const [query, setQuery] = useState("");
   const [categoryRoot, setCategoryRoot] = useState("all");
   const [importing, setImporting] = useState<string | null>(null);
-  const [importedIds, setImportedIds] = useState<Map<string, string>>(new Map());
+  const [importedIds, setImportedIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
   const fetchPage = useCallback(
@@ -374,12 +372,7 @@ function BrowseTab() {
       .finally(() => setLoadingMore(false));
   }
 
-  async function handleImport(row: VendorProductRow, navigate = false) {
-    const existing = importedIds.get(row.id);
-    if (existing && navigate) {
-      router.push(`/parts-database/${existing}`);
-      return;
-    }
+  async function handleImport(row: VendorProductRow) {
     setImporting(row.id);
     setError(null);
     try {
@@ -400,11 +393,7 @@ function BrowseTab() {
       if (!res.ok) {
         throw new Error(`Import failed: ${res.status}`);
       }
-      const catalogItem = (await res.json()) as { id: string };
-      setImportedIds((prev) => new Map(prev).set(row.id, catalogItem.id));
-      if (navigate) {
-        router.push(`/parts-database/${catalogItem.id}`);
-      }
+      setImportedIds((prev) => new Set(prev).add(row.id));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Import failed");
     } finally {
@@ -481,27 +470,23 @@ function BrowseTab() {
                     className="hover:bg-[rgba(6,182,212,0.03)] transition-colors border-b border-border"
                   >
                     <TableCell className="text-sm text-txt-secondary py-3 px-3">
-                      <button
-                        type="button"
-                        onClick={() => handleImport(row, true)}
-                        disabled={importing === row.id}
-                        className="text-left hover:underline cursor-pointer disabled:cursor-wait"
+                      <Link
+                        href={`/parts-database/vendor/${row.id}`}
+                        className="block hover:underline"
                       >
                         {row.name}
-                      </button>
+                      </Link>
                     </TableCell>
                     <TableCell className="text-sm text-txt-secondary py-3 px-3">
                       {row.brand ?? "—"}
                     </TableCell>
                     <TableCell className="font-mono text-xs py-3 px-3 text-txt-secondary">
-                      <button
-                        type="button"
-                        onClick={() => handleImport(row, true)}
-                        disabled={importing === row.id}
-                        className="text-left hover:underline cursor-pointer disabled:cursor-wait"
+                      <Link
+                        href={`/parts-database/vendor/${row.id}`}
+                        className="block hover:underline"
                       >
                         {row.sku}
-                      </button>
+                      </Link>
                     </TableCell>
                     <TableCell className="text-xs py-3 px-3 text-txt-tertiary">
                       {row.category_leaf ?? row.category_root ?? "—"}
