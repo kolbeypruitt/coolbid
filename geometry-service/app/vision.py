@@ -16,7 +16,7 @@ from .prompts import ANALYZE_PROMPT, SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
 
-MODEL = "claude-sonnet-4-6"
+MODEL = "claude-opus-4-6"
 MAX_TOKENS = 16000
 THINKING_BUDGET = 8000
 
