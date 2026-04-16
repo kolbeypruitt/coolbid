@@ -16,10 +16,17 @@ export async function analyzeFloorPlan(
   if (!baseUrl) {
     throw new AnalyzerServiceError("ANALYZER_SERVICE_URL environment variable is not set");
   }
+  if (imageBuffer.length === 0) {
+    throw new AnalyzerServiceError("Empty image buffer — upstream decoded empty base64");
+  }
 
+  const filename = `floorplan.${mediaType.split("/")[1] || "jpg"}`;
+  // Copy Buffer bytes into a fresh Uint8Array with a plain ArrayBuffer.
+  // (Node Buffer.buffer is ArrayBufferLike, which DOM File/Blob types reject.)
+  const bytes = Uint8Array.from(imageBuffer);
+  const file = new File([bytes], filename, { type: mediaType });
   const formData = new FormData();
-  const blob = new Blob([new Uint8Array(imageBuffer)], { type: mediaType });
-  formData.append("image", blob, `floorplan.${mediaType.split("/")[1] || "jpg"}`);
+  formData.append("image", file);
 
   let response: Response;
   try {
