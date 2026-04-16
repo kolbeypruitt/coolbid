@@ -3,6 +3,7 @@ import type {
   EquipmentType,
   VendorProductRow,
 } from "@/types/catalog";
+import { SLOT_TO_EQUIPMENT_TYPE, type BomSlot } from "./bom-slot-taxonomy";
 
 const TON_FROM_T = /(\d+(?:\.\d)?)\s*-?\s*t(?:on)?\b/i;
 // Goodman/Amana MPN convention: <SEER-digit>0<tonnage-code><rev>. The
@@ -167,4 +168,58 @@ export function classifyVendorProducts(rows: VendorProductRow[]): CatalogItem[] 
     if (item) out.push(item);
   }
   return out;
+}
+
+/**
+ * Shape returned by loadBomCatalog when vendor_products has been LLM-classified.
+ * Superset of VendorProductRow with the two classification columns.
+ */
+export type ClassifiedVendorRow = VendorProductRow & {
+  bom_slot: string | null;
+  bom_specs: Record<string, unknown> | null;
+};
+
+/**
+ * Convert an LLM-classified vendor_products row into CatalogItem shape.
+ * Pulls tonnage out of bom_specs when available so the existing BOM
+ * generator's tonnage filter works on vendor rows.
+ */
+export function classifiedRowToCatalogItem(
+  row: ClassifiedVendorRow,
+): CatalogItem | null {
+  if (!row.bom_slot) return null;
+  const slot = row.bom_slot as BomSlot;
+  const equipment_type = SLOT_TO_EQUIPMENT_TYPE[slot];
+  if (!equipment_type) return null;
+
+  const specs = (row.bom_specs ?? {}) as { tonnage?: number };
+  const tonnage = typeof specs.tonnage === "number" ? specs.tonnage : null;
+
+  const description = [row.name, row.short_description]
+    .filter(Boolean)
+    .join(" — ");
+
+  return {
+    id: `vendor:${row.id}`,
+    user_id: "",
+    supplier_id: null,
+    vendor_product_id: row.id,
+    mpn: row.mpn ?? row.sku,
+    description,
+    equipment_type,
+    system_type: "universal",
+    brand: row.brand ?? "",
+    tonnage,
+    seer_rating: null,
+    btu_capacity: null,
+    stages: null,
+    refrigerant_type: null,
+    unit_price: row.price,
+    unit_of_measure: "ea",
+    source: "imported",
+    usage_count: 0,
+    last_quoted_date: null,
+    created_at: "",
+    updated_at: "",
+  };
 }
