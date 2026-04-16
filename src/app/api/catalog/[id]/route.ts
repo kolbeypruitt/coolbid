@@ -53,9 +53,7 @@ export async function GET(
 
   const { data, error } = await supabase
     .from("equipment_catalog")
-    .select(
-      "*, supplier:suppliers(name), price_history(*), quote_lines(*)"
-    )
+    .select("*, supplier:suppliers(name), price_history(*), quote_lines(*)")
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
