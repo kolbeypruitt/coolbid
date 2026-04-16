@@ -143,6 +143,113 @@ function cornerCursor(corner: Vertex, centroid: Vertex): string {
   return "nesw-resize";
 }
 
+/** Snap threshold (normalized units). ~0.8% of image diagonal. */
+const SNAP_THRESHOLD = 0.008;
+
+/**
+ * Snap a point to the nearest vertex or axis-aligned edge of any other polygon.
+ * Returns the input point unchanged if nothing is within threshold.
+ */
+function snapPointToPolygons(
+  p: Vertex,
+  rooms: Room[],
+  excludeIndex: number,
+): Vertex {
+  let best: { x: number; y: number; dist: number } | null = null;
+  const consider = (sx: number, sy: number) => {
+    const d = Math.hypot(sx - p.x, sy - p.y);
+    if (d < SNAP_THRESHOLD && (!best || d < best.dist)) {
+      best = { x: sx, y: sy, dist: d };
+    }
+  };
+  for (let i = 0; i < rooms.length; i++) {
+    if (i === excludeIndex) continue;
+    const verts = rooms[i].vertices;
+    if (verts.length < 3) continue;
+    // Snap to any vertex
+    for (const v of verts) consider(v.x, v.y);
+    // Snap to axis-aligned edges by projecting the point onto the edge line
+    for (let j = 0; j < verts.length; j++) {
+      const a = verts[j];
+      const b = verts[(j + 1) % verts.length];
+      const dx = Math.abs(a.x - b.x);
+      const dy = Math.abs(a.y - b.y);
+      if (dx < 0.002 && dy >= 0.002) {
+        // Vertical edge at x = a.x, y in [min, max]
+        const ymin = Math.min(a.y, b.y);
+        const ymax = Math.max(a.y, b.y);
+        const ys = Math.max(ymin, Math.min(ymax, p.y));
+        consider(a.x, ys);
+      } else if (dy < 0.002 && dx >= 0.002) {
+        // Horizontal edge at y = a.y, x in [min, max]
+        const xmin = Math.min(a.x, b.x);
+        const xmax = Math.max(a.x, b.x);
+        const xs = Math.max(xmin, Math.min(xmax, p.x));
+        consider(xs, a.y);
+      }
+    }
+  }
+  return best ? { x: (best as { x: number }).x, y: (best as { y: number }).y } : p;
+}
+
+/** Euclidean distance from point p to segment (a, b). */
+function distanceToSegment(p: Vertex, a: Vertex, b: Vertex): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+  let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  const cx = a.x + t * dx;
+  const cy = a.y + t * dy;
+  return Math.hypot(p.x - cx, p.y - cy);
+}
+
+/** Which edge of the polygon is closest to a point? Returns the start-vertex index. */
+function closestEdgeIndex(verts: Vertex[], p: Vertex): number {
+  let bestIdx = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < verts.length; i++) {
+    const d = distanceToSegment(p, verts[i], verts[(i + 1) % verts.length]);
+    if (d < bestDist) {
+      bestDist = d;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
+}
+
+/** Translate the polygon by (dx, dy), with optional snap of the nearest vertex to another polygon. */
+function translateWithSnap(
+  verts: Vertex[],
+  dx: number,
+  dy: number,
+  rooms: Room[],
+  excludeIdx: number,
+  shiftKey: boolean,
+): Vertex[] {
+  const raw = verts.map((v) => ({ x: clamp01(v.x + dx), y: clamp01(v.y + dy) }));
+  if (shiftKey) return raw;
+
+  // Try snapping each vertex; adopt the smallest-magnitude snap adjustment.
+  let bestAdjust: { dx: number; dy: number; dist: number } | null = null;
+  for (const v of raw) {
+    const snapped = snapPointToPolygons(v, rooms, excludeIdx);
+    const adx = snapped.x - v.x;
+    const ady = snapped.y - v.y;
+    if (adx === 0 && ady === 0) continue;
+    const dist = Math.hypot(adx, ady);
+    if (!bestAdjust || dist < bestAdjust.dist) {
+      bestAdjust = { dx: adx, dy: ady, dist };
+    }
+  }
+  if (!bestAdjust) return raw;
+  return raw.map((v) => ({
+    x: clamp01(v.x + bestAdjust.dx),
+    y: clamp01(v.y + bestAdjust.dy),
+  }));
+}
+
 /** Drag state: `null` = idle. `pending` = pointerdown but not yet moved enough. `active` = currently dragging. */
 type DragState =
   | null
@@ -182,6 +289,7 @@ export function FloorplanCanvas({
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [aspectRatio, setAspectRatio] = useState(4 / 3);
   const [drag, setDrag] = useState<DragState>(null);
+  const [hoveredVertex, setHoveredVertex] = useState<number | null>(null);
 
   // Load image
   useEffect(() => {
@@ -366,10 +474,11 @@ export function FloorplanCanvas({
       const room = rooms[drag.roomIndex];
       if (!room) return;
       if (drag.kind === "vertex" && drag.vertexIndex != null) {
+        const snapped = e.shiftKey ? norm : snapPointToPolygons(norm, rooms, drag.roomIndex);
         const newVerts = isAxisAlignedRectangle(room.vertices)
-          ? resizeRectangleCorner(room.vertices, drag.vertexIndex, norm)
+          ? resizeRectangleCorner(room.vertices, drag.vertexIndex, snapped)
           : room.vertices.map((v, i) =>
-              i === drag.vertexIndex ? { x: clamp01(norm.x), y: clamp01(norm.y) } : v,
+              i === drag.vertexIndex ? { x: clamp01(snapped.x), y: clamp01(snapped.y) } : v,
             );
         setDrag({
           phase: "active",
@@ -382,10 +491,7 @@ export function FloorplanCanvas({
           pointerId: drag.pointerId,
         });
       } else {
-        const newVerts = room.vertices.map((v) => ({
-          x: clamp01(v.x + dx),
-          y: clamp01(v.y + dy),
-        }));
+        const newVerts = translateWithSnap(room.vertices, dx, dy, rooms, drag.roomIndex, e.shiftKey);
         setDrag({
           phase: "active",
           kind: "translating",
@@ -405,19 +511,17 @@ export function FloorplanCanvas({
 
     if (drag.kind === "dragging-vertex" && drag.vertexIndex != null) {
       const vIdx = drag.vertexIndex;
+      const snapped = e.shiftKey ? norm : snapPointToPolygons(norm, rooms, drag.roomIndex);
       const newVerts = isAxisAlignedRectangle(room.vertices)
-        ? resizeRectangleCorner(room.vertices, vIdx, norm)
+        ? resizeRectangleCorner(room.vertices, vIdx, snapped)
         : room.vertices.map((v, i) =>
-            i === vIdx ? { x: clamp01(norm.x), y: clamp01(norm.y) } : v,
+            i === vIdx ? { x: clamp01(snapped.x), y: clamp01(snapped.y) } : v,
           );
       setDrag({ ...drag, overrideVertices: newVerts });
     } else if (drag.kind === "translating") {
       const dx = norm.x - drag.startX;
       const dy = norm.y - drag.startY;
-      const newVerts = room.vertices.map((v) => ({
-        x: clamp01(v.x + dx),
-        y: clamp01(v.y + dy),
-      }));
+      const newVerts = translateWithSnap(room.vertices, dx, dy, rooms, drag.roomIndex, e.shiftKey);
       setDrag({ ...drag, overrideVertices: newVerts });
     }
   }
@@ -454,6 +558,59 @@ export function FloorplanCanvas({
     setDrag(null);
   }
 
+  /** Double-click on the selected polygon's body inserts a vertex on the nearest edge. */
+  function handleBodyDoubleClick(e: React.MouseEvent<SVGElement>, roomIndex: number) {
+    if (roomIndex !== selectedIndex || !onUpdateRoom) return;
+    const container = containerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const p: Vertex = {
+      x: clamp01((e.clientX - rect.left) / rect.width),
+      y: clamp01((e.clientY - rect.top) / rect.height),
+    };
+    const room = rooms[roomIndex];
+    if (!room || room.vertices.length < 3) return;
+    const edgeIdx = closestEdgeIndex(room.vertices, p);
+    const newVerts = [
+      ...room.vertices.slice(0, edgeIdx + 1),
+      p,
+      ...room.vertices.slice(edgeIdx + 1),
+    ];
+    const bbox = computeBbox(newVerts);
+    onUpdateRoom(roomIndex, {
+      vertices: newVerts,
+      bbox,
+      centroid: computeCentroid(newVerts),
+      ...scaledDimensions(room, bbox),
+    });
+  }
+
+  /** Delete/Backspace while a vertex handle is hovered removes that vertex (min 3 remain). */
+  useEffect(() => {
+    if (selectedIndex == null || hoveredVertex == null || !onUpdateRoom) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      // Don't hijack typing in inputs.
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable) return;
+
+      const room = rooms[selectedIndex];
+      if (!room || room.vertices.length <= 3) return;
+      e.preventDefault();
+      const newVerts = room.vertices.filter((_, i) => i !== hoveredVertex);
+      const bbox = computeBbox(newVerts);
+      onUpdateRoom(selectedIndex, {
+        vertices: newVerts,
+        bbox,
+        centroid: computeCentroid(newVerts),
+        ...scaledDimensions(room, bbox),
+      });
+      setHoveredVertex(null);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [selectedIndex, hoveredVertex, rooms, onUpdateRoom]);
+
   // ── Render ───────────────────────────────────────────────────────
 
   const selectedRoom = selectedIndex != null ? displayRooms[selectedIndex] : null;
@@ -488,6 +645,7 @@ export function FloorplanCanvas({
               stroke="transparent"
               style={{ cursor }}
               onPointerDown={(e) => handleBodyPointerDown(e, i)}
+              onDoubleClick={(e) => handleBodyDoubleClick(e, i)}
               onPointerEnter={() => onHoverRoom?.(i)}
               onPointerLeave={() => onHoverRoom?.(null)}
             />
@@ -502,6 +660,7 @@ export function FloorplanCanvas({
               stroke="transparent"
               style={{ cursor }}
               onPointerDown={(e) => handleBodyPointerDown(e, i)}
+              onDoubleClick={(e) => handleBodyDoubleClick(e, i)}
               onPointerEnter={() => onHoverRoom?.(i)}
               onPointerLeave={() => onHoverRoom?.(null)}
             />
@@ -526,6 +685,8 @@ export function FloorplanCanvas({
                   className="vertex-handle-hit"
                   fill="transparent"
                   onPointerDown={(e) => handleVertexPointerDown(e, selectedIndex!, vIdx)}
+                  onPointerEnter={() => setHoveredVertex(vIdx)}
+                  onPointerLeave={() => setHoveredVertex((prev) => (prev === vIdx ? null : prev))}
                   style={{ cursor }}
                 />
                 {/* Visible dot */}
