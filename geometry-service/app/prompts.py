@@ -41,7 +41,7 @@ Number rooms in reading order (top-left to bottom-right) as "room_0", "room_1", 
 ## Output format
 Return ONE valid JSON object. No markdown, no code fences, no explanation.
 
-```
+Example shape (do NOT wrap your actual response in code fences):
 {
   "floorplan_type": "string",
   "confidence": "high" | "medium" | "low",
@@ -83,6 +83,5 @@ Return ONE valid JSON object. No markdown, no code fences, no explanation.
   },
   "analysis_notes": "anything notable"
 }
-```
 
 Set confidence to "low" if the image is blurry, skewed severely, or dimensions are illegible. Set "medium" if you're unsure about some room boundaries. Set "high" only when every polygon is tight against walls and every dimension was read directly."""

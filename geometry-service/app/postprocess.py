@@ -31,7 +31,17 @@ def _clamp01(v: float) -> float:
 
 
 def _clean_vertices(raw: list[dict[str, Any]]) -> list[Vertex]:
-    return [Vertex(x=_clamp01(float(v["x"])), y=_clamp01(float(v["y"]))) for v in raw]
+    out: list[Vertex] = []
+    for v in raw:
+        try:
+            x = _clamp01(float(v["x"]))
+            y = _clamp01(float(v["y"]))
+        except (KeyError, TypeError, ValueError):
+            # Malformed vertex — skip it; downstream `_to_shapely` drops the
+            # room if too few vertices survive.
+            continue
+        out.append(Vertex(x=x, y=y))
+    return out
 
 
 def _to_shapely(verts: list[Vertex]) -> Polygon | None:

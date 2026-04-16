@@ -16,7 +16,6 @@ image = (
         "pydantic>=2.10",
         "anthropic>=0.39",
         "shapely>=2.0",
-        "Pillow>=11.0",
     )
     .add_local_dir("app", remote_path="/root/app")
 )
