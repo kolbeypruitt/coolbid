@@ -31,6 +31,7 @@ For each room, trace the polygon that follows the inside face of its WALLS.
 - Coordinates are normalized 0-1 relative to the FULL image dimensions (x=0 is left edge, y=0 is top edge, x=1 is right, y=1 is bottom).
 - Polygons must NOT overlap — adjacent rooms share an edge, they do not overlap.
 - Polygons must stay inside the floor-plan drawing region; do not extend into margins, title block, or blank photo background.
+- EVERY polygon edge must terminate at a visible wall line. If a room's wall ends at a certain pixel, the polygon edge stops there — do NOT continue the edge into blank paper, white space, or past the last visible wall. This applies especially to rooms at the edges of the drawing (garages, storage, patios, porches) where there's blank paper beyond the outermost wall; the polygon's outer edge must hug the actual outer wall, not the edge of the image.
 - Small rooms carved out of larger ones (e.g., a master bathroom off a bedroom, a closet off a hallway, a half-bath tucked beside a kitchen) MUST be traced as their own separate polygon. The adjacent larger room's polygon must stop at the shared wall and NOT engulf the smaller room. Before finalizing any large polygon, scan its interior for smaller enclosed spaces (doors/openings into sub-rooms, fixture icons like toilets/sinks/tubs) and split them out.
 
 ## Step 3 — Extract attributes from dimension annotations
