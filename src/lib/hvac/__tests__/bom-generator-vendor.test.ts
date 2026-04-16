@@ -126,6 +126,49 @@ describe("generateBOM with classified vendor_products", () => {
     expect(condenser?.source).toBe("quote");
   });
 
+  it("tolerates null brand on items and null/empty entries in preferences", () => {
+    // Reproduces 'Cannot read properties of null (reading toLowerCase)'
+    // surfaced when contractor_preferences.equipment_brands is wired
+    // through (was being fetched but not passed before).
+    const userItem = {
+      id: "user1",
+      user_id: "u",
+      supplier_id: null,
+      vendor_product_id: null,
+      mpn: "X",
+      description: "Legacy item with null brand",
+      equipment_type: "ac_condenser" as const,
+      system_type: "universal" as const,
+      brand: null as unknown as string,
+      tonnage: 3,
+      seer_rating: null,
+      btu_capacity: null,
+      stages: null,
+      refrigerant_type: null,
+      unit_price: 100,
+      unit_of_measure: "ea",
+      source: "manual" as const,
+      usage_count: 1,
+      last_quoted_date: null,
+      created_at: "",
+      updated_at: "",
+    };
+    const malformedPrefs = {
+      equipment_brands: ["", null as unknown as string, "Carrier"],
+    };
+    expect(() =>
+      generateBOM(
+        [room(1500)],
+        "mixed",
+        "gas_ac",
+        [userItem],
+        undefined,
+        undefined,
+        malformedPrefs,
+      ),
+    ).not.toThrow();
+  });
+
   it("contractor brand preference picks vendor item with matching brand", () => {
     const catalog = classifyVendorProducts([
       vendor({
