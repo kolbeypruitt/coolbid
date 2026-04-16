@@ -213,14 +213,15 @@ async def _run_all(
     model: str,
     max_tokens: int,
     thinking_budget: int,
-    max_concurrency: int = 2,
+    max_concurrency: int = 1,
 ) -> list[Result]:
     api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     if not api_key:
         raise SystemExit("ANTHROPIC_API_KEY is not set")
 
-    # Cap concurrent Anthropic calls so we don't dogpile the rate limit.
-    # Extended thinking + 16k max_tokens is heavy; 2 in flight is the sweet spot.
+    # Cap concurrent Anthropic calls. With a low rate-limit tier (e.g. 8k output
+    # tokens/minute on Sonnet 4.6), even 2 concurrent calls with max_tokens=6000
+    # overcommits the bucket. Sequential per fixture is the safe default.
     sem = asyncio.Semaphore(max_concurrency)
 
     async def _with_sem(v: Variant) -> Result:
@@ -400,8 +401,14 @@ def main() -> None:
     )
     parser.add_argument("--variants", default="variants/*.md")
     parser.add_argument("--model", default="claude-sonnet-4-6")
-    parser.add_argument("--thinking-budget", type=int, default=8000)
-    parser.add_argument("--max-tokens", type=int, default=16000)
+    parser.add_argument("--thinking-budget", type=int, default=3000)
+    parser.add_argument("--max-tokens", type=int, default=6000)
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=1,
+        help="Max parallel Anthropic calls per fixture (keep at 1 on low rate-limit tiers).",
+    )
     parser.add_argument("--no-open", action="store_true")
     args = parser.parse_args()
 
@@ -438,6 +445,7 @@ def main() -> None:
                 model=args.model,
                 max_tokens=args.max_tokens,
                 thinking_budget=args.thinking_budget,
+                max_concurrency=args.concurrency,
             )
         )
 
