@@ -243,7 +243,7 @@ def _render_report(
   .canvas-wrap img {{ display: block; width: 100%; }}
   .canvas-wrap svg {{ position: absolute; inset: 0; width: 100%; height: 100%; }}
   .error {{ padding: 24px; color: #ff8b8b; font-family: monospace; font-size: 12px; white-space: pre-wrap; }}
-  label.room {{ font-size: 10px; fill: #fff; font-weight: 600; text-shadow: 0 0 3px rgba(0,0,0,0.9); }}
+  label.room {{ font-size: 1.8px; fill: #fff; font-weight: 700; paint-order: stroke; stroke: rgba(0,0,0,0.85); stroke-width: 0.5px; stroke-linejoin: round; }}
   @media (max-width: 900px) {{ .grid {{ grid-template-columns: 1fr; }} }}
 </style>
 </head>
