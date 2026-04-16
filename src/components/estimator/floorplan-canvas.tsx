@@ -92,6 +92,57 @@ function scaledDimensions(room: Room, newBbox: Room["bbox"]): Pick<Room, "width_
   };
 }
 
+/** True if the polygon is a 4-vertex rectangle with edges parallel to the axes. */
+function isAxisAlignedRectangle(verts: Vertex[], eps = 0.002): boolean {
+  if (verts.length !== 4) return false;
+  for (let i = 0; i < 4; i++) {
+    const a = verts[i];
+    const b = verts[(i + 1) % 4];
+    const dx = Math.abs(a.x - b.x);
+    const dy = Math.abs(a.y - b.y);
+    // Each edge must be purely horizontal (dy ~ 0) OR purely vertical (dx ~ 0)
+    if (dx > eps && dy > eps) return false;
+  }
+  return true;
+}
+
+/**
+ * Move one corner of an axis-aligned rectangle, dragging its two neighbors
+ * along their shared axes and leaving the opposite corner fixed.
+ */
+function resizeRectangleCorner(
+  verts: Vertex[],
+  draggedIdx: number,
+  newPos: Vertex,
+): Vertex[] {
+  const prev = (draggedIdx + 3) % 4;
+  const next = (draggedIdx + 1) % 4;
+  const dragged = verts[draggedIdx];
+  const prevV = verts[prev];
+  const nextV = verts[next];
+  const out = [...verts];
+  const nx = clamp01(newPos.x);
+  const ny = clamp01(newPos.y);
+  out[draggedIdx] = { x: nx, y: ny };
+  // Prev neighbor shares either x or y with the dragged vertex (axis-aligned edge).
+  // Whichever coord is ~equal is the shared axis; move the OTHER coord with the drag.
+  const prevSharesX = Math.abs(prevV.x - dragged.x) < 0.002;
+  out[prev] = prevSharesX ? { x: nx, y: prevV.y } : { x: prevV.x, y: ny };
+  const nextSharesX = Math.abs(nextV.x - dragged.x) < 0.002;
+  out[next] = nextSharesX ? { x: nx, y: nextV.y } : { x: nextV.x, y: ny };
+  return out;
+}
+
+/** Cursor hint for a rectangle corner handle based on which side of centroid it sits on. */
+function cornerCursor(corner: Vertex, centroid: Vertex): string {
+  const left = corner.x < centroid.x;
+  const top = corner.y < centroid.y;
+  if (top && left) return "nwse-resize";
+  if (top && !left) return "nesw-resize";
+  if (!top && !left) return "nwse-resize";
+  return "nesw-resize";
+}
+
 /** Drag state: `null` = idle. `pending` = pointerdown but not yet moved enough. `active` = currently dragging. */
 type DragState =
   | null
@@ -315,9 +366,11 @@ export function FloorplanCanvas({
       const room = rooms[drag.roomIndex];
       if (!room) return;
       if (drag.kind === "vertex" && drag.vertexIndex != null) {
-        const newVerts = room.vertices.map((v, i) =>
-          i === drag.vertexIndex ? { x: clamp01(norm.x), y: clamp01(norm.y) } : v,
-        );
+        const newVerts = isAxisAlignedRectangle(room.vertices)
+          ? resizeRectangleCorner(room.vertices, drag.vertexIndex, norm)
+          : room.vertices.map((v, i) =>
+              i === drag.vertexIndex ? { x: clamp01(norm.x), y: clamp01(norm.y) } : v,
+            );
         setDrag({
           phase: "active",
           kind: "dragging-vertex",
@@ -352,9 +405,11 @@ export function FloorplanCanvas({
 
     if (drag.kind === "dragging-vertex" && drag.vertexIndex != null) {
       const vIdx = drag.vertexIndex;
-      const newVerts = room.vertices.map((v, i) =>
-        i === vIdx ? { x: clamp01(norm.x), y: clamp01(norm.y) } : v,
-      );
+      const newVerts = isAxisAlignedRectangle(room.vertices)
+        ? resizeRectangleCorner(room.vertices, vIdx, norm)
+        : room.vertices.map((v, i) =>
+            i === vIdx ? { x: clamp01(norm.x), y: clamp01(norm.y) } : v,
+          );
       setDrag({ ...drag, overrideVertices: newVerts });
     } else if (drag.kind === "translating") {
       const dx = norm.x - drag.startX;
@@ -454,10 +509,13 @@ export function FloorplanCanvas({
         })}
 
         {/* Vertex handles on selected polygon only */}
-        {selectedRoom &&
-          selectedRoomVerts.map((v, vIdx) => {
+        {selectedRoom && (() => {
+          const isRect = isAxisAlignedRectangle(selectedRoomVerts);
+          const centroid = isRect ? computeCentroid(selectedRoomVerts) : { x: 0, y: 0 };
+          return selectedRoomVerts.map((v, vIdx) => {
             const cx = v.x * 100;
             const cy = v.y * 100;
+            const cursor = isRect ? cornerCursor(v, centroid) : "grab";
             return (
               <g key={`handle-${vIdx}`}>
                 {/* Invisible hit area — bigger on touch devices */}
@@ -468,7 +526,7 @@ export function FloorplanCanvas({
                   className="vertex-handle-hit"
                   fill="transparent"
                   onPointerDown={(e) => handleVertexPointerDown(e, selectedIndex!, vIdx)}
-                  style={{ cursor: "grab" }}
+                  style={{ cursor }}
                 />
                 {/* Visible dot */}
                 <circle
@@ -483,7 +541,8 @@ export function FloorplanCanvas({
                 />
               </g>
             );
-          })}
+          });
+        })()}
       </svg>
       <style>{`
         @media (pointer: coarse) {

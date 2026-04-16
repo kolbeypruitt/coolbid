@@ -204,7 +204,7 @@ describe("FloorplanCanvas", () => {
     expect(svg.querySelectorAll("circle").length).toBe(0);
   });
 
-  it("commits vertex drag via onUpdateRoom with scaled dimensions", () => {
+  it("dragging a corner on an axis-aligned rectangle resizes like a crop tool", () => {
     const onUpdateRoom = vi.fn();
 
     const { container, getByLabelText } = render(
@@ -217,7 +217,6 @@ describe("FloorplanCanvas", () => {
       />,
     );
 
-    // Force a non-zero container rect so pointerToNorm has a valid divisor.
     const wrapper = container.firstElementChild as HTMLElement;
     wrapper.getBoundingClientRect = () => ({
       x: 0, y: 0, left: 0, top: 0, right: 1000, bottom: 1000, width: 1000, height: 1000, toJSON: () => ({}),
@@ -225,27 +224,71 @@ describe("FloorplanCanvas", () => {
 
     const svg = getByLabelText("Floorplan room overlay");
     const hitCircles = svg.querySelectorAll(".vertex-handle-hit");
-    expect(hitCircles.length).toBe(4); // 4 vertex hit-areas
 
-    // Drag the first vertex from (100, 100) → (200, 200) in page coords
-    // which maps to (0.1, 0.1) → (0.2, 0.2) in normalized coords.
+    // Drag top-left corner (vertex 0) from (0.1, 0.1) → (0.2, 0.2)
     fireEvent.pointerDown(hitCircles[0], { pointerId: 1, clientX: 100, clientY: 100 });
     fireEvent.pointerMove(svg, { pointerId: 1, clientX: 200, clientY: 200 });
     fireEvent.pointerUp(svg, { pointerId: 1, clientX: 200, clientY: 200 });
 
     expect(onUpdateRoom).toHaveBeenCalledOnce();
-    const [idx, partial] = onUpdateRoom.mock.calls[0];
-    expect(idx).toBe(0);
+    const [, partial] = onUpdateRoom.mock.calls[0];
+    // TL moved, TR's y follows (shares y-edge with TL), BL's x follows (shares x-edge with TL), BR fixed
+    expect(partial.vertices[0]).toEqual({ x: 0.2, y: 0.2 }); // TL dragged
+    expect(partial.vertices[1]).toEqual({ x: 0.5, y: 0.2 }); // TR: y follows
+    expect(partial.vertices[2]).toEqual({ x: 0.5, y: 0.5 }); // BR: fixed
+    expect(partial.vertices[3]).toEqual({ x: 0.2, y: 0.5 }); // BL: x follows
+    expect(partial.bbox.x).toBeCloseTo(0.2);
+    expect(partial.bbox.y).toBeCloseTo(0.2);
+    expect(partial.bbox.width).toBeCloseTo(0.3);
+    expect(partial.bbox.height).toBeCloseTo(0.3);
+    // Dimensions scale with the new 0.3×0.3 bbox (was 0.4×0.4)
+    expect(partial.width_ft).toBeCloseTo(15 * 0.75);
+    expect(partial.length_ft).toBeCloseTo(20 * 0.75);
+  });
+
+  it("dragging a vertex on a non-rectangle moves only that vertex", () => {
+    const onUpdateRoom = vi.fn();
+    const lShape: Room = {
+      ...ROOM_WITH_VERTICES,
+      vertices: [
+        { x: 0.1, y: 0.1 },
+        { x: 0.4, y: 0.1 },
+        { x: 0.4, y: 0.3 },
+        { x: 0.6, y: 0.3 },
+        { x: 0.6, y: 0.5 },
+        { x: 0.1, y: 0.5 },
+      ],
+      bbox: { x: 0.1, y: 0.1, width: 0.5, height: 0.4 },
+    };
+
+    const { container, getByLabelText } = render(
+      <FloorplanCanvas
+        imageSrc={FAKE_IMAGE}
+        rooms={[lShape]}
+        selectedIndex={0}
+        onSelectRoom={vi.fn()}
+        onUpdateRoom={onUpdateRoom}
+      />,
+    );
+
+    const wrapper = container.firstElementChild as HTMLElement;
+    wrapper.getBoundingClientRect = () => ({
+      x: 0, y: 0, left: 0, top: 0, right: 1000, bottom: 1000, width: 1000, height: 1000, toJSON: () => ({}),
+    });
+
+    const svg = getByLabelText("Floorplan room overlay");
+    const hitCircles = svg.querySelectorAll(".vertex-handle-hit");
+    expect(hitCircles.length).toBe(6);
+
+    // Drag vertex 0 from (0.1, 0.1) → (0.2, 0.2)
+    fireEvent.pointerDown(hitCircles[0], { pointerId: 1, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(svg, { pointerId: 1, clientX: 200, clientY: 200 });
+    fireEvent.pointerUp(svg, { pointerId: 1, clientX: 200, clientY: 200 });
+
+    const [, partial] = onUpdateRoom.mock.calls[0];
     expect(partial.vertices[0]).toEqual({ x: 0.2, y: 0.2 });
-    // Other vertices unchanged
-    expect(partial.vertices[1]).toEqual({ x: 0.5, y: 0.1 });
-    // bbox recomputed: vertices are (0.2, 0.2), (0.5, 0.1), (0.5, 0.5), (0.1, 0.5)
-    expect(partial.bbox.x).toBeCloseTo(0.1);
-    expect(partial.bbox.y).toBeCloseTo(0.1);
-    expect(partial.bbox.width).toBeCloseTo(0.4);
-    expect(partial.bbox.height).toBeCloseTo(0.4);
-    // Dimensions scale proportionally (old bbox was 0.4×0.4, same as new → no change)
-    expect(partial.width_ft).toBeCloseTo(15);
-    expect(partial.length_ft).toBeCloseTo(20);
+    // Other vertices unchanged (free vertex drag, not rectangle resize)
+    expect(partial.vertices[1]).toEqual({ x: 0.4, y: 0.1 });
+    expect(partial.vertices[2]).toEqual({ x: 0.4, y: 0.3 });
   });
 });
