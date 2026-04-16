@@ -76,12 +76,14 @@ export async function regenerateBom(estimateId: string): Promise<{ error?: strin
     console.debug("[contractor-prefs-prompt][regenerate-bom]", preferencesPrompt);
   }
 
-  // Generate new BOM
   const bom = generateBOM(
     roomInputs,
     estimate.climate_zone as ClimateZoneKey,
     estimate.system_type as SystemType,
     activeCatalog,
+    undefined,
+    undefined,
+    preferences,
   );
 
   // Replace BOM items (only wipe if we have new items to insert)

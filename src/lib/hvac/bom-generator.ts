@@ -2,11 +2,20 @@ import type { BomItem, BomResult, BuildingInfo, ClimateZoneKey, HvacNotes, Room 
 import type { CatalogItem, SystemType, EquipmentType } from "@/types/catalog";
 import { SYSTEM_TYPE_EQUIPMENT, EQUIPMENT_TYPE_LABELS } from "@/types/catalog";
 import { calculateRoomLoad, calculateSystemTonnage, calculateZoneCount, needsReturnRegister } from "./load-calc";
+import type { ContractorPreferences } from "@/types/contractor-preferences";
 
 type FindResult = { item: CatalogItem; notes: string };
 
-function sortByUsage(items: CatalogItem[]): CatalogItem[] {
-  return [...items].sort((a, b) => b.usage_count - a.usage_count);
+function sortByPreference(items: CatalogItem[], preferredBrands?: string[]): CatalogItem[] {
+  return [...items].sort((a, b) => {
+    if (preferredBrands?.length) {
+      const aMatch = preferredBrands.some((pb) => a.brand.toLowerCase() === pb.toLowerCase());
+      const bMatch = preferredBrands.some((pb) => b.brand.toLowerCase() === pb.toLowerCase());
+      if (aMatch && !bMatch) return -1;
+      if (!aMatch && bMatch) return 1;
+    }
+    return b.usage_count - a.usage_count;
+  });
 }
 
 function findCatalogItem(
@@ -14,6 +23,7 @@ function findCatalogItem(
   equipmentType: EquipmentType,
   tonnage: number | null,
   systemType: SystemType,
+  preferredBrands?: string[],
 ): FindResult | null {
   const typeMatch = catalog.filter(
     (c) =>
@@ -24,20 +34,20 @@ function findCatalogItem(
   if (typeMatch.length === 0) return null;
 
   if (tonnage === null) {
-    return { item: sortByUsage(typeMatch)[0], notes: "" };
+    return { item: sortByPreference(typeMatch, preferredBrands)[0], notes: "" };
   }
 
-  // Pass 1: exact tonnage match (±0.5T)
-  const exact = sortByUsage(
+  const exact = sortByPreference(
     typeMatch.filter((c) => c.tonnage !== null && Math.abs(c.tonnage - tonnage) <= 0.5),
+    preferredBrands,
   );
   if (exact.length > 0) return { item: exact[0], notes: "" };
 
-  // Pass 2: closest tonnage
   const withTonnage = typeMatch.filter((c) => c.tonnage !== null);
   if (withTonnage.length > 0) {
-    withTonnage.sort((a, b) => Math.abs(a.tonnage! - tonnage) - Math.abs(b.tonnage! - tonnage));
-    const closest = withTonnage[0];
+    const sorted = sortByPreference(withTonnage, preferredBrands);
+    sorted.sort((a, b) => Math.abs(a.tonnage! - tonnage) - Math.abs(b.tonnage! - tonnage));
+    const closest = sorted[0];
     const supplier = closest.supplier?.name ?? closest.brand;
     return {
       item: closest,
@@ -45,9 +55,8 @@ function findCatalogItem(
     };
   }
 
-  // Type matches exist but none have tonnage data
   return {
-    item: sortByUsage(typeMatch)[0],
+    item: sortByPreference(typeMatch, preferredBrands)[0],
     notes: `Need ${tonnage}T — available part has no tonnage specified`,
   };
 }
@@ -58,12 +67,13 @@ function findCatalogItemByKeyword(
   systemType: SystemType,
   modelKeyword: string,
   descKeyword: string,
+  preferredBrands?: string[],
 ): FindResult | null {
   const kModel = modelKeyword.toLowerCase();
   const kDesc = descKeyword.toLowerCase();
 
   const matchesKeyword = (c: CatalogItem): boolean =>
-    (c.model_number?.toLowerCase() ?? "").includes(kModel) ||
+    (c.mpn?.toLowerCase() ?? "").includes(kModel) ||
     (c.description?.toLowerCase() ?? "").includes(kDesc);
 
   const typeMatch = catalog.filter(
@@ -72,7 +82,7 @@ function findCatalogItemByKeyword(
       (c.system_type === "universal" || c.system_type === systemType),
   );
 
-  const kwMatch = sortByUsage(typeMatch.filter(matchesKeyword));
+  const kwMatch = sortByPreference(typeMatch.filter(matchesKeyword), preferredBrands);
   return kwMatch.length > 0 ? { item: kwMatch[0], notes: "" } : null;
 }
 
@@ -104,7 +114,7 @@ function catalogToBomItem(item: CatalogItem, qty: number, notes: string): BomIte
     unit: item.unit_of_measure,
     price: item.unit_price,
     supplier: item.supplier?.name ?? item.brand,
-    sku: item.model_number,
+    sku: item.mpn,
     notes,
     source: item.source as BomItem["source"],
     brand: item.brand,
@@ -132,6 +142,19 @@ function missingItem(
   };
 }
 
+const REGISTER_STYLE_KEYWORDS: Record<string, [string, string]> = {
+  rectangular_4x12: ["4x12", "4x12"],
+  rectangular_6x10: ["6x10", "6x10"],
+  square_flush_ceiling: ["ceiling", "flush ceiling"],
+  round_ceiling_diffuser: ["diffuser", "ceiling diffuser"],
+  floor_register: ["floor", "floor register"],
+};
+
+const RETURN_GRILLE_KEYWORDS: Record<string, [string, string]> = {
+  standard_20x20: ["2020", "20x20"],
+  oversized_24x24: ["2424", "24x24"],
+};
+
 export function generateBOM(
   rooms: Room[],
   climateZone: ClimateZoneKey,
@@ -139,6 +162,7 @@ export function generateBOM(
   catalog: CatalogItem[],
   building?: BuildingInfo,
   hvacNotes?: HvacNotes,
+  preferences?: ContractorPreferences | null,
 ): BomResult {
   const roomLoads = rooms.map((r) => calculateRoomLoad(r, climateZone));
 
@@ -169,17 +193,21 @@ export function generateBOM(
   const retCount = Math.max(returnRooms.length, 2);
 
   const items: BomItem[] = [];
-
-  // Parts DB starts at 2T; clamp so a very small load doesn't produce an unknown key
   const equipTonnage = Math.max(tonnage, 2);
+  const brands = preferences?.equipment_brands;
+  const tstatBrands = preferences?.thermostat_brand
+    ? [preferences.thermostat_brand]
+    : brands;
 
-  // Major equipment from SYSTEM_TYPE_EQUIPMENT + thermostat
   const equipmentTypes: EquipmentType[] = [...SYSTEM_TYPE_EQUIPMENT[systemType], "thermostat"];
   for (const eqType of equipmentTypes) {
     const isThermostat = eqType === "thermostat";
     const qty = isThermostat ? zones : 1;
     const searchTonnage = isThermostat ? null : equipTonnage;
-    const found = findCatalogItem(catalog, eqType, searchTonnage, systemType);
+    const found = findCatalogItem(
+      catalog, eqType, searchTonnage, systemType,
+      isThermostat ? tstatBrands : brands,
+    );
     if (found) {
       items.push(catalogToBomItem(found.item, qty, found.notes));
     } else {
@@ -193,10 +221,9 @@ export function generateBOM(
   // Ductwork
   const trunkLen = Math.ceil(condSqft / 35);
 
-  // Trunk sized by tonnage — search by model/description keyword
   const [trunkModelKw, trunkDescKw] =
     tonnage <= 3 ? ["0812", "8x12"] : tonnage <= 4 ? ["1014", "10x14"] : ["1216", "12x16"];
-  const trunk = findCatalogItemByKeyword(catalog, "ductwork", systemType, trunkModelKw, trunkDescKw);
+  const trunk = findCatalogItemByKeyword(catalog, "ductwork", systemType, trunkModelKw, trunkDescKw, brands);
   if (trunk) {
     items.push(catalogToBomItem(trunk.item, trunkLen, trunk.notes));
   } else {
@@ -204,61 +231,64 @@ export function generateBOM(
     items.push({ ...missingItem("ductwork", trunkLabel, trunkLen), unit: "ft" });
   }
 
-  // Flex 8
-  const flex8 = findCatalogItemByKeyword(catalog, "ductwork", systemType, "FD08", "8\" round flex");
+  const flex8 = findCatalogItemByKeyword(catalog, "ductwork", systemType, "FD08", "8\" round flex", brands);
   if (flex8) {
     items.push(catalogToBomItem(flex8.item, Math.ceil(totalRegs * 10), flex8.notes));
   } else {
     items.push({ ...missingItem("ductwork", "8\" Round Flex Duct", Math.ceil(totalRegs * 10)), unit: "ft" });
   }
 
-  // Flex 6
-  const flex6 = findCatalogItemByKeyword(catalog, "ductwork", systemType, "FD06", "6\" round flex");
+  const flex6 = findCatalogItemByKeyword(catalog, "ductwork", systemType, "FD06", "6\" round flex", brands);
   if (flex6) {
     items.push(catalogToBomItem(flex6.item, Math.ceil(totalRegs * 8), flex6.notes));
   } else {
     items.push({ ...missingItem("ductwork", "6\" Round Flex Duct", Math.ceil(totalRegs * 8)), unit: "ft" });
   }
 
-  // Supply plenum
-  const supPlenum = findCatalogItemByKeyword(catalog, "ductwork", systemType, "PL-SUP", "supply plenum");
+  const supPlenum = findCatalogItemByKeyword(catalog, "ductwork", systemType, "PL-SUP", "supply plenum", brands);
   if (supPlenum) {
     items.push(catalogToBomItem(supPlenum.item, 1, supPlenum.notes));
   } else {
     items.push(missingItem("ductwork", "Supply Plenum", 1));
   }
 
-  // Return plenum
-  const retPlenum = findCatalogItemByKeyword(catalog, "ductwork", systemType, "PL-RET", "return plenum");
+  const retPlenum = findCatalogItemByKeyword(catalog, "ductwork", systemType, "PL-RET", "return plenum", brands);
   if (retPlenum) {
     items.push(catalogToBomItem(retPlenum.item, 1, retPlenum.notes));
   } else {
     items.push(missingItem("ductwork", "Return Plenum", 1));
   }
 
-  // Registers
+  // Registers — use preferred style keywords if set
+  const regStyle = preferences?.supply_register_style;
+  const regKws = regStyle ? REGISTER_STYLE_KEYWORDS[regStyle] : undefined;
+
   const smallRegs = totalRegs - largeRegs;
   if (largeRegs > 0) {
-    const reg6x12 = findCatalogItemByKeyword(catalog, "register", systemType, "6x12", "6x12");
-    if (reg6x12) {
-      items.push(catalogToBomItem(reg6x12.item, largeRegs, reg6x12.notes));
+    const [lgModel, lgDesc] = regKws ?? ["6x12", "6x12"];
+    const reg = findCatalogItemByKeyword(catalog, "register", systemType, lgModel, lgDesc, brands);
+    if (reg) {
+      items.push(catalogToBomItem(reg.item, largeRegs, reg.notes));
     } else {
       items.push(missingItem("register", "6\"x12\" Supply Register", largeRegs));
     }
   }
   if (smallRegs > 0) {
-    const reg4x12 = findCatalogItemByKeyword(catalog, "register", systemType, "4x12", "4x12");
-    if (reg4x12) {
-      items.push(catalogToBomItem(reg4x12.item, smallRegs, reg4x12.notes));
+    const [smModel, smDesc] = regKws ?? ["4x12", "4x12"];
+    const reg = findCatalogItemByKeyword(catalog, "register", systemType, smModel, smDesc, brands);
+    if (reg) {
+      items.push(catalogToBomItem(reg.item, smallRegs, reg.notes));
     } else {
       items.push(missingItem("register", "4\"x12\" Supply Register", smallRegs));
     }
   }
 
-  // Return grilles
-  const [retModelKw, retDescKw] =
-    tonnage <= 3 ? ["2025", "20x25"] : tonnage <= 4 ? ["2030", "20x30"] : ["2430", "24x30"];
-  const retGrille = findCatalogItemByKeyword(catalog, "grille", systemType, retModelKw, retDescKw);
+  // Return grilles — use preferred sizing if set
+  const retSizing = preferences?.return_grille_sizing;
+  const retKws = retSizing ? RETURN_GRILLE_KEYWORDS[retSizing] : undefined;
+  const [retModelKw, retDescKw] = retKws
+    ?? (tonnage <= 3 ? ["2025", "20x25"] : tonnage <= 4 ? ["2030", "20x30"] : ["2430", "24x30"]);
+  const retGrille = findCatalogItemByKeyword(catalog, "grille", systemType, retModelKw, retDescKw, brands);
   if (retGrille) {
     items.push(catalogToBomItem(retGrille.item, retCount, retGrille.notes));
   } else {
@@ -269,14 +299,14 @@ export function generateBOM(
   // Refrigerant & Lines
   const longLineset = condSqft > 1500 || stories > 1;
   const linesetKw = longLineset ? "50" : "25";
-  const lineset = findCatalogItemByKeyword(catalog, "refrigerant", systemType, linesetKw + "ft", linesetKw + "ft");
+  const lineset = findCatalogItemByKeyword(catalog, "refrigerant", systemType, linesetKw + "ft", linesetKw + "ft", brands);
   if (lineset) {
     items.push(catalogToBomItem(lineset.item, 1, lineset.notes));
   } else {
     items.push(missingItem("refrigerant", `Line Set (${longLineset ? "50" : "25"}ft)`, 1));
   }
 
-  const refrigerant = findCatalogItemByKeyword(catalog, "refrigerant", systemType, "R410A", "r-410a");
+  const refrigerant = findCatalogItemByKeyword(catalog, "refrigerant", systemType, "R410A", "r-410a", brands);
   if (refrigerant) {
     items.push(catalogToBomItem(refrigerant.item, 1, refrigerant.notes));
   } else {
@@ -284,14 +314,14 @@ export function generateBOM(
   }
 
   // Electrical
-  const disconnect = findCatalogItemByKeyword(catalog, "electrical", systemType, "DISC", "disconnect");
+  const disconnect = findCatalogItemByKeyword(catalog, "electrical", systemType, "DISC", "disconnect", brands);
   if (disconnect) {
     items.push(catalogToBomItem(disconnect.item, 1, disconnect.notes));
   } else {
     items.push(missingItem("electrical", "60A Non-Fused Disconnect", 1));
   }
 
-  const whip = findCatalogItemByKeyword(catalog, "electrical", systemType, "WHIP", "conduit whip");
+  const whip = findCatalogItemByKeyword(catalog, "electrical", systemType, "WHIP", "conduit whip", brands);
   if (whip) {
     items.push(catalogToBomItem(whip.item, 1, whip.notes));
   } else {
@@ -300,7 +330,7 @@ export function generateBOM(
 
   const [brkrModelKw, brkrDescKw] =
     tonnage <= 3 ? ["30A", "30a"] : tonnage <= 4 ? ["40A", "40a"] : ["50A", "50a"];
-  const breaker = findCatalogItemByKeyword(catalog, "electrical", systemType, brkrModelKw, brkrDescKw + " breaker");
+  const breaker = findCatalogItemByKeyword(catalog, "electrical", systemType, brkrModelKw, brkrDescKw + " breaker", brands);
   if (breaker) {
     items.push(catalogToBomItem(breaker.item, 1, breaker.notes));
   } else {
@@ -311,7 +341,7 @@ export function generateBOM(
   // Installation items
   const equipLoc = hvacNotes?.suggested_equipment_location?.toLowerCase() ?? "";
   if (equipLoc.includes("attic") || equipLoc.includes("closet")) {
-    const cpump = findCatalogItemByKeyword(catalog, "installation", systemType, "CPUMP", "condensate pump");
+    const cpump = findCatalogItemByKeyword(catalog, "installation", systemType, "CPUMP", "condensate pump", brands);
     if (cpump) {
       items.push(catalogToBomItem(cpump.item, 1, cpump.notes));
     } else {
@@ -319,51 +349,60 @@ export function generateBOM(
     }
   }
 
-  const ptrap = findCatalogItemByKeyword(catalog, "installation", systemType, "PTRAP", "p-trap");
+  const ptrap = findCatalogItemByKeyword(catalog, "installation", systemType, "PTRAP", "p-trap", brands);
   if (ptrap) {
     items.push(catalogToBomItem(ptrap.item, 1, ptrap.notes));
   } else {
     items.push(missingItem("installation", "P-Trap (3/4\" PVC)", 1));
   }
 
-  const drain = findCatalogItemByKeyword(catalog, "installation", systemType, "DRAIN", "drain line");
+  const drain = findCatalogItemByKeyword(catalog, "installation", systemType, "DRAIN", "drain line", brands);
   if (drain) {
     items.push(catalogToBomItem(drain.item, 2, drain.notes));
   } else {
     items.push(missingItem("installation", "3/4\" PVC Drain Line (10ft)", 2));
   }
 
-  const [filtModelKw, filtDescKw] = tonnage <= 3 ? ["16x25", "16x25"] : ["20x25", "20x25"];
-  const filter = findCatalogItemByKeyword(catalog, "installation", systemType, filtModelKw, filtDescKw + " filter");
+  // Filters — use preferred size/MERV if set
+  const prefFilterSize = preferences?.filter_size;
+  const prefFilterMerv = preferences?.filter_merv;
+  const filtDim = prefFilterSize
+    ? prefFilterSize.replace(/x\d+$/, "").replace("x", "x")
+    : (tonnage <= 3 ? "16x25" : "20x25");
+  const filtDescSearch = prefFilterMerv
+    ? `${filtDim} filter merv ${prefFilterMerv}`
+    : `${filtDim} filter`;
+  const filter = findCatalogItemByKeyword(catalog, "installation", systemType, filtDim, filtDescSearch, brands);
   if (filter) {
     items.push(catalogToBomItem(filter.item, 2, filter.notes));
   } else {
-    const filtLabel = tonnage <= 3 ? "16x25x1 Filter (MERV 8)" : "20x25x1 Filter (MERV 8)";
-    items.push(missingItem("installation", filtLabel, 2));
+    const mervLabel = prefFilterMerv ? `MERV ${prefFilterMerv}` : "MERV 8";
+    const sizeLabel = prefFilterSize ?? (tonnage <= 3 ? "16x25x1" : "20x25x1");
+    items.push(missingItem("installation", `${sizeLabel} Filter (${mervLabel})`, 2));
   }
 
-  const mastic = findCatalogItemByKeyword(catalog, "installation", systemType, "MASTIC", "duct mastic");
+  const mastic = findCatalogItemByKeyword(catalog, "installation", systemType, "MASTIC", "duct mastic", brands);
   if (mastic) {
     items.push(catalogToBomItem(mastic.item, Math.max(2, Math.ceil(trunkLen / 25)), mastic.notes));
   } else {
     items.push(missingItem("installation", "Duct Mastic (1 Gal)", Math.max(2, Math.ceil(trunkLen / 25))));
   }
 
-  const foilTape = findCatalogItemByKeyword(catalog, "installation", systemType, "TAPE", "foil tape");
+  const foilTape = findCatalogItemByKeyword(catalog, "installation", systemType, "TAPE", "foil tape", brands);
   if (foilTape) {
     items.push(catalogToBomItem(foilTape.item, Math.max(2, Math.ceil(totalRegs / 6)), foilTape.notes));
   } else {
     items.push(missingItem("installation", "Foil Tape (2.5\"x60yd)", Math.max(2, Math.ceil(totalRegs / 6))));
   }
 
-  const pad = findCatalogItemByKeyword(catalog, "installation", systemType, "PAD", "condenser pad");
+  const pad = findCatalogItemByKeyword(catalog, "installation", systemType, "PAD", "condenser pad", brands);
   if (pad) {
     items.push(catalogToBomItem(pad.item, 1, pad.notes));
   } else {
     items.push(missingItem("installation", "Condenser Pad (24x24x3)", 1));
   }
 
-  const hanger = findCatalogItemByKeyword(catalog, "installation", systemType, "HANGER", "hanger strap");
+  const hanger = findCatalogItemByKeyword(catalog, "installation", systemType, "HANGER", "hanger strap", brands);
   if (hanger) {
     items.push(catalogToBomItem(hanger.item, Math.max(2, Math.ceil(trunkLen / 40)), hanger.notes));
   } else {

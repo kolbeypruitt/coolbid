@@ -375,7 +375,7 @@ export type Database = {
           user_id: string;
           supplier_id: string | null;
           vendor_product_id: string | null;
-          model_number: string;
+          mpn: string;
           description: string;
           equipment_type: string;
           system_type: string;
@@ -398,7 +398,7 @@ export type Database = {
           user_id: string;
           supplier_id?: string | null;
           vendor_product_id?: string | null;
-          model_number: string;
+          mpn: string;
           description?: string;
           equipment_type: string;
           system_type?: string;

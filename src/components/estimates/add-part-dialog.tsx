@@ -83,7 +83,7 @@ export function AddPartDialog({
       const vendorRows = ((browseRes.items ?? []) as VendorProductRow[]).slice(0, 12);
 
       const catalogSkus = new Set(
-        catalogRows.map((r) => r.model_number.toLowerCase()),
+        catalogRows.map((r) => r.mpn.toLowerCase()),
       );
       const filteredVendor = vendorRows.filter(
         (r) => !catalogSkus.has(r.sku.toLowerCase()),
@@ -162,7 +162,7 @@ export function AddPartDialog({
         body: JSON.stringify({
           source: "imported",
           vendor_product_id: row.id,
-          model_number: row.sku,
+          mpn: row.sku,
           description: row.name,
           equipment_type: "installation",
           brand: row.brand ?? "",
@@ -243,7 +243,7 @@ export function AddPartDialog({
               const key = isCatalog ? `c-${hit.item.id}` : `v-${hit.item.id}`;
               const title = isCatalog ? hit.item.description : hit.item.name;
               const sub = isCatalog
-                ? `${hit.item.brand} · ${hit.item.model_number}${
+                ? `${hit.item.brand} · ${hit.item.mpn}${
                     hit.item.tonnage ? ` · ${hit.item.tonnage}T` : ""
                   }`
                 : `${hit.item.brand ?? "—"} · ${hit.item.sku}${

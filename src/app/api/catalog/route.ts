@@ -3,10 +3,24 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import type { CatalogItem, EquipmentType, VendorProductRow } from "@/types/catalog";
 
-const VALID_SORTS = ["usage_count", "unit_price", "updated_at"] as const;
+const VALID_SORTS = [
+  "usage_count",
+  "unit_price",
+  "updated_at",
+  "description",
+  "brand",
+  "mpn",
+  "tonnage",
+  "seer_rating",
+] as const;
+
+const VALID_BROWSE_SORTS = ["name", "brand", "sku", "price"] as const;
+
+const VALID_PAGE_SIZES = [25, 50, 100, 200] as const;
+const DEFAULT_PAGE_SIZE = 25;
 
 const createCatalogSchema = z.object({
-  model_number: z.string().trim().min(1),
+  mpn: z.string().trim().min(1),
   description: z.string().trim().min(1),
   equipment_type: z.enum([
     "ac_condenser",
@@ -39,8 +53,6 @@ const createCatalogSchema = z.object({
   unit_of_measure: z.string().trim().optional(),
 });
 
-const PAGE_SIZE = 100;
-
 // Escape % and , so a user-typed search term can't break the PostgREST
 // `or()` filter syntax.
 function sanitizeIlike(input: string): string {
@@ -61,14 +73,33 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const browse = searchParams.get("browse")?.trim() || "";
   const q = sanitizeIlike(searchParams.get("q")?.trim() || "");
-  const offset = Math.max(0, parseInt(searchParams.get("offset") || "0", 10) || 0);
+
+  const rawLimit = parseInt(searchParams.get("limit") || "", 10);
+  const limit = (VALID_PAGE_SIZES as readonly number[]).includes(rawLimit)
+    ? rawLimit
+    : DEFAULT_PAGE_SIZE;
+
+  const pageNum = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
+  const offset = (pageNum - 1) * limit;
+
+  const sortDirParam = searchParams.get("sort_dir")?.trim();
 
   if (browse === "vendor") {
+    const browseSortParam = searchParams.get("sort")?.trim() || "name";
+    const browseSort = (VALID_BROWSE_SORTS as readonly string[]).includes(browseSortParam)
+      ? (browseSortParam as (typeof VALID_BROWSE_SORTS)[number])
+      : "name";
+    // price defaults descending, everything else ascending
+    const browseAscending = sortDirParam ? sortDirParam === "asc" : browseSort !== "price";
+
     return browseVendorProducts({
       supabase,
       userId: user.id,
       q,
       offset,
+      limit,
+      sortField: browseSort,
+      ascending: browseAscending,
       categoryRoot: searchParams.get("category_root")?.trim() || "",
       supplierId: searchParams.get("supplier_id")?.trim() || "",
     });
@@ -78,45 +109,58 @@ export async function GET(req: Request) {
   const supplierId = searchParams.get("supplier_id")?.trim() || "";
   const sortParam = searchParams.get("sort")?.trim() || "usage_count";
 
-  const sort = (
-    VALID_SORTS as readonly string[]
-  ).includes(sortParam)
+  const sort = (VALID_SORTS as readonly string[]).includes(sortParam)
     ? (sortParam as (typeof VALID_SORTS)[number])
     : "usage_count";
 
-  let query = supabase
+  const ascending = sortDirParam ? sortDirParam === "asc" : false;
+
+  let dataQuery = supabase
     .from("equipment_catalog")
     .select("*, supplier:suppliers(name, is_active)")
     .eq("user_id", user.id)
-    .order(sort, { ascending: false })
-    .range(offset, offset + PAGE_SIZE);
+    .order(sort, { ascending })
+    .range(offset, offset + limit - 1);
+
+  let countQuery = supabase
+    .from("equipment_catalog")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id);
 
   if (q) {
-    query = query.or(
-      `model_number.ilike.%${q}%,description.ilike.%${q}%,brand.ilike.%${q}%`,
-    );
+    const orFilter = `mpn.ilike.%${q}%,description.ilike.%${q}%,brand.ilike.%${q}%`;
+    dataQuery = dataQuery.or(orFilter);
+    countQuery = countQuery.or(orFilter);
   }
 
   if (equipmentType) {
-    query = query.eq("equipment_type", equipmentType as EquipmentType);
+    dataQuery = dataQuery.eq("equipment_type", equipmentType as EquipmentType);
+    countQuery = countQuery.eq("equipment_type", equipmentType as EquipmentType);
   }
 
   if (supplierId) {
-    query = query.eq("supplier_id", supplierId);
+    dataQuery = dataQuery.eq("supplier_id", supplierId);
+    countQuery = countQuery.eq("supplier_id", supplierId);
   }
 
-  const { data, error } = await query;
+  const [{ data, error }, { count, error: countError }] = await Promise.all([
+    dataQuery,
+    countQuery,
+  ]);
 
   if (error) {
     console.error("[GET /api/catalog]", error.message);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
-  const allItems = (data ?? []) as CatalogItem[];
-  const page = allItems.slice(0, PAGE_SIZE);
-  const hasMore = allItems.length > PAGE_SIZE;
+  if (countError) {
+    console.error("[GET /api/catalog count]", countError.message);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 
-  return NextResponse.json({ items: page, hasMore });
+  const items = (data ?? []) as CatalogItem[];
+
+  return NextResponse.json({ items, totalCount: count ?? 0 });
 }
 
 /**
@@ -129,6 +173,9 @@ async function browseVendorProducts({
   userId,
   q,
   offset,
+  limit,
+  sortField,
+  ascending,
   categoryRoot,
   supplierId,
 }: {
@@ -137,12 +184,12 @@ async function browseVendorProducts({
   userId: string;
   q: string;
   offset: number;
+  limit: number;
+  sortField: (typeof VALID_BROWSE_SORTS)[number];
+  ascending: boolean;
   categoryRoot: string;
   supplierId: string;
 }) {
-  // 1. Which vendors is this user opted into? Derived from their
-  //    active supplier rows. A specific `supplier_id` filter narrows
-  //    to that one vendor.
   let supplierQuery = supabase
     .from("suppliers")
     .select("vendor_id")
@@ -170,40 +217,53 @@ async function browseVendorProducts({
   );
 
   if (vendorIds.length === 0) {
-    return NextResponse.json({ items: [], hasMore: false });
+    return NextResponse.json({ items: [], totalCount: 0 });
   }
+
+  const selectFields =
+    "id, vendor_id, sku, mpn, name, brand, image_url, short_description, category_root, category_path, category_leaf, detail_url, price, price_text, last_priced_at, vendor:vendors(id, slug, name)";
 
   let productQuery = supabase
     .from("vendor_products")
-    .select(
-      "id, vendor_id, sku, mpn, name, brand, image_url, short_description, category_root, category_path, category_leaf, detail_url, price, price_text, last_priced_at, vendor:vendors(id, slug, name)",
-    )
+    .select(selectFields)
     .in("vendor_id", vendorIds)
-    .order("name", { ascending: true })
-    .range(offset, offset + PAGE_SIZE);
+    .order(sortField, { ascending })
+    .range(offset, offset + limit - 1);
+
+  let countQuery = supabase
+    .from("vendor_products")
+    .select("id", { count: "exact", head: true })
+    .in("vendor_id", vendorIds);
 
   if (q) {
-    productQuery = productQuery.or(
-      `name.ilike.%${q}%,brand.ilike.%${q}%,mpn.ilike.%${q}%,sku.ilike.%${q}%`,
-    );
+    const orFilter = `name.ilike.%${q}%,brand.ilike.%${q}%,mpn.ilike.%${q}%,sku.ilike.%${q}%`;
+    productQuery = productQuery.or(orFilter);
+    countQuery = countQuery.or(orFilter);
   }
 
   if (categoryRoot) {
     productQuery = productQuery.eq("category_root", categoryRoot);
+    countQuery = countQuery.eq("category_root", categoryRoot);
   }
 
-  const { data, error } = await productQuery;
+  const [{ data, error }, { count, error: countError }] = await Promise.all([
+    productQuery,
+    countQuery,
+  ]);
 
   if (error) {
     console.error("[GET /api/catalog browse] product query", error.message);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
-  const rows = (data ?? []) as VendorProductRow[];
-  const page = rows.slice(0, PAGE_SIZE);
-  const hasMore = rows.length > PAGE_SIZE;
+  if (countError) {
+    console.error("[GET /api/catalog browse] count query", countError.message);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 
-  return NextResponse.json({ items: page, hasMore });
+  const items = (data ?? []) as VendorProductRow[];
+
+  return NextResponse.json({ items, totalCount: count ?? 0 });
 }
 
 export async function POST(req: Request) {
@@ -235,25 +295,42 @@ export async function POST(req: Request) {
   const { source, ...rest } = parsed.data;
   const resolvedSource = source ?? "manual";
 
-  // If this is an import from a vendor_product, idempotently upsert
-  // on (user_id, vendor_product_id) so a second pick of the same SKU
-  // reuses the existing row instead of creating a duplicate.
   if (resolvedSource === "imported" && rest.vendor_product_id) {
+    const { data: existing } = await supabase
+      .from("equipment_catalog")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("vendor_product_id", rest.vendor_product_id)
+      .maybeSingle();
+
+    if (existing) {
+      const { data, error } = await supabase
+        .from("equipment_catalog")
+        .update({ ...rest, source: resolvedSource })
+        .eq("id", existing.id)
+        .select("*, supplier:suppliers(name, is_active)")
+        .single();
+
+      if (error) {
+        console.error("[POST /api/catalog import update]", error.message);
+        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+      }
+
+      return NextResponse.json(data, { status: 200 });
+    }
+
     const { data, error } = await supabase
       .from("equipment_catalog")
-      .upsert(
-        { ...rest, source: resolvedSource, user_id: user.id },
-        { onConflict: "user_id,vendor_product_id", ignoreDuplicates: false },
-      )
+      .insert({ ...rest, source: resolvedSource, user_id: user.id })
       .select("*, supplier:suppliers(name, is_active)")
       .single();
 
     if (error) {
-      console.error("[POST /api/catalog import]", error.message);
+      console.error("[POST /api/catalog import insert]", error.message);
       return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 
-    return NextResponse.json(data, { status: 200 });
+    return NextResponse.json(data, { status: 201 });
   }
 
   const { data, error } = await supabase
