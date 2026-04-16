@@ -1,3 +1,5 @@
+import type { ContractorPreferences } from "./contractor-preferences";
+
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
@@ -35,6 +37,7 @@ export type Database = {
           logo_content_type: string | null;
           team_id: string | null;
           feedback_prompts_seen: Record<string, boolean>;
+          contractor_preferences: ContractorPreferences;
         };
         Insert: {
           id: string;
@@ -60,6 +63,7 @@ export type Database = {
           logo_content_type?: string | null;
           team_id?: string | null;
           feedback_prompts_seen?: Record<string, boolean>;
+          contractor_preferences?: ContractorPreferences;
         };
         Update: {
           company_name?: string;
@@ -83,6 +87,7 @@ export type Database = {
           logo_content_type?: string | null;
           team_id?: string | null;
           feedback_prompts_seen?: Record<string, boolean>;
+          contractor_preferences?: ContractorPreferences;
         };
         Relationships: [];
       };

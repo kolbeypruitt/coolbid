@@ -39,6 +39,8 @@ function profile(overrides: Partial<ProfileRow> = {}): ProfileRow {
     logo_url: null,
     logo_content_type: null,
     team_id: null,
+    feedback_prompts_seen: {},
+    contractor_preferences: {},
     ...overrides,
   };
 }

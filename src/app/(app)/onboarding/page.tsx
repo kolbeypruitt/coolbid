@@ -5,11 +5,19 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { SupplierCard } from "@/lib/hvac/starter-kits";
 import { SupplierSelect } from "@/components/onboarding/supplier-select";
+import { PreferencesForm } from "@/components/preferences/preferences-form";
+import {
+  emptyContractorPreferences,
+  type ContractorPreferences,
+} from "@/types/contractor-preferences";
+
+type Step = "suppliers" | "preferences";
 
 export default function OnboardingPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [step, setStep] = useState<Step>("suppliers");
   const [vendors, setVendors] = useState<SupplierCard[]>([]);
 
   useEffect(() => {
@@ -45,8 +53,6 @@ export default function OnboardingPage() {
         (vendorRows ?? []).map((v) => ({
           slug: v.slug,
           name: v.name,
-          // Brand lists are derived at display time from vendor_products
-          // if we ever need them; onboarding just needs the name.
           brands: [],
         })),
       );
@@ -57,7 +63,7 @@ export default function OnboardingPage() {
     checkOnboarding();
   }, [router]);
 
-  async function handleComplete(
+  async function handleSuppliersComplete(
     selectedSlugs: string[],
     customSupplier?: string,
   ) {
@@ -74,8 +80,6 @@ export default function OnboardingPage() {
     }
 
     try {
-      // Re-fetch vendors so we have the ids (the page state has them
-      // but we re-read defensively in case the picker was deep-linked).
       const { data: vendorRows } = await supabase
         .from("vendors")
         .select("id, slug, name")
@@ -100,8 +104,6 @@ export default function OnboardingPage() {
           console.error("Failed to insert suppliers", supplierError);
         }
 
-        // Seed known email domains for each picked supplier (best-effort,
-        // RPC exists from migration 005).
         for (const v of vendorRows) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           await (supabase as any)
@@ -131,26 +133,51 @@ export default function OnboardingPage() {
         }
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase.from("profiles") as any)
-        .update({ onboarding_completed: true })
-        .eq("id", user.id);
-
-      document.cookie =
-        "onboarding_done=true; path=/; max-age=31536000; SameSite=Lax";
-
-      router.replace("/dashboard");
+      // Advance to preferences step. Do NOT flip onboarding_completed here —
+      // the middleware caches that flag in a 1-year cookie and the user would
+      // be unable to return to /onboarding to finish step 2.
+      setStep("preferences");
+      setSaving(false);
     } catch (err) {
-      console.error("Onboarding failed unexpectedly", err);
+      console.error("Onboarding step 1 failed unexpectedly", err);
       setSaving(false);
     }
+  }
+
+  async function handlePreferencesComplete(prefs: ContractorPreferences) {
+    setSaving(true);
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      router.replace("/auth/login");
+      return;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.from("profiles") as any)
+      .update({
+        contractor_preferences: prefs,
+        onboarding_completed: true,
+      })
+      .eq("id", user.id);
+
+    if (error) {
+      console.error("Failed to save preferences at end of onboarding", error);
+      setSaving(false);
+      return;
+    }
+
+    document.cookie = "onboarding_done=true; path=/; max-age=31536000; SameSite=Lax";
+    router.replace("/dashboard");
   }
 
   if (loading || saving) {
     return (
       <div className="flex h-full items-center justify-center">
         <p className="text-sm text-muted-foreground">
-          {saving ? "Saving your suppliers…" : "Loading…"}
+          {saving ? "Setting up your account…" : "Loading…"}
         </p>
       </div>
     );
@@ -159,7 +186,24 @@ export default function OnboardingPage() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="mx-auto w-full max-w-2xl">
-        <SupplierSelect vendors={vendors} onComplete={handleComplete} />
+        {step === "suppliers" ? (
+          <SupplierSelect vendors={vendors} onComplete={handleSuppliersComplete} />
+        ) : (
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-2xl font-semibold">How do you like to do jobs?</h1>
+              <p className="mt-2 text-muted-foreground">
+                These preferences help Coolbid generate parts lists that match how you actually run your business. You can change them later in Settings.
+              </p>
+            </div>
+            <PreferencesForm
+              initialValue={emptyContractorPreferences()}
+              onSave={handlePreferencesComplete}
+              submitLabel="Finish setup"
+              saving={saving}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

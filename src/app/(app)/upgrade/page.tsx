@@ -31,8 +31,8 @@ export default function UpgradePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background max-w-lg mx-auto py-12 px-6 space-y-6">
-      <div className="text-center space-y-2">
+    <div className="min-h-screen bg-background max-w-6xl mx-auto py-12 px-6 space-y-6">
+      <div className="max-w-lg mx-auto text-center space-y-2">
         <h1 className="text-3xl font-bold text-txt-primary">Subscribe to continue</h1>
         <p className="text-txt-secondary">
           Your trial has ended or you&apos;ve reached the usage limit. Subscribe to keep using
@@ -41,7 +41,7 @@ export default function UpgradePage() {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-error bg-error-bg p-4 text-sm text-error">
+        <div className="max-w-lg mx-auto rounded-lg border border-error bg-error-bg p-4 text-sm text-error">
           {error}
         </div>
       )}

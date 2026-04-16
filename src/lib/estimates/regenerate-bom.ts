@@ -8,6 +8,8 @@ import type { ClimateZoneKey } from "@/types/hvac";
 import { dbRowToRoom } from "@/lib/estimates/db-row-to-room";
 import type { CatalogItem, SystemType } from "@/types/catalog";
 import type { Database } from "@/types/database";
+import { renderContractorPreferencesPrompt } from "@/lib/contractor-preferences/render-prompt";
+import type { ContractorPreferences } from "@/types/contractor-preferences";
 
 type BomRow = Database["public"]["Tables"]["estimate_bom_items"]["Row"];
 
@@ -20,21 +22,29 @@ export async function regenerateBom(estimateId: string): Promise<{ error?: strin
   } = await supabase.auth.getUser();
   if (authErr || !user) return { error: "Not authenticated" };
 
-  // Load estimate + rooms in parallel
-  const [{ data: estimate, error: estErr }, { data: rooms, error: roomErr }] =
-    await Promise.all([
-      supabase
-        .from("estimates")
-        .select("climate_zone, system_type, profit_margin, labor_rate, labor_hours, status")
-        .eq("id", estimateId)
-        .eq("user_id", user.id)
-        .single(),
-      supabase
-        .from("estimate_rooms")
-        .select("*")
-        .eq("estimate_id", estimateId)
-        .order("created_at"),
-    ]);
+  // Load estimate + rooms + preferences in parallel
+  const [
+    { data: estimate, error: estErr },
+    { data: rooms, error: roomErr },
+    { data: prefsRow },
+  ] = await Promise.all([
+    supabase
+      .from("estimates")
+      .select("climate_zone, system_type, profit_margin, labor_rate, labor_hours, status")
+      .eq("id", estimateId)
+      .eq("user_id", user.id)
+      .single(),
+    supabase
+      .from("estimate_rooms")
+      .select("*")
+      .eq("estimate_id", estimateId)
+      .order("created_at"),
+    supabase
+      .from("profiles")
+      .select("contractor_preferences")
+      .eq("id", user.id)
+      .single(),
+  ]);
 
   if (estErr || !estimate) return { error: "Estimate not found" };
   if (roomErr || !rooms || rooms.length === 0) return { error: "No rooms found on this estimate" };
@@ -54,6 +64,17 @@ export async function regenerateBom(estimateId: string): Promise<{ error?: strin
   const activeCatalog = ((catalog ?? []) as CatalogItem[]).filter(
     (item) => item.supplier?.is_active !== false,
   );
+
+  // TODO(ai-bom-generator): when the AI-powered BOM generator lands, pass
+  // `preferencesPrompt` as additional system-prompt context. For now the
+  // deterministic generator ignores it; we render + debug-log to prove the
+  // data pipeline works end-to-end.
+  const preferences =
+    (prefsRow?.contractor_preferences as ContractorPreferences | null) ?? null;
+  const preferencesPrompt = renderContractorPreferencesPrompt(preferences);
+  if (preferencesPrompt && process.env.NODE_ENV !== "production") {
+    console.debug("[contractor-prefs-prompt][regenerate-bom]", preferencesPrompt);
+  }
 
   // Generate new BOM
   const bom = generateBOM(
