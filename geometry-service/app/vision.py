@@ -17,10 +17,12 @@ from .prompts import ANALYZE_PROMPT, SYSTEM_PROMPT
 logger = logging.getLogger(__name__)
 
 MODEL = "claude-sonnet-4-6"
-# Budget fits inside an 8k output-tokens/minute tier on Sonnet 4.6. If your
-# org has a higher tier, bump these to 16000 / 8000 for richer outputs.
-MAX_TOKENS = 6000
-THINKING_BUDGET = 3000
+# max_tokens is the TOTAL output budget (including extended-thinking tokens).
+# At 8k/min Sonnet 4.6 tier, we can reserve up to 8000 per call. We give
+# 2000 to thinking and leave ~6000 for the actual JSON — enough for a plan
+# with ~20 rooms. Bump both (e.g. 16000 / 4000) on higher-tier orgs.
+MAX_TOKENS = 8000
+THINKING_BUDGET = 2000
 
 
 class VisionError(Exception):
@@ -35,7 +37,13 @@ def _encode_jpeg(img: np.ndarray, quality: int = 90) -> bytes:
 
 
 def _extract_json(text: str) -> str:
-    """Extract the first top-level JSON object from a string."""
+    """Extract the first top-level JSON object from a string.
+
+    If the model's response is truncated mid-JSON (e.g. hit max_tokens while
+    streaming the last room), make a best-effort repair: close any open
+    brackets/braces in the same order they were opened. Better to salvage a
+    plan with one partial room than reject everything.
+    """
     # Strip common code-fence wrappers Claude occasionally emits despite being told not to.
     fenced = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.DOTALL)
     if fenced:
@@ -43,15 +51,54 @@ def _extract_json(text: str) -> str:
     start = text.find("{")
     if start == -1:
         raise VisionError("No JSON object found in model response")
-    depth = 0
+
+    # Walk the text tracking brace/bracket depth. Stay aware of strings so a
+    # `{` inside a JSON string doesn't count toward depth.
+    stack: list[str] = []
+    in_string = False
+    escape = False
     for i in range(start, len(text)):
         c = text[i]
-        if c == "{":
-            depth += 1
-        elif c == "}":
-            depth -= 1
-            if depth == 0:
-                return text[start : i + 1]
+        if in_string:
+            if escape:
+                escape = False
+            elif c == "\\":
+                escape = True
+            elif c == '"':
+                in_string = False
+            continue
+        if c == '"':
+            in_string = True
+        elif c == "{":
+            stack.append("}")
+        elif c == "[":
+            stack.append("]")
+        elif c == "}" or c == "]":
+            if stack and stack[-1] == c:
+                stack.pop()
+                if not stack:
+                    return text[start : i + 1]
+
+    # Fell off the end with unclosed structures — truncated response. Attempt
+    # a repair by appending the missing closers. If the truncation cut in the
+    # middle of a key or value, the parse will still fail downstream and the
+    # caller will see a clean VisionError, but this rescues many cases.
+    if stack:
+        tail = text.rstrip().rstrip(",")
+        # Drop a trailing partial string literal so json.loads doesn't see
+        # an unterminated quote (common when max_tokens hits mid-string).
+        if in_string:
+            last_quote = tail.rfind('"')
+            if last_quote > start:
+                tail = tail[:last_quote]
+                tail = tail.rstrip().rstrip(",")
+        repaired = tail + "".join(reversed(stack))
+        logger.warning(
+            "Response appears truncated; attempting repair by closing %d open bracket(s)",
+            len(stack),
+        )
+        return repaired
+
     raise VisionError("Unbalanced JSON braces in model response")
 
 
