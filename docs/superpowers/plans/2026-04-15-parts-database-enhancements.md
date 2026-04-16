@@ -1,3 +1,341 @@
+# Parts Database Enhancements
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Enhance the parts database with URL-driven state, supplier filtering, column sorting, and proper page-based pagination.
+
+**Architecture:** Replace React-only state with URL search params so tab/filter/sort/page state is shareable via links. Add a `/api/suppliers` endpoint for the supplier filter dropdown. Replace "load more" with page-based pagination including page size selector. Make all table columns sortable via clickable headers.
+
+**Tech Stack:** Next.js App Router, `useSearchParams` + `useRouter`, Supabase, shadcn/ui components
+
+---
+
+## File Structure
+
+| File | Action | Responsibility |
+|------|--------|---------------|
+| `src/app/api/suppliers/route.ts` | Create | Returns user's active suppliers for filter dropdowns |
+| `src/app/api/catalog/route.ts` | Modify | Add `limit`, `sort_dir`, `page` params; return `totalCount` |
+| `src/components/parts-database/catalog-table.tsx` | Rewrite | URL-driven state, supplier filter, sortable headers, page pagination |
+
+---
+
+### Task 1: Suppliers API Endpoint
+
+**Files:**
+- Create: `src/app/api/suppliers/route.ts`
+
+- [ ] **Step 1: Create the suppliers endpoint**
+
+```ts
+// src/app/api/suppliers/route.ts
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+
+export async function GET() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { data, error } = await supabase
+    .from("suppliers")
+    .select("id, name, vendor_id")
+    .eq("user_id", user.id)
+    .eq("is_active", true)
+    .order("name", { ascending: true });
+
+  if (error) {
+    console.error("[GET /api/suppliers]", error.message);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+
+  return NextResponse.json(data ?? []);
+}
+```
+
+- [ ] **Step 2: Verify endpoint works**
+
+Run: `curl localhost:3000/api/suppliers` (while logged in via browser — or test via browser devtools)
+Expected: JSON array of suppliers with `id`, `name`, `vendor_id` fields.
+
+- [ ] **Step 3: Commit**
+
+```
+feat: add GET /api/suppliers endpoint for filter dropdowns
+```
+
+---
+
+### Task 2: Update Catalog API for Pagination & Sorting
+
+**Files:**
+- Modify: `src/app/api/catalog/route.ts`
+
+The API needs three changes:
+1. Accept `limit` param (page size: 25, 50, 100, 200; default 25)
+2. Accept `sort_dir` param (`asc` or `desc`; default depends on sort field)
+3. Return `totalCount` alongside items so the UI can render page numbers
+
+- [ ] **Step 1: Update the GET handler for my-parts queries**
+
+In `src/app/api/catalog/route.ts`, update the GET handler. Replace the fixed `PAGE_SIZE` with a dynamic `limit` param, add sort direction support, and add a count query.
+
+Replace the existing `PAGE_SIZE` constant and GET function (lines 42–119) with:
+
+```ts
+const VALID_PAGE_SIZES = [25, 50, 100, 200] as const;
+const DEFAULT_PAGE_SIZE = 25;
+
+// ...existing sanitizeIlike function stays...
+
+export async function GET(req: Request) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const browse = searchParams.get("browse")?.trim() || "";
+  const q = sanitizeIlike(searchParams.get("q")?.trim() || "");
+
+  const rawLimit = parseInt(searchParams.get("limit") || "", 10);
+  const limit = (VALID_PAGE_SIZES as readonly number[]).includes(rawLimit)
+    ? rawLimit
+    : DEFAULT_PAGE_SIZE;
+
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
+  const offset = (page - 1) * limit;
+
+  if (browse === "vendor") {
+    return browseVendorProducts({
+      supabase,
+      userId: user.id,
+      q,
+      offset,
+      limit,
+      categoryRoot: searchParams.get("category_root")?.trim() || "",
+      supplierId: searchParams.get("supplier_id")?.trim() || "",
+      sortField: searchParams.get("sort")?.trim() || "name",
+      sortDir: searchParams.get("sort_dir")?.trim() || "",
+    });
+  }
+
+  const equipmentType = searchParams.get("equipment_type")?.trim() || "";
+  const supplierId = searchParams.get("supplier_id")?.trim() || "";
+  const sortParam = searchParams.get("sort")?.trim() || "usage_count";
+  const sortDirParam = searchParams.get("sort_dir")?.trim() || "";
+
+  const sort = (
+    VALID_SORTS as readonly string[]
+  ).includes(sortParam)
+    ? (sortParam as (typeof VALID_SORTS)[number])
+    : "usage_count";
+
+  const ascending = sortDirParam === "asc";
+
+  // Build count query with same filters
+  let countQuery = supabase
+    .from("equipment_catalog")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id);
+
+  let query = supabase
+    .from("equipment_catalog")
+    .select("*, supplier:suppliers(name, is_active)")
+    .eq("user_id", user.id)
+    .order(sort, { ascending })
+    .range(offset, offset + limit - 1);
+
+  if (q) {
+    const filter = `mpn.ilike.%${q}%,description.ilike.%${q}%,brand.ilike.%${q}%`;
+    query = query.or(filter);
+    countQuery = countQuery.or(filter);
+  }
+
+  if (equipmentType) {
+    query = query.eq("equipment_type", equipmentType as EquipmentType);
+    countQuery = countQuery.eq("equipment_type", equipmentType as EquipmentType);
+  }
+
+  if (supplierId) {
+    query = query.eq("supplier_id", supplierId);
+    countQuery = countQuery.eq("supplier_id", supplierId);
+  }
+
+  const [{ data, error }, { count, error: countError }] = await Promise.all([
+    query,
+    countQuery,
+  ]);
+
+  if (error || countError) {
+    console.error("[GET /api/catalog]", error?.message ?? countError?.message);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+
+  return NextResponse.json({
+    items: (data ?? []) as CatalogItem[],
+    totalCount: count ?? 0,
+  });
+}
+```
+
+- [ ] **Step 2: Update browseVendorProducts for pagination & sorting**
+
+Update the `browseVendorProducts` function signature and body. Add `limit`, `sortField`, and `sortDir` params. Add count query.
+
+The valid sort fields for browse are: `name`, `brand`, `sku`, `price`.
+
+```ts
+async function browseVendorProducts({
+  supabase,
+  userId,
+  q,
+  offset,
+  limit,
+  categoryRoot,
+  supplierId,
+  sortField,
+  sortDir,
+}: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any;
+  userId: string;
+  q: string;
+  offset: number;
+  limit: number;
+  categoryRoot: string;
+  supplierId: string;
+  sortField: string;
+  sortDir: string;
+}) {
+  let supplierQuery = supabase
+    .from("suppliers")
+    .select("vendor_id")
+    .eq("user_id", userId)
+    .eq("is_active", true)
+    .not("vendor_id", "is", null);
+
+  if (supplierId) {
+    supplierQuery = supplierQuery.eq("id", supplierId);
+  }
+
+  const { data: supplierRows, error: supplierErr } = await supplierQuery;
+
+  if (supplierErr) {
+    console.error("[GET /api/catalog browse] supplier lookup", supplierErr.message);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+
+  const vendorIds = Array.from(
+    new Set(
+      ((supplierRows ?? []) as Array<{ vendor_id: string | null }>)
+        .map((r) => r.vendor_id)
+        .filter((v): v is string => Boolean(v)),
+    ),
+  );
+
+  if (vendorIds.length === 0) {
+    return NextResponse.json({ items: [], totalCount: 0 });
+  }
+
+  const BROWSE_SORT_FIELDS = ["name", "brand", "sku", "price"] as const;
+  const validSort = (BROWSE_SORT_FIELDS as readonly string[]).includes(sortField)
+    ? sortField
+    : "name";
+  const ascending = sortDir === "desc" ? false : true;
+
+  const selectCols =
+    "id, vendor_id, sku, mpn, name, brand, image_url, short_description, category_root, category_path, category_leaf, detail_url, price, price_text, last_priced_at, vendor:vendors(id, slug, name)";
+
+  let countQuery = supabase
+    .from("vendor_products")
+    .select("id", { count: "exact", head: true })
+    .in("vendor_id", vendorIds);
+
+  let productQuery = supabase
+    .from("vendor_products")
+    .select(selectCols)
+    .in("vendor_id", vendorIds)
+    .order(validSort, { ascending })
+    .range(offset, offset + limit - 1);
+
+  if (q) {
+    const filter = `name.ilike.%${q}%,brand.ilike.%${q}%,mpn.ilike.%${q}%,sku.ilike.%${q}%`;
+    productQuery = productQuery.or(filter);
+    countQuery = countQuery.or(filter);
+  }
+
+  if (categoryRoot) {
+    productQuery = productQuery.eq("category_root", categoryRoot);
+    countQuery = countQuery.eq("category_root", categoryRoot);
+  }
+
+  const [{ data, error }, { count, error: countError }] = await Promise.all([
+    productQuery,
+    countQuery,
+  ]);
+
+  if (error || countError) {
+    console.error("[GET /api/catalog browse]", error?.message ?? countError?.message);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+
+  return NextResponse.json({
+    items: (data ?? []) as VendorProductRow[],
+    totalCount: count ?? 0,
+  });
+}
+```
+
+- [ ] **Step 3: Verify API changes**
+
+Test via browser devtools or curl:
+- `/api/catalog?limit=25&page=1` → returns `{ items: [...], totalCount: N }`
+- `/api/catalog?sort=unit_price&sort_dir=asc&limit=50` → sorted ascending by price
+- `/api/catalog?browse=vendor&limit=25&page=2` → page 2 of vendor products
+
+- [ ] **Step 4: Commit**
+
+```
+feat: catalog API — add page/limit params, totalCount, sort direction
+```
+
+---
+
+### Task 3: Rewrite CatalogTable with URL State, Filters, Sorting & Pagination
+
+**Files:**
+- Rewrite: `src/components/parts-database/catalog-table.tsx`
+
+This is the big task. The component needs:
+1. All filter/sort/tab/page state driven by URL search params
+2. Supplier filter dropdown (fetched from `/api/suppliers`)
+3. Clickable column headers for sorting (with asc/desc toggle)
+4. Page-based pagination with page size selector (25, 50, 100, 200)
+
+- [ ] **Step 1: Rewrite the full component**
+
+Replace the entire contents of `src/components/parts-database/catalog-table.tsx` with the implementation below.
+
+Key design decisions:
+- `useSearchParams()` + `useRouter().replace()` for URL state
+- Default tab is `browse` (no `tab` param = browse; `tab=my-parts` = my parts)
+- Helper `setParam`/`removeParam` functions to update URL without full page reload
+- Sort state: `sort` param for field, `dir` param for direction. Clicking same column toggles direction. Clicking different column sets new sort with default direction.
+- Pagination: `page` and `pageSize` params. Page resets to 1 when filters change.
+- Supplier list fetched once on mount.
+
+```tsx
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
@@ -65,6 +403,10 @@ const SOURCE_BADGE: Record<string, { label: string; className: string }> = {
 
 type SupplierOption = { id: string; name: string; vendor_id: string | null };
 
+// ---------------------------------------------------------------------------
+// URL helpers
+// ---------------------------------------------------------------------------
+
 function useUrlState() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -90,6 +432,10 @@ function useUrlState() {
   return { get, set, searchParams };
 }
 
+// ---------------------------------------------------------------------------
+// Sort icon
+// ---------------------------------------------------------------------------
+
 function SortIcon({
   field,
   activeField,
@@ -107,6 +453,10 @@ function SortIcon({
     <ArrowDown className="ml-1 inline h-3 w-3" />
   );
 }
+
+// ---------------------------------------------------------------------------
+// Sortable header
+// ---------------------------------------------------------------------------
 
 function SortableHead({
   label,
@@ -133,6 +483,10 @@ function SortableHead({
     </TableHead>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Pagination
+// ---------------------------------------------------------------------------
 
 function Pagination({
   page,
@@ -198,12 +552,17 @@ function Pagination({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Main export
+// ---------------------------------------------------------------------------
+
 export function CatalogTable() {
   const { get, set } = useUrlState();
 
   const tab: Tab = get("tab") === "my-parts" ? "my-parts" : "browse";
 
   function switchTab(t: Tab) {
+    // Reset all filters when switching tabs
     set(
       { tab: t === "browse" ? "" : t },
       ["q", "sort", "dir", "page", "pageSize", "equipment_type", "category_root", "supplier_id"],
@@ -242,8 +601,23 @@ export function CatalogTable() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// My Parts
+// ---------------------------------------------------------------------------
+
 const MY_PARTS_DEFAULT_SORT = "usage_count";
 const MY_PARTS_DEFAULT_DIR = "desc";
+
+const MY_PARTS_SORT_FIELDS: Record<string, string> = {
+  description: "description",
+  brand: "brand",
+  mpn: "mpn",
+  tonnage: "tonnage",
+  seer_rating: "seer_rating",
+  unit_price: "unit_price",
+  usage_count: "usage_count",
+  updated_at: "updated_at",
+};
 
 function MyPartsTab() {
   const { get, set } = useUrlState();
@@ -264,6 +638,7 @@ function MyPartsTab() {
     ? parseInt(get("pageSize"), 10)
     : 25;
 
+  // Fetch suppliers once
   useEffect(() => {
     fetch("/api/suppliers")
       .then((r) => r.json())
@@ -315,10 +690,11 @@ function MyPartsTab() {
   }, [fetchData]);
 
   function handleSort(field: string) {
-    if (sort === field) {
+    const sortField = MY_PARTS_SORT_FIELDS[field] ?? MY_PARTS_DEFAULT_SORT;
+    if (sort === sortField) {
       set({ dir: dir === "asc" ? "desc" : "asc", page: "1" });
     } else {
-      set({ sort: field, dir: "desc", page: "1" });
+      set({ sort: sortField, dir: "desc", page: "1" });
     }
   }
 
@@ -341,7 +717,7 @@ function MyPartsTab() {
 
         <Select
           value={equipmentType}
-          onValueChange={(val) => setFilter("equipment_type", val ?? "all")}
+          onValueChange={(val) => setFilter("equipment_type", val)}
         >
           <SelectTrigger className="w-52">
             <SelectValue placeholder="All equipment types" />
@@ -360,16 +736,10 @@ function MyPartsTab() {
 
         <Select
           value={supplierId}
-          onValueChange={(val) => setFilter("supplier_id", val ?? "all")}
+          onValueChange={(val) => setFilter("supplier_id", val)}
         >
           <SelectTrigger className="w-48">
-            <SelectValue placeholder="All suppliers">
-              {(val: string) =>
-                !val || val === "all"
-                  ? "All suppliers"
-                  : (suppliers.find((s) => s.id === val)?.name ?? "Loading…")
-              }
-            </SelectValue>
+            <SelectValue placeholder="All suppliers" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All suppliers</SelectItem>
@@ -383,12 +753,19 @@ function MyPartsTab() {
       </div>
 
       {loading ? (
-        <div role="status" className="py-16 text-center text-sm text-txt-secondary">
+        <div
+          role="status"
+          className="py-16 text-center text-sm text-txt-secondary"
+        >
           Loading…
         </div>
       ) : items.length === 0 ? (
-        <div role="status" className="py-16 text-center text-sm text-txt-secondary">
-          No items yet. Browse your supplier catalogs or upload a quote to add parts.
+        <div
+          role="status"
+          className="py-16 text-center text-sm text-txt-secondary"
+        >
+          No items yet. Browse your supplier catalogs or upload a quote to add
+          parts.
         </div>
       ) : (
         <>
@@ -413,17 +790,29 @@ function MyPartsTab() {
               </TableHeader>
               <TableBody>
                 {items.map((item) => {
-                  const src = SOURCE_BADGE[item.source] ?? SOURCE_BADGE.manual;
+                  const src =
+                    SOURCE_BADGE[item.source] ?? SOURCE_BADGE.manual;
                   return (
-                    <TableRow key={item.id} className="hover:bg-[rgba(6,182,212,0.03)] transition-colors border-b border-border">
+                    <TableRow
+                      key={item.id}
+                      className="hover:bg-[rgba(6,182,212,0.03)] transition-colors border-b border-border"
+                    >
                       <TableCell className="text-sm text-txt-secondary py-3 px-3">
-                        <Link href={`/parts-database/${item.id}`} className="block hover:underline">
+                        <Link
+                          href={`/parts-database/${item.id}`}
+                          className="block hover:underline"
+                        >
                           {item.description || "—"}
                         </Link>
                       </TableCell>
-                      <TableCell className="text-sm text-txt-secondary py-3 px-3">{item.brand || "—"}</TableCell>
+                      <TableCell className="text-sm text-txt-secondary py-3 px-3">
+                        {item.brand || "—"}
+                      </TableCell>
                       <TableCell className="font-mono text-xs py-3 px-3 text-txt-secondary">
-                        <Link href={`/parts-database/${item.id}`} className="block hover:underline">
+                        <Link
+                          href={`/parts-database/${item.id}`}
+                          className="block hover:underline"
+                        >
                           {item.mpn || "—"}
                         </Link>
                       </TableCell>
@@ -434,9 +823,13 @@ function MyPartsTab() {
                         {item.seer_rating != null ? item.seer_rating : "—"}
                       </TableCell>
                       <TableCell className="text-sm py-3 px-3 tabular-nums text-txt-primary font-medium">
-                        {item.unit_price != null ? `$${item.unit_price.toFixed(2)}` : "No price"}
+                        {item.unit_price != null
+                          ? `$${item.unit_price.toFixed(2)}`
+                          : "No price"}
                       </TableCell>
-                      <TableCell className="text-sm text-txt-secondary py-3 px-3">{item.supplier?.name ?? "—"}</TableCell>
+                      <TableCell className="text-sm text-txt-secondary py-3 px-3">
+                        {item.supplier?.name ?? "—"}
+                      </TableCell>
                       <TableCell className="text-sm py-3 px-3">
                         <Badge className={src.className}>{src.label}</Badge>
                       </TableCell>
@@ -462,8 +855,19 @@ function MyPartsTab() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Browse (Supplier Catalogs)
+// ---------------------------------------------------------------------------
+
 const BROWSE_DEFAULT_SORT = "name";
 const BROWSE_DEFAULT_DIR = "asc";
+
+const BROWSE_SORT_FIELDS: Record<string, string> = {
+  name: "name",
+  brand: "brand",
+  sku: "sku",
+  price: "price",
+};
 
 function BrowseTab() {
   const { get, set } = useUrlState();
@@ -538,10 +942,11 @@ function BrowseTab() {
   }, [fetchData]);
 
   function handleSort(field: string) {
-    if (sort === field) {
+    const sortField = BROWSE_SORT_FIELDS[field] ?? BROWSE_DEFAULT_SORT;
+    if (sort === sortField) {
       set({ dir: dir === "asc" ? "desc" : "asc", page: "1" });
     } else {
-      set({ sort: field, dir: "asc", page: "1" });
+      set({ sort: sortField, dir: "asc", page: "1" });
     }
   }
 
@@ -559,10 +964,10 @@ function BrowseTab() {
         body: JSON.stringify({
           source: "imported",
           vendor_product_id: row.id,
+          mpn: row.sku,
           description: row.name,
           equipment_type: "installation",
           brand: row.brand ?? "",
-          mpn: row.sku,
           unit_price: row.price ?? null,
           unit_of_measure: "ea",
         }),
@@ -593,7 +998,7 @@ function BrowseTab() {
 
         <Select
           value={categoryRoot}
-          onValueChange={(val) => setFilter("category_root", val ?? "all")}
+          onValueChange={(val) => setFilter("category_root", val)}
         >
           <SelectTrigger className="w-64">
             <SelectValue placeholder="All categories" />
@@ -602,11 +1007,15 @@ function BrowseTab() {
             <SelectItem value="all">All categories</SelectItem>
             <SelectItem value="HVAC-Equipment">HVAC Equipment</SelectItem>
             <SelectItem value="HVACR-Parts">HVACR Parts</SelectItem>
-            <SelectItem value="Hydronics-Plumbing">Hydronics & Plumbing</SelectItem>
+            <SelectItem value="Hydronics-Plumbing">
+              Hydronics & Plumbing
+            </SelectItem>
             <SelectItem value="Motors">Motors</SelectItem>
             <SelectItem value="Refrigeration">Refrigeration</SelectItem>
             <SelectItem value="Supplies">Supplies</SelectItem>
-            <SelectItem value="Testing-Tools-Training">Testing, Tools & Training</SelectItem>
+            <SelectItem value="Testing-Tools-Training">
+              Testing, Tools & Training
+            </SelectItem>
             <SelectItem value="Thermostats">Thermostats</SelectItem>
             <SelectItem value="Ventilation-IAQ">Ventilation & IAQ</SelectItem>
           </SelectContent>
@@ -614,16 +1023,10 @@ function BrowseTab() {
 
         <Select
           value={supplierId}
-          onValueChange={(val) => setFilter("supplier_id", val ?? "all")}
+          onValueChange={(val) => setFilter("supplier_id", val)}
         >
           <SelectTrigger className="w-48">
-            <SelectValue placeholder="All suppliers">
-              {(val: string) =>
-                !val || val === "all"
-                  ? "All suppliers"
-                  : (suppliers.find((s) => s.id === val)?.name ?? "Loading…")
-              }
-            </SelectValue>
+            <SelectValue placeholder="All suppliers" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All suppliers</SelectItem>
@@ -639,11 +1042,17 @@ function BrowseTab() {
       {error && <p className="text-sm text-error">{error}</p>}
 
       {loading ? (
-        <div role="status" className="py-16 text-center text-sm text-txt-secondary">
+        <div
+          role="status"
+          className="py-16 text-center text-sm text-txt-secondary"
+        >
           Loading…
         </div>
       ) : items.length === 0 ? (
-        <div role="status" className="py-16 text-center text-sm text-txt-secondary">
+        <div
+          role="status"
+          className="py-16 text-center text-sm text-txt-secondary"
+        >
           {query.trim() || categoryRoot !== "all"
             ? "No matching products. Try a different search or category."
             : "No supplier catalogs available. Pick suppliers in Settings to browse their product lines."}
@@ -676,7 +1085,10 @@ function BrowseTab() {
                     className="hover:bg-[rgba(6,182,212,0.03)] transition-colors border-b border-border"
                   >
                     <TableCell className="text-sm text-txt-secondary py-3 px-3">
-                      <Link href={`/parts-database/vendor/${row.id}`} className="block hover:underline">
+                      <Link
+                        href={`/parts-database/vendor/${row.id}`}
+                        className="block hover:underline"
+                      >
                         {row.name}
                       </Link>
                     </TableCell>
@@ -684,7 +1096,10 @@ function BrowseTab() {
                       {row.brand ?? "—"}
                     </TableCell>
                     <TableCell className="font-mono text-xs py-3 px-3 text-txt-secondary">
-                      <Link href={`/parts-database/vendor/${row.id}`} className="block hover:underline">
+                      <Link
+                        href={`/parts-database/vendor/${row.id}`}
+                        className="block hover:underline"
+                      >
                         {row.sku}
                       </Link>
                     </TableCell>
@@ -695,7 +1110,9 @@ function BrowseTab() {
                       {row.vendor?.name ?? "—"}
                     </TableCell>
                     <TableCell className="text-sm py-3 px-3 tabular-nums text-txt-primary font-medium">
-                      {row.price != null ? `$${row.price.toFixed(2)}` : "No price"}
+                      {row.price != null
+                        ? `$${row.price.toFixed(2)}`
+                        : "No price"}
                     </TableCell>
                     <TableCell className="py-3 px-3 text-right flex items-center justify-end gap-1">
                       {row.detail_url && (
@@ -713,10 +1130,15 @@ function BrowseTab() {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleImport(row)}
-                        disabled={importing === row.id || importedIds.has(row.id)}
+                        disabled={
+                          importing === row.id || importedIds.has(row.id)
+                        }
                       >
                         {importing === row.id ? (
-                          <Loader2 aria-hidden className="h-3.5 w-3.5 animate-spin" />
+                          <Loader2
+                            aria-hidden
+                            className="h-3.5 w-3.5 animate-spin"
+                          />
                         ) : importedIds.has(row.id) ? (
                           "Imported"
                         ) : (
@@ -744,3 +1166,76 @@ function BrowseTab() {
     </div>
   );
 }
+```
+
+- [ ] **Step 2: Verify the page builds without type errors**
+
+Run: `npx next build` or check the dev server at `localhost:3000/parts-database`
+Expected: No type errors. Page loads with browse tab by default.
+
+- [ ] **Step 3: Test URL state manually**
+
+1. Load `/parts-database` → should show Supplier catalogs (browse tab)
+2. Click "My parts" → URL becomes `?tab=my-parts`
+3. Type in search → URL gets `&q=...`
+4. Select a supplier filter → URL gets `&supplier_id=...`
+5. Click a column header → URL gets `&sort=...&dir=...`
+6. Change page size → URL gets `&pageSize=50`
+7. Click next page → URL gets `&page=2`
+8. Copy the URL, open in new tab → same view loads
+9. Changing any filter resets page to 1
+
+- [ ] **Step 4: Commit**
+
+```
+feat: parts database — URL state, supplier filter, column sorting, pagination
+```
+
+---
+
+### Task 4: Wrap Page in Suspense (Required for useSearchParams)
+
+**Files:**
+- Modify: `src/app/(app)/parts-database/page.tsx`
+
+`useSearchParams()` requires a `<Suspense>` boundary in Next.js App Router to avoid the whole page opting into client-side rendering.
+
+- [ ] **Step 1: Add Suspense wrapper**
+
+In `src/app/(app)/parts-database/page.tsx`, wrap `<CatalogTable />` in `<Suspense>`:
+
+```tsx
+import { Suspense } from "react";
+// ... existing imports ...
+
+export default function PartsDatabasePage() {
+  return (
+    <div className="space-y-6 p-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-txt-primary">Parts Database</h1>
+        <Link
+          href="/parts-database/upload"
+          className={cn(buttonVariants(), "bg-gradient-brand hover-lift")}
+        >
+          <Upload className="mr-2 size-4" />
+          Upload Quote
+        </Link>
+      </div>
+      <EmailConnectionsSection />
+      <Suspense>
+        <CatalogTable />
+      </Suspense>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 2: Verify no hydration warnings in dev console**
+
+Run dev server. Load `/parts-database`. Check browser console — no `useSearchParams` warnings.
+
+- [ ] **Step 3: Commit**
+
+```
+fix: wrap CatalogTable in Suspense for useSearchParams
+```
