@@ -194,6 +194,12 @@ export function RoomsStep() {
                   setHoveredRoomIndex(floorRoomsWithIndex[localIdx]?.index ?? null);
                 }
               }}
+              onUpdateRoom={(localIdx, partial) => {
+                const globalIdx = floorRoomsWithIndex[localIdx]?.index;
+                if (globalIdx != null) {
+                  updateRoom(globalIdx, partial);
+                }
+              }}
             />
           </div>
         )}

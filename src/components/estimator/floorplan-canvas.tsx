@@ -1,7 +1,9 @@
 "use client";
 
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useRef, useEffect, useCallback, useState, useMemo } from "react";
 import type { Room } from "@/types/hvac";
+
+type Vertex = { x: number; y: number };
 
 type Props = {
   /** Base64 data URL of the floorplan image */
@@ -16,6 +18,11 @@ type Props = {
   hoveredIndex?: number | null;
   /** Called when hover state changes */
   onHoverRoom?: (index: number | null) => void;
+  /**
+   * Called when a room's geometry changes via drag. The partial includes
+   * vertices, bbox, centroid, and proportionally-scaled width_ft/length_ft.
+   */
+  onUpdateRoom?: (index: number, partial: Partial<Room>) => void;
 };
 
 const ROOM_COLORS: Record<string, string> = {
@@ -39,22 +46,76 @@ const ROOM_COLORS: Record<string, string> = {
   default: "148,163,184",
 };
 
+/** Distance (in normalized 0-1 coords) the pointer must move to start a drag. */
+const CLICK_DRAG_THRESHOLD = 0.008;
+
 function getRoomColor(type: string): string {
   return ROOM_COLORS[type] ?? ROOM_COLORS.default;
 }
 
-function centroidOf(room: Room): { x: number; y: number } {
-  if (room.centroid) return room.centroid;
-  if (room.vertices.length >= 3) {
-    const sx = room.vertices.reduce((s, v) => s + v.x, 0);
-    const sy = room.vertices.reduce((s, v) => s + v.y, 0);
-    return { x: sx / room.vertices.length, y: sy / room.vertices.length };
+function clamp01(v: number) {
+  return Math.max(0, Math.min(1, v));
+}
+
+function computeCentroid(verts: Vertex[]): Vertex {
+  if (verts.length === 0) return { x: 0, y: 0 };
+  const sx = verts.reduce((s, v) => s + v.x, 0);
+  const sy = verts.reduce((s, v) => s + v.y, 0);
+  return { x: sx / verts.length, y: sy / verts.length };
+}
+
+function computeBbox(verts: Vertex[]): Room["bbox"] {
+  if (verts.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
+  let minX = verts[0].x, minY = verts[0].y, maxX = verts[0].x, maxY = verts[0].y;
+  for (const v of verts) {
+    if (v.x < minX) minX = v.x;
+    if (v.y < minY) minY = v.y;
+    if (v.x > maxX) maxX = v.x;
+    if (v.y > maxY) maxY = v.y;
   }
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
+function centroidOfRoom(room: Room): Vertex {
+  if (room.centroid) return room.centroid;
+  if (room.vertices.length >= 3) return computeCentroid(room.vertices);
+  return { x: room.bbox.x + room.bbox.width / 2, y: room.bbox.y + room.bbox.height / 2 };
+}
+
+/** Proportional per-room dimension scale based on bbox change. */
+function scaledDimensions(room: Room, newBbox: Room["bbox"]): Pick<Room, "width_ft" | "length_ft"> {
+  const oldW = room.bbox.width || 1;
+  const oldH = room.bbox.height || 1;
   return {
-    x: room.bbox.x + room.bbox.width / 2,
-    y: room.bbox.y + room.bbox.height / 2,
+    width_ft: Math.max(0, room.width_ft * (newBbox.width / oldW)),
+    length_ft: Math.max(0, room.length_ft * (newBbox.height / oldH)),
   };
 }
+
+/** Drag state: `null` = idle. `pending` = pointerdown but not yet moved enough. `active` = currently dragging. */
+type DragState =
+  | null
+  | {
+      phase: "pending";
+      kind: "body" | "vertex";
+      roomIndex: number;
+      vertexIndex?: number;
+      startX: number;
+      startY: number;
+      pointerId: number;
+    }
+  | {
+      phase: "active";
+      kind: "translating" | "dragging-vertex";
+      roomIndex: number;
+      vertexIndex?: number;
+      /** Pointer position at drag start, in normalized coords (needed for translate deltas). */
+      startX: number;
+      startY: number;
+      /** Per-drag override that replaces room.vertices in the display until commit. */
+      overrideVertices: Vertex[];
+      pointerId: number;
+    };
 
 export function FloorplanCanvas({
   imageSrc,
@@ -63,11 +124,13 @@ export function FloorplanCanvas({
   onSelectRoom,
   hoveredIndex = null,
   onHoverRoom,
+  onUpdateRoom,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [aspectRatio, setAspectRatio] = useState(4 / 3);
+  const [drag, setDrag] = useState<DragState>(null);
 
   // Load image
   useEffect(() => {
@@ -78,6 +141,22 @@ export function FloorplanCanvas({
     };
     img.src = imageSrc;
   }, [imageSrc]);
+
+  /** Rooms with drag override applied (purely for display — state isn't mutated until pointerup). */
+  const displayRooms = useMemo(() => {
+    if (!drag || drag.phase !== "active") return rooms;
+    const activeIdx = drag.roomIndex;
+    return rooms.map((room, i) => {
+      if (i !== activeIdx) return room;
+      const verts = drag.overrideVertices;
+      return {
+        ...room,
+        vertices: verts,
+        centroid: computeCentroid(verts),
+        bbox: computeBbox(verts),
+      };
+    });
+  }, [rooms, drag]);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -105,13 +184,14 @@ export function FloorplanCanvas({
     ctx.drawImage(img, 0, 0, w, h);
 
     // Draw room overlays
-    for (let i = 0; i < rooms.length; i++) {
-      const room = rooms[i];
+    for (let i = 0; i < displayRooms.length; i++) {
+      const room = displayRooms[i];
       const color = getRoomColor(room.type);
       const isSelected = i === selectedIndex;
       const isHovered = i === hoveredIndex;
+      const isDragging = drag?.phase === "active" && drag.roomIndex === i;
 
-      const alpha = isSelected ? 0.35 : isHovered ? 0.25 : 0.15;
+      const alpha = isDragging ? 0.4 : isSelected ? 0.35 : isHovered ? 0.25 : 0.15;
       const strokeAlpha = isSelected ? 1 : isHovered ? 0.8 : 0.5;
       const lineWidth = isSelected ? 2.5 : isHovered ? 2 : 1.5;
 
@@ -139,47 +219,196 @@ export function FloorplanCanvas({
       ctx.stroke();
 
       // Room name label at centroid
-      const c = centroidOf(room);
+      const c = centroidOfRoom(room);
       const fontSize = Math.max(10, Math.min(14, (room.bbox.width * w) / 8));
       ctx.font = `600 ${fontSize}px system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
 
-      // Text shadow for readability
       ctx.fillStyle = "rgba(0,0,0,0.6)";
       ctx.fillText(room.name, c.x * w + 1, c.y * h + 1);
 
       ctx.fillStyle = "#fff";
       ctx.fillText(room.name, c.x * w, c.y * h);
     }
-  }, [rooms, selectedIndex, hoveredIndex]);
+  }, [displayRooms, selectedIndex, hoveredIndex, drag]);
 
   // Redraw on state changes and resize
   useEffect(() => {
     draw();
-
     const container = containerRef.current;
     if (!container) return;
-
     const observer = new ResizeObserver(() => draw());
     observer.observe(container);
     return () => observer.disconnect();
   }, [draw]);
 
-  // Also redraw when aspect ratio changes (image loaded)
   useEffect(() => {
     draw();
   }, [aspectRatio, draw]);
 
-  function svgPoints(room: Room): string {
-    return room.vertices.map((v) => `${v.x * 100},${v.y * 100}`).join(" ");
+  /** Convert a DOM pointer event's client coords to normalized 0-1 image coords. */
+  const pointerToNorm = useCallback((e: React.PointerEvent): Vertex => {
+    const container = containerRef.current;
+    if (!container) return { x: 0, y: 0 };
+    const rect = container.getBoundingClientRect();
+    return {
+      x: clamp01((e.clientX - rect.left) / rect.width),
+      y: clamp01((e.clientY - rect.top) / rect.height),
+    };
+  }, []);
+
+  // ── Pointer handlers ──────────────────────────────────────────────
+
+  function handleBodyPointerDown(e: React.PointerEvent<SVGElement>, roomIndex: number) {
+    // Only allow drag on the currently-selected room's body.
+    // Unselected rooms: click selects them (handled in pointerup).
+    const norm = pointerToNorm(e);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // jsdom / older browsers may not support setPointerCapture; safe to skip.
+    }
+    setDrag({
+      phase: "pending",
+      kind: "body",
+      roomIndex,
+      startX: norm.x,
+      startY: norm.y,
+      pointerId: e.pointerId,
+    });
   }
+
+  function handleVertexPointerDown(
+    e: React.PointerEvent<SVGCircleElement>,
+    roomIndex: number,
+    vertexIndex: number,
+  ) {
+    e.stopPropagation();
+    const norm = pointerToNorm(e);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // jsdom / older browsers may not support setPointerCapture; safe to skip.
+    }
+    setDrag({
+      phase: "pending",
+      kind: "vertex",
+      roomIndex,
+      vertexIndex,
+      startX: norm.x,
+      startY: norm.y,
+      pointerId: e.pointerId,
+    });
+  }
+
+  function handlePointerMove(e: React.PointerEvent) {
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    const norm = pointerToNorm(e);
+
+    if (drag.phase === "pending") {
+      const dx = norm.x - drag.startX;
+      const dy = norm.y - drag.startY;
+      if (Math.hypot(dx, dy) < CLICK_DRAG_THRESHOLD) return;
+
+      // Transition to active drag.
+      const room = rooms[drag.roomIndex];
+      if (!room) return;
+      if (drag.kind === "vertex" && drag.vertexIndex != null) {
+        const newVerts = room.vertices.map((v, i) =>
+          i === drag.vertexIndex ? { x: clamp01(norm.x), y: clamp01(norm.y) } : v,
+        );
+        setDrag({
+          phase: "active",
+          kind: "dragging-vertex",
+          roomIndex: drag.roomIndex,
+          vertexIndex: drag.vertexIndex,
+          startX: drag.startX,
+          startY: drag.startY,
+          overrideVertices: newVerts,
+          pointerId: drag.pointerId,
+        });
+      } else {
+        const newVerts = room.vertices.map((v) => ({
+          x: clamp01(v.x + dx),
+          y: clamp01(v.y + dy),
+        }));
+        setDrag({
+          phase: "active",
+          kind: "translating",
+          roomIndex: drag.roomIndex,
+          startX: drag.startX,
+          startY: drag.startY,
+          overrideVertices: newVerts,
+          pointerId: drag.pointerId,
+        });
+      }
+      return;
+    }
+
+    // phase === "active"
+    const room = rooms[drag.roomIndex];
+    if (!room) return;
+
+    if (drag.kind === "dragging-vertex" && drag.vertexIndex != null) {
+      const vIdx = drag.vertexIndex;
+      const newVerts = room.vertices.map((v, i) =>
+        i === vIdx ? { x: clamp01(norm.x), y: clamp01(norm.y) } : v,
+      );
+      setDrag({ ...drag, overrideVertices: newVerts });
+    } else if (drag.kind === "translating") {
+      const dx = norm.x - drag.startX;
+      const dy = norm.y - drag.startY;
+      const newVerts = room.vertices.map((v) => ({
+        x: clamp01(v.x + dx),
+        y: clamp01(v.y + dy),
+      }));
+      setDrag({ ...drag, overrideVertices: newVerts });
+    }
+  }
+
+  function handlePointerUp(e: React.PointerEvent) {
+    if (!drag || e.pointerId !== drag.pointerId) return;
+
+    if (drag.phase === "pending") {
+      // No movement past the threshold — treat as a click.
+      if (drag.kind === "body") {
+        onSelectRoom(selectedIndex === drag.roomIndex ? null : drag.roomIndex);
+      }
+      // Vertex clicks without drag are no-ops for now (will become "select vertex" in a later commit).
+      setDrag(null);
+      return;
+    }
+
+    // Active drag — commit the override to the parent.
+    if (onUpdateRoom) {
+      const verts = drag.overrideVertices;
+      const bbox = computeBbox(verts);
+      onUpdateRoom(drag.roomIndex, {
+        vertices: verts,
+        bbox,
+        centroid: computeCentroid(verts),
+        ...scaledDimensions(rooms[drag.roomIndex], bbox),
+      });
+    }
+    setDrag(null);
+  }
+
+  function handlePointerCancel(e: React.PointerEvent) {
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    setDrag(null);
+  }
+
+  // ── Render ───────────────────────────────────────────────────────
+
+  const selectedRoom = selectedIndex != null ? displayRooms[selectedIndex] : null;
+  const selectedRoomVerts = selectedRoom?.vertices ?? [];
 
   return (
     <div
       ref={containerRef}
-      className="relative rounded-xl border border-border bg-bg-input overflow-hidden"
-      style={{ aspectRatio }}
+      className="relative rounded-xl border border-border bg-bg-input overflow-hidden select-none"
+      style={{ aspectRatio, touchAction: "none" }}
     >
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
       <svg
@@ -187,18 +416,25 @@ export function FloorplanCanvas({
         viewBox="0 0 100 100"
         preserveAspectRatio="none"
         aria-label="Floorplan room overlay"
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
       >
-        {rooms.map((room, i) =>
-          room.vertices.length >= 3 ? (
+        {displayRooms.map((room, i) => {
+          const isSelected = i === selectedIndex;
+          const isDragging = drag?.phase === "active" && drag.roomIndex === i;
+          const cursor = isSelected ? (isDragging ? "grabbing" : "grab") : "pointer";
+
+          return room.vertices.length >= 3 ? (
             <polygon
               key={room.polygon_id || i}
-              points={svgPoints(room)}
+              points={room.vertices.map((v) => `${v.x * 100},${v.y * 100}`).join(" ")}
               fill="transparent"
               stroke="transparent"
-              className="cursor-pointer"
-              onClick={() => onSelectRoom(selectedIndex === i ? null : i)}
-              onMouseEnter={() => onHoverRoom?.(i)}
-              onMouseLeave={() => onHoverRoom?.(null)}
+              style={{ cursor }}
+              onPointerDown={(e) => handleBodyPointerDown(e, i)}
+              onPointerEnter={() => onHoverRoom?.(i)}
+              onPointerLeave={() => onHoverRoom?.(null)}
             />
           ) : (
             <rect
@@ -209,14 +445,51 @@ export function FloorplanCanvas({
               height={room.bbox.height * 100}
               fill="transparent"
               stroke="transparent"
-              className="cursor-pointer"
-              onClick={() => onSelectRoom(selectedIndex === i ? null : i)}
-              onMouseEnter={() => onHoverRoom?.(i)}
-              onMouseLeave={() => onHoverRoom?.(null)}
+              style={{ cursor }}
+              onPointerDown={(e) => handleBodyPointerDown(e, i)}
+              onPointerEnter={() => onHoverRoom?.(i)}
+              onPointerLeave={() => onHoverRoom?.(null)}
             />
-          ),
-        )}
+          );
+        })}
+
+        {/* Vertex handles on selected polygon only */}
+        {selectedRoom &&
+          selectedRoomVerts.map((v, vIdx) => {
+            const cx = v.x * 100;
+            const cy = v.y * 100;
+            return (
+              <g key={`handle-${vIdx}`}>
+                {/* Invisible hit area — bigger on touch devices */}
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={2.5}
+                  className="vertex-handle-hit"
+                  fill="transparent"
+                  onPointerDown={(e) => handleVertexPointerDown(e, selectedIndex!, vIdx)}
+                  style={{ cursor: "grab" }}
+                />
+                {/* Visible dot */}
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={0.9}
+                  fill="#fff"
+                  stroke="rgba(0,0,0,0.8)"
+                  strokeWidth={0.25}
+                  vectorEffect="non-scaling-stroke"
+                  style={{ pointerEvents: "none" }}
+                />
+              </g>
+            );
+          })}
       </svg>
+      <style>{`
+        @media (pointer: coarse) {
+          .vertex-handle-hit { r: 4; }
+        }
+      `}</style>
     </div>
   );
 }
