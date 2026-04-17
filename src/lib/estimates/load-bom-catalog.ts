@@ -5,31 +5,10 @@ import {
   classifiedRowToCatalogItem,
   type ClassifiedVendorRow,
 } from "@/lib/hvac/vendor-classifier";
+import { VENDOR_CATEGORY_FILTERS } from "@/lib/hvac/vendor-category-filters";
 
 const VENDOR_SELECT =
   "id, vendor_id, sku, mpn, name, brand, image_url, short_description, category_root, category_path, category_leaf, detail_url, price, price_text, last_priced_at, vendor:vendors(id, slug, name)";
-
-// Only pull vendor_products whose category_path the classifier recognizes —
-// shrinks 30k rows to ~5k, well under Supabase's per-request row limits.
-// Keep in sync with deriveEquipmentType in vendor-classifier.ts.
-const VENDOR_CATEGORY_FILTERS = [
-  "category_path.ilike.%residential-unitary/%",
-  "category_path.ilike.%specialty/heaters-furnaces%",
-  "category_path.ilike.%thermostats%",
-  "category_path.ilike.%ducting-sheet-metal%",
-  "category_leaf.ilike.registers",
-  "category_leaf.ilike.grilles",
-  "category_leaf.ilike.diffusers",
-  "category_path.ilike.%refrigeration/refrigerant/%",
-  "category_path.ilike.%installation-maintenance-supplies/line-sets%",
-  "category_path.ilike.%electrical-installation-maintenance-supplies/%",
-  "category_path.ilike.%installation-maintenance-supplies/condensate-%",
-  "category_path.ilike.%installation-maintenance-supplies/condensing-unit-pads-covers%",
-  "category_path.ilike.%installation-maintenance-supplies/tapes%",
-  "category_path.ilike.%installation-maintenance-supplies/mounting-supplies%",
-  "category_path.ilike.%installation-maintenance-supplies/adhesives%",
-  "category_path.ilike.%filter-air%",
-].join(",");
 
 const VENDOR_FETCH_LIMIT = 10000;
 
