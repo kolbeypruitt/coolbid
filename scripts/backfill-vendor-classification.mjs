@@ -15,21 +15,53 @@ if (!token) {
 }
 
 const url = `${baseUrl}/api/internal/classify-vendor-products`;
+const MAX_RETRIES = 6;
+const REQUEST_TIMEOUT_MS = 90_000; // Per-request wall clock; server has maxDuration=300s.
+
+async function postWithRetry() {
+  let lastErr;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+      }
+      return await res.json();
+    } catch (err) {
+      lastErr = err;
+      if (attempt === MAX_RETRIES) break;
+      // Exponential backoff: 2s, 4s, 8s, 16s, 32s, 60s cap.
+      const backoff = Math.min(2000 * 2 ** (attempt - 1), 60_000);
+      const msg = err?.cause?.code ?? err?.code ?? err?.message ?? err;
+      console.warn(
+        `  ↳ retry ${attempt}/${MAX_RETRIES} after ${backoff}ms — ${msg}`,
+      );
+      await new Promise((r) => setTimeout(r, backoff));
+    }
+  }
+  throw lastErr;
+}
+
 let totalClassified = 0;
 let iterations = 0;
 const startedAt = Date.now();
 
 while (true) {
   iterations += 1;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) {
-    console.error(`HTTP ${res.status}`, await res.text());
+  let body;
+  try {
+    body = await postWithRetry();
+  } catch (err) {
+    console.error(`\nFailed after ${MAX_RETRIES} retries at iter ${iterations}:`, err);
+    console.error(`Progress so far: classified=${totalClassified}`);
+    console.error(`Re-run the script to resume — it picks up where it left off.`);
     process.exit(1);
   }
-  const { classified, remaining } = await res.json();
+  const { classified, remaining } = body;
   totalClassified += classified;
   console.log(
     `iter=${iterations} classified=${classified} total=${totalClassified} remaining=${remaining}`,
