@@ -108,7 +108,7 @@ export type Database = {
           supplier_name: string;
           total_material_cost: number | null;
           total_price: number | null;
-          system_type: "heat_pump" | "gas_ac" | "electric" | "dual_fuel";
+          system_type: "heat_pump" | "gas_ac" | "electric" | "dual_fuel" | "ac_only";
           created_at: string;
           updated_at: string;
           job_address: string | null;
@@ -121,6 +121,9 @@ export type Database = {
           accepted_at: string | null;
           declined_at: string | null;
           selected_equipment: Record<string, string>;
+          estimate_type: "new_build" | "changeout";
+          existing_system: { system_type?: string; tonnage?: number; age_years?: number; notes?: string } | null;
+          tonnage: number | null;
         };
         Insert: {
           id?: string;
@@ -138,7 +141,7 @@ export type Database = {
           supplier_name?: string;
           total_material_cost?: number | null;
           total_price?: number | null;
-          system_type?: "heat_pump" | "gas_ac" | "electric" | "dual_fuel";
+          system_type?: "heat_pump" | "gas_ac" | "electric" | "dual_fuel" | "ac_only";
           job_address?: string | null;
           customer_email?: string | null;
           customer_phone?: string | null;
@@ -149,6 +152,9 @@ export type Database = {
           accepted_at?: string | null;
           declined_at?: string | null;
           selected_equipment?: Record<string, string>;
+          estimate_type?: "new_build" | "changeout";
+          existing_system?: { system_type?: string; tonnage?: number; age_years?: number; notes?: string } | null;
+          tonnage?: number | null;
         };
         Update: Partial<Database["public"]["Tables"]["estimates"]["Insert"]>;
         Relationships: [];

@@ -8,6 +8,7 @@ const SYSTEM_LABELS: Record<EstimateRow["system_type"], string> = {
   gas_ac: "gas furnace and AC",
   electric: "electric furnace and AC",
   dual_fuel: "dual-fuel system",
+  ac_only: "AC-only system",
 };
 
 /**
