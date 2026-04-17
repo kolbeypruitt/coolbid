@@ -91,9 +91,9 @@ export function Step4Equipment() {
                     ${tier.totalPrice.toLocaleString()}
                   </span>
                 </div>
-                <ul className="text-sm text-txt-secondary">
+                <ul className="flex flex-col gap-1 text-sm leading-snug text-txt-secondary">
                   {tier.picks.map((p) => (
-                    <li key={p.id}>
+                    <li key={p.id} className="whitespace-normal break-words">
                       {p.brand ? `${p.brand} · ` : ''}{p.name}
                     </li>
                   ))}
