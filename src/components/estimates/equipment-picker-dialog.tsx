@@ -244,7 +244,7 @@ export function EquipmentPickerDialog({
         <Wrench className="mr-1.5 h-4 w-4" />
         Change equipment
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] w-[min(95vw,56rem)] max-w-none overflow-y-auto sm:max-w-none">
+      <DialogContent className="max-h-[90vh] w-[95vw] max-w-none overflow-y-auto sm:max-w-none md:w-[75vw]">
         <DialogHeader>
           <DialogTitle>Change major equipment</DialogTitle>
           <DialogDescription>
