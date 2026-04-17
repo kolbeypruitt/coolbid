@@ -10,7 +10,7 @@ export function Step4Equipment() {
     systemType, tonnage, selectedEquipment, setSelectedEquipment,
     nextChangeoutStep, prevChangeoutStep,
   } = useEstimator();
-  type Diagnostics = { catalogSize: number; slotMatches: number; slotMatchesTonnage: number; priced: number };
+  type Diagnostics = { userCatalogSize: number; vendorRows: number; slotMatches: number; slotMatchesTonnage: number; priced: number; slotHistogram: Record<string, number> };
   type FetchState =
     | { status: 'loading' }
     | { status: 'ready'; tiers: EquipmentTier[]; slots: string[]; diagnostics: Diagnostics }
@@ -142,11 +142,12 @@ function humanizeSlot(slot: string): string {
   return SLOT_LABELS[slot] ?? slot.replace(/_/g, ' ');
 }
 
-function diagnosticHint(d: { catalogSize: number; slotMatches: number; slotMatchesTonnage: number; priced: number } | null): string | null {
+function diagnosticHint(d: { userCatalogSize: number; vendorRows: number; slotMatches: number; slotMatchesTonnage: number; priced: number; slotHistogram: Record<string, number> } | null): string | null {
   if (!d) return null;
-  if (d.catalogSize === 0) return 'Your equipment catalog is empty. Add a supplier catalog or classify vendor products first.';
-  if (d.slotMatches === 0) return `Catalog has ${d.catalogSize} items but none classified as the required equipment (condenser, coil, air handler, etc.). Run the classifier or import supplier quotes.`;
-  if (d.slotMatchesTonnage === 0) return `Catalog has ${d.slotMatches} item(s) for this system type but none at the selected tonnage. Try a different tonnage.`;
+  const total = d.userCatalogSize + d.vendorRows;
+  if (total === 0) return 'No catalog rows matched the required slots. Check that your suppliers are active and that equipment is classified.';
+  if (d.slotMatches === 0) return `Catalog returned ${total} items but none matched the required slots. Slots seen: ${JSON.stringify(d.slotHistogram)}`;
+  if (d.slotMatchesTonnage === 0) return `${d.slotMatches} item(s) match the slots but none at the selected tonnage. Try a different tonnage.`;
   if (d.priced === 0) return `${d.slotMatchesTonnage} item(s) match but have no price. Import pricing or edit the catalog items.`;
   return null;
 }
