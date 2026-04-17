@@ -10,21 +10,35 @@ export function Step4Equipment() {
     systemType, tonnage, selectedEquipment, setSelectedEquipment,
     nextChangeoutStep, prevChangeoutStep,
   } = useEstimator();
-  const [tiers, setTiers] = useState<EquipmentTier[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [slots, setSlots] = useState<string[]>([]);
+  type FetchState =
+    | { status: 'loading' }
+    | { status: 'ready'; tiers: EquipmentTier[]; slots: string[] }
+    | { status: 'error'; message: string };
+  const [state, setState] = useState<FetchState>({ status: 'loading' });
 
   useEffect(() => {
     if (!tonnage) return;
-    setLoading(true);
+    let cancelled = false;
     fetchChangeoutCandidates(systemType, tonnage).then((res) => {
-      if ('error' in res) { setLoadError(res.error); setTiers([]); setLoading(false); return; }
-      setSlots(res.slots as string[]);
-      setTiers(computeTiers(res.slots as string[], res.bySlot as CandidatesBySlot));
-      setLoading(false);
+      if (cancelled) return;
+      if ('error' in res) {
+        setState({ status: 'error', message: res.error });
+        return;
+      }
+      const slots = res.slots as string[];
+      setState({
+        status: 'ready',
+        slots,
+        tiers: computeTiers(slots, res.bySlot as CandidatesBySlot),
+      });
     });
+    return () => { cancelled = true; };
   }, [systemType, tonnage]);
+
+  const loading = state.status === 'loading';
+  const loadError = state.status === 'error' ? state.message : null;
+  const tiers = state.status === 'ready' ? state.tiers : [];
+  const slots = state.status === 'ready' ? state.slots : [];
 
   const activeTierId = slots.length > 0 && slots.every((s) => selectedEquipment[s as BomSlot])
     ? tiers.findIndex((t) => t.picks.every((p) => selectedEquipment[p.bom_slot as BomSlot] === p.id))
