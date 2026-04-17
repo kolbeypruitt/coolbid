@@ -1,11 +1,15 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { generateBOM } from "../bom-generator";
 import {
   classifyVendorProducts,
   classifiedRowToCatalogItem,
   type ClassifiedVendorRow,
 } from "../vendor-classifier";
-import type { VendorProductRow } from "@/types/catalog";
+import {
+  enrichBomWithAccessories,
+  type AccessoryPickerClient,
+} from "../accessory-picker";
+import type { CatalogItem, VendorProductRow } from "@/types/catalog";
 import type { Room } from "@/types/hvac";
 
 function vendor(over: Partial<VendorProductRow>): VendorProductRow {
@@ -255,5 +259,65 @@ describe("classifiedRowToCatalogItem", () => {
       bom_specs: null,
     };
     expect(classifiedRowToCatalogItem(row)).toBeNull();
+  });
+});
+
+describe("generateBOM + enrichBomWithAccessories end-to-end", () => {
+  it("replaces a missing line set with a compatible LLM pick", async () => {
+    const condenser: CatalogItem = {
+      id: "vendor:ac1",
+      user_id: "",
+      supplier_id: null,
+      vendor_product_id: "ac1",
+      mpn: "GSX160361",
+      description: "3 Ton AC Condenser",
+      equipment_type: "ac_condenser",
+      system_type: "universal",
+      brand: "Goodman",
+      tonnage: 3,
+      seer_rating: null,
+      btu_capacity: null,
+      stages: null,
+      refrigerant_type: null,
+      unit_price: 2000,
+      unit_of_measure: "ea",
+      source: "imported",
+      usage_count: 0,
+      last_quoted_date: null,
+      created_at: "",
+      updated_at: "",
+      bom_specs: { tonnage: 3, mca: 21, liquid_size: "3/8", suction_size: "7/8", refrigerant: "r410a" },
+    };
+    // Names/MPNs chosen so findCatalogItemByKeyword doesn't auto-match on
+    // "25ft"/"50ft" — forces the item into the "missing" state that the
+    // enrichment step is meant to handle.
+    const lineSet: CatalogItem = {
+      ...condenser,
+      id: "vendor:line1",
+      mpn: "LSET-A",
+      description: "Goodman Refrigerant Line Set 3/8 liquid 7/8 suction",
+      equipment_type: "refrigerant",
+      tonnage: null,
+      bom_specs: { liquid_size: "3/8", suction_size: "7/8", length_ft: 25 },
+    };
+    const catalog = [condenser, lineSet];
+
+    const bom = generateBOM([room(1500)], "mixed", "gas_ac", catalog);
+
+    const lineSlotBefore = bom.items.find((i) => i.bom_slot === "line_set");
+    expect(lineSlotBefore).toBeDefined();
+    expect(lineSlotBefore?.source).toBe("missing");
+
+    const client: AccessoryPickerClient = {
+      pick: vi.fn().mockResolvedValue({
+        line_set: { pick_id: "vendor:line1", reason: "3/8 x 7/8 matches condenser connections" },
+      }),
+    };
+    const enriched = await enrichBomWithAccessories(bom, catalog, null, client);
+
+    const lineSlotAfter = enriched.items.find((i) => i.bom_slot === "line_set");
+    expect(lineSlotAfter?.partId).toBe("vendor:line1");
+    expect(lineSlotAfter?.source).toBe("imported");
+    expect(lineSlotAfter?.notes).toContain("3/8 x 7/8");
   });
 });
