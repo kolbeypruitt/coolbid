@@ -1,12 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { CatalogItem, SystemType, VendorProductRow } from "@/types/catalog";
+import type { CatalogItem, SystemType } from "@/types/catalog";
 import type { ContractorPreferences } from "@/types/contractor-preferences";
+import { SYSTEM_TYPE_EQUIPMENT } from "@/types/catalog";
 import {
-  SYSTEM_TYPE_EQUIPMENT,
-  type EquipmentType,
-} from "@/types/catalog";
-import {
-  classifyVendorProduct,
   classifiedRowToCatalogItem,
   type ClassifiedVendorRow,
 } from "@/lib/hvac/vendor-classifier";
@@ -16,32 +12,27 @@ import {
   type BomSlot,
 } from "@/lib/hvac/bom-slot-taxonomy";
 
-const MAJOR_EQUIPMENT_TYPES: ReadonlySet<EquipmentType> = new Set([
-  "ac_condenser",
-  "heat_pump_condenser",
-  "gas_furnace",
-  "air_handler",
-  "evap_coil",
-  "heat_strips",
-  "thermostat",
-]);
-
 const VENDOR_SELECT =
   "id, vendor_id, sku, mpn, name, brand, image_url, short_description, category_root, category_path, category_leaf, detail_url, price, price_text, last_priced_at, vendor:vendors(id, slug, name), bom_slot, bom_specs";
 
-const PAGE_SIZE = 1000;
 const PER_SLOT_LIMIT = 25;
+const PER_SLOT_FETCH = 200;
 
 /**
  * Server-only: resolves candidate lists for the major-equipment slots
  * (condenser, furnace, coil, air handler, heat strips, thermostat) without
  * shipping the whole vendor catalog to the client.
  *
- * Strategy: query vendor_products scoped to the user's linked vendors and
- * to just the major-equipment taxonomy, classify in-memory, run the same
- * findEquipmentCandidates ranking the dialog used to apply client-side,
- * and return a slot→top-N map. Keeps the Change Equipment dialog's prop
- * payload small (≈ 7 slots × 25 rows) and avoids the 20 k-row download.
+ * Strategy: one targeted query per slot (parallel), each filtered by
+ * bom_slot = slot and LIMIT 200. In-memory rank with findEquipmentCandidates
+ * then cut to top N. This intentionally only surfaces LLM-classified vendor
+ * rows — they have the bom_specs the accessory picker needs (mca, filter
+ * size, refrigerant, line sizes). Unclassified vendor rows without specs
+ * defeat the whole "pick equipment to unlock accessory matching" point of
+ * this dialog, so we don't offer them here.
+ *
+ * User equipment_catalog is always included so previously quoted items stay
+ * pickable even if the vendor hasn't been classified yet.
  */
 export async function loadEquipmentCandidates(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -76,7 +67,6 @@ export async function loadEquipmentCandidates(
       .eq("is_active", true)
       .not("vendor_id", "is", null),
   ]);
-
   if (userCatErr) throw new Error(`equipment_catalog: ${userCatErr.message}`);
   if (supplierErr) throw new Error(`suppliers: ${supplierErr.message}`);
 
@@ -92,49 +82,34 @@ export async function loadEquipmentCandidates(
     ),
   );
 
-  const vendorItems: CatalogItem[] = [];
-  if (vendorIds.length > 0) {
-    // Fetch vendor_products filtered to major-equipment taxonomy. Path-based
-    // rules target Johnstone; leaf-based rules target Locke's generic
-    // "HVAC Supplies & Accessories" bucket where the LLM classifier has
-    // tagged major equipment via bom_slot.
-    const filters = [
-      "category_path.ilike.%residential-unitary/%",
-      "category_path.ilike.%specialty/heaters-furnaces%",
-      "category_path.ilike.%thermostats%",
-      "category_leaf.ilike.%hvac supplies%",
-      "category_leaf.ilike.%thermostat%",
-    ].join(",");
-
-    for (let offset = 0; offset < 20000; offset += PAGE_SIZE) {
-      const end = offset + PAGE_SIZE - 1;
+  // Parallel per-slot fetches. Each filters by bom_slot, so we only pull
+  // the rows the classifier already recognized — a few hundred max per slot.
+  const perSlotVendorItems = await Promise.all(
+    majorSlots.map(async (slot) => {
+      if (vendorIds.length === 0) return [] as CatalogItem[];
       const { data, error } = await supabase
         .from("vendor_products")
         .select(VENDOR_SELECT)
         .in("vendor_id", vendorIds)
-        .or(filters)
-        .order("id", { ascending: true })
-        .range(offset, end);
-      if (error) throw new Error(`vendor_products: ${error.message}`);
-      const page = (data ?? []) as unknown as ClassifiedVendorRow[];
-      for (const row of page) {
-        const item = row.bom_slot
-          ? classifiedRowToCatalogItem(row)
-          : classifyVendorProduct(row as VendorProductRow);
-        if (item && MAJOR_EQUIPMENT_TYPES.has(item.equipment_type)) {
-          vendorItems.push(item);
-        }
+        .eq("bom_slot", slot)
+        .limit(PER_SLOT_FETCH);
+      if (error) throw new Error(`vendor_products(${slot}): ${error.message}`);
+      const rows = (data ?? []) as unknown as ClassifiedVendorRow[];
+      const items: CatalogItem[] = [];
+      for (const row of rows) {
+        const item = classifiedRowToCatalogItem(row);
+        if (item) items.push(item);
       }
-      if (page.length < PAGE_SIZE) break;
-    }
-  }
-
-  const catalog: CatalogItem[] = [...activeUserCat, ...vendorItems];
+      return items;
+    }),
+  );
 
   const out: Partial<Record<BomSlot, CatalogItem[]>> = {};
-  for (const slot of majorSlots) {
+  for (let i = 0; i < majorSlots.length; i++) {
+    const slot = majorSlots[i];
+    const slotCatalog = [...activeUserCat, ...perSlotVendorItems[i]];
     out[slot] = findEquipmentCandidates({
-      catalog,
+      catalog: slotCatalog,
       slot,
       targetTonnage: slot === "thermostat" ? null : tonnage,
       systemType,
@@ -144,4 +119,3 @@ export async function loadEquipmentCandidates(
   }
   return out;
 }
-
