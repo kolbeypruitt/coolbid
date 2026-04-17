@@ -32,7 +32,7 @@ export function Step3Tonnage() {
             key={t}
             onClick={() => setTonnage(t)}
             className={`min-h-[72px] rounded-xl border text-lg font-semibold transition ${
-              tonnage === t ? 'border-accent bg-accent/10 text-accent' : 'border-border bg-bg-card hover:border-accent/50'
+              tonnage === t ? 'border-accent bg-accent/20 text-txt-primary' : 'border-border bg-bg-card text-txt-primary hover:border-accent/50'
             }`}
           >
             {t}

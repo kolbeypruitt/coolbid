@@ -122,8 +122,8 @@ export function Step1Customer() {
                     onClick={() => setExistingSystem({ ...(existingSystem ?? {}), systemType: t.id })}
                     className={`min-h-[40px] rounded-full border px-3 text-sm ${
                       existingSystem?.systemType === t.id
-                        ? 'border-accent bg-accent/10 text-accent'
-                        : 'border-border bg-bg-card'
+                        ? 'border-accent bg-accent/20 text-txt-primary'
+                        : 'border-border bg-bg-card text-txt-primary'
                     }`}
                   >
                     {t.label}
@@ -141,8 +141,8 @@ export function Step1Customer() {
                     onClick={() => setExistingSystem({ ...(existingSystem ?? {}), tonnage: t })}
                     className={`min-h-[40px] min-w-[56px] rounded-full border px-3 text-sm ${
                       existingSystem?.tonnage === t
-                        ? 'border-accent bg-accent/10 text-accent'
-                        : 'border-border bg-bg-card'
+                        ? 'border-accent bg-accent/20 text-txt-primary'
+                        : 'border-border bg-bg-card text-txt-primary'
                     }`}
                   >
                     {t}
