@@ -52,6 +52,34 @@ export async function fetchChangeoutCandidates(
   let slotMatchesTonnage = 0;
   let priced = 0;
 
+  // Dev diagnostics: log the slot distribution of the full catalog and
+  // the shape of items that should match this system type so we can see
+  // why candidates are being filtered out.
+  const slotHistogram: Record<string, number> = {};
+  const relevantShapes: Array<{ slot: string; equipment_type?: string; bom_slot?: string; tonnage: number | null; unit_price: number | null; description: string }> = [];
+  for (const item of catalog) {
+    const slot = item.bom_slot ?? item.equipment_type;
+    slotHistogram[slot] = (slotHistogram[slot] ?? 0) + 1;
+    if (slotSet.has(slot)) {
+      relevantShapes.push({
+        slot,
+        equipment_type: item.equipment_type,
+        bom_slot: item.bom_slot,
+        tonnage: item.tonnage,
+        unit_price: item.unit_price,
+        description: item.description,
+      });
+    }
+  }
+  console.log('[changeout-candidates]', {
+    systemType,
+    tonnage,
+    requestedSlots: slots,
+    catalogSize: catalog.length,
+    slotHistogram,
+    relevantShapes: relevantShapes.slice(0, 15),
+  });
+
   for (const item of catalog) {
     const slot = item.bom_slot ?? item.equipment_type;
     if (!slotSet.has(slot)) continue;
