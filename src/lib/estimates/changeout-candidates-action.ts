@@ -41,12 +41,17 @@ export async function fetchChangeoutCandidates(
   | { slots: EquipmentType[]; bySlot: CandidatesBySlot; diagnostics: CandidatesDiagnostics }
   | { error: string }
 > {
+  console.log('[changeout-candidates:enter]', { systemType, tonnage });
   const slots = SYSTEM_TYPE_EQUIPMENT[systemType];
   if (!slots) return { error: `Unknown system type: ${systemType}` };
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: 'Not authenticated' };
+  if (!user) {
+    console.log('[changeout-candidates:not-authed]');
+    return { error: 'Not authenticated' };
+  }
+  console.log('[changeout-candidates:user]', user.id);
 
   const slotList = slots as unknown as string[];
 
