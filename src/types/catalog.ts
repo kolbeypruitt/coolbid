@@ -1,6 +1,6 @@
 import type { BomSlot } from "@/lib/hvac/bom-slot-taxonomy";
 
-export type SystemType = "heat_pump" | "gas_ac" | "electric" | "dual_fuel";
+export type SystemType = "heat_pump" | "gas_ac" | "electric" | "dual_fuel" | "ac_only";
 
 export type EquipmentType =
   | "ac_condenser"
@@ -197,6 +197,7 @@ export const SYSTEM_TYPE_EQUIPMENT: Record<SystemType, EquipmentType[]> = {
   gas_ac: ["ac_condenser", "gas_furnace", "evap_coil"],
   electric: ["ac_condenser", "air_handler", "heat_strips"],
   dual_fuel: ["heat_pump_condenser", "gas_furnace"],
+  ac_only: ["ac_condenser", "evap_coil", "air_handler"],
 };
 
 export const SYSTEM_TYPE_LABELS: Record<SystemType, string> = {
@@ -204,6 +205,7 @@ export const SYSTEM_TYPE_LABELS: Record<SystemType, string> = {
   gas_ac: "Gas / AC Split",
   electric: "Electric",
   dual_fuel: "Dual Fuel (Heat Pump + Gas)",
+  ac_only: "AC Only",
 };
 
 export const EQUIPMENT_TYPE_LABELS: Record<EquipmentType, string> = {
