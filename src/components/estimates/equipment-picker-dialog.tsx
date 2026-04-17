@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Wrench, Loader2, AlertTriangle, Sparkles } from "lucide-react";
+import {
+  Wrench,
+  Loader2,
+  AlertTriangle,
+  Sparkles,
+  Check,
+  ChevronDown,
+  SkipForward,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,6 +49,52 @@ function specsFirst(items: CatalogItem[]): CatalogItem[] {
   });
 }
 
+type CollapsedProps = {
+  label: string;
+  pickedItem: CatalogItem | undefined;
+  isSkipped: boolean;
+  onExpand: () => void;
+  onClear: () => void;
+};
+
+function CollapsedSlotRow({
+  label,
+  pickedItem,
+  isSkipped,
+  onExpand,
+  onClear,
+}: CollapsedProps) {
+  const summary = pickedItem
+    ? pickedItem.description || pickedItem.mpn || "Picked"
+    : isSkipped
+      ? "Skipped"
+      : "Not picked";
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-border bg-bg-card/40 px-3 py-2.5">
+      {pickedItem ? (
+        <Check className="h-4 w-4 shrink-0 text-success" />
+      ) : (
+        <SkipForward className="h-4 w-4 shrink-0 text-txt-tertiary" />
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-semibold uppercase tracking-wider text-txt-tertiary">
+          {label}
+        </div>
+        <div className="truncate text-sm text-txt-primary">{summary}</div>
+      </div>
+      {(pickedItem || isSkipped) && (
+        <Button variant="ghost" size="sm" onClick={onClear} type="button">
+          Clear
+        </Button>
+      )}
+      <Button variant="outline" size="sm" onClick={onExpand} type="button">
+        <ChevronDown className="mr-1 h-4 w-4" />
+        Change
+      </Button>
+    </div>
+  );
+}
+
 export function EquipmentPickerDialog({
   estimateId,
   systemType,
@@ -50,6 +104,8 @@ export function EquipmentPickerDialog({
   const [open, setOpen] = useState(false);
   const [selected, setSelected] =
     useState<Partial<Record<BomSlot, string>>>(initialSelected);
+  const [skipped, setSkipped] = useState<Set<BomSlot>>(new Set());
+  const [activeSlot, setActiveSlot] = useState<BomSlot | null>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [candidatesBySlot, setCandidatesBySlot] = useState<
@@ -63,9 +119,6 @@ export function EquipmentPickerDialog({
     [systemType],
   );
 
-  // Fetch candidates the first time the dialog opens. Sequential paging
-  // through vendor_products takes several seconds, so we don't prefetch
-  // on the estimate page — only when the user actually asks for it.
   useEffect(() => {
     if (!open || candidatesBySlot !== null) return;
     setLoading(true);
@@ -82,6 +135,16 @@ export function EquipmentPickerDialog({
       .finally(() => setLoading(false));
   }, [open, estimateId, candidatesBySlot]);
 
+  // When candidates finish loading (first open), focus the first unresolved
+  // slot so the user lands on an actionable step.
+  useEffect(() => {
+    if (!candidatesBySlot || activeSlot !== null) return;
+    const first = requiredSlots.find(
+      (s) => !(s in selected) && !skipped.has(s),
+    );
+    setActiveSlot(first ?? null);
+  }, [candidatesBySlot, requiredSlots, selected, skipped, activeSlot]);
+
   const rankedBySlot = useMemo<Partial<Record<BomSlot, CatalogItem[]>>>(() => {
     if (!candidatesBySlot) return {};
     const map: Partial<Record<BomSlot, CatalogItem[]>> = {};
@@ -90,6 +153,62 @@ export function EquipmentPickerDialog({
     }
     return map;
   }, [candidatesBySlot, requiredSlots]);
+
+  function nextSlotAfter(slot: BomSlot): BomSlot | null {
+    const idx = requiredSlots.indexOf(slot);
+    for (let i = idx + 1; i < requiredSlots.length; i++) {
+      const s = requiredSlots[i];
+      if (!(s in selected) && !skipped.has(s)) return s;
+    }
+    // Nothing ahead; fall back to any unresolved slot earlier in the list
+    // so the user can still revisit before saving.
+    const earlier = requiredSlots.find(
+      (s) => !(s in selected) && !skipped.has(s),
+    );
+    return earlier ?? null;
+  }
+
+  function handleSelect(slot: BomSlot, id: string) {
+    setSelected((prev) => ({ ...prev, [slot]: id }));
+    setSkipped((prev) => {
+      if (!prev.has(slot)) return prev;
+      const next = new Set(prev);
+      next.delete(slot);
+      return next;
+    });
+    setActiveSlot(nextSlotAfter(slot));
+  }
+
+  function handleSkip(slot: BomSlot) {
+    setSkipped((prev) => {
+      const next = new Set(prev);
+      next.add(slot);
+      return next;
+    });
+    setSelected((prev) => {
+      if (!(slot in prev)) return prev;
+      const next = { ...prev };
+      delete next[slot];
+      return next;
+    });
+    setActiveSlot(nextSlotAfter(slot));
+  }
+
+  function handleClear(slot: BomSlot) {
+    setSelected((prev) => {
+      if (!(slot in prev)) return prev;
+      const next = { ...prev };
+      delete next[slot];
+      return next;
+    });
+    setSkipped((prev) => {
+      if (!prev.has(slot)) return prev;
+      const next = new Set(prev);
+      next.delete(slot);
+      return next;
+    });
+    setActiveSlot(slot);
+  }
 
   function handleSave() {
     setError(null);
@@ -106,10 +225,18 @@ export function EquipmentPickerDialog({
 
   function handleOpenChange(next: boolean) {
     if (isPending) return;
-    if (next) setSelected(initialSelected);
+    if (next) {
+      setSelected(initialSelected);
+      setSkipped(new Set());
+      setActiveSlot(null);
+    }
     setError(null);
     setOpen(next);
   }
+
+  const allResolved = requiredSlots.every(
+    (s) => s in selected || skipped.has(s),
+  );
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -121,10 +248,9 @@ export function EquipmentPickerDialog({
         <DialogHeader>
           <DialogTitle>Change major equipment</DialogTitle>
           <DialogDescription>
-            Pick a different condenser, furnace, coil, or thermostat. The BOM
-            regenerates with your new picks when you save. Items ranked first
-            have classifier specs (MCA, refrigerant, filter size) that help
-            accessory matching land accurate picks.
+            Pick one piece at a time. Skip anything this job doesn&apos;t need
+            (no gas furnace, no heat strips, etc.). Saving regenerates the BOM
+            with your picks.
           </DialogDescription>
         </DialogHeader>
 
@@ -136,36 +262,58 @@ export function EquipmentPickerDialog({
         )}
 
         {!loading && candidatesBySlot && (
-          <div className="space-y-4 py-2">
+          <div className="space-y-3 py-2">
             {requiredSlots.map((slot) => {
               const label = EQUIPMENT_TYPE_LABELS[slot as EquipmentType] ?? slot;
-              const isThermostat = slot === "thermostat";
+              const isActive = activeSlot === slot;
+              const isSkipped = skipped.has(slot);
               const candidates = rankedBySlot[slot] ?? [];
+              const pickedItem = selected[slot]
+                ? candidates.find((c) => c.id === selected[slot])
+                : undefined;
+
+              if (!isActive) {
+                return (
+                  <CollapsedSlotRow
+                    key={slot}
+                    label={label}
+                    pickedItem={pickedItem}
+                    isSkipped={isSkipped}
+                    onExpand={() => setActiveSlot(slot)}
+                    onClear={() => handleClear(slot)}
+                  />
+                );
+              }
+
               return (
-                <EquipmentSlotPicker
-                  key={slot}
-                  slot={slot}
-                  label={label}
-                  description={
-                    isThermostat
-                      ? undefined
-                      : tonnage
-                        ? `Tonnage: ${tonnage}T target (±0.5T)`
-                        : undefined
-                  }
-                  candidates={candidates}
-                  selectedId={selected[slot]}
-                  onSelect={(id) =>
-                    setSelected((prev) => ({ ...prev, [slot]: id }))
-                  }
-                  onClear={() =>
-                    setSelected((prev) => {
-                      const next = { ...prev };
-                      delete next[slot];
-                      return next;
-                    })
-                  }
-                />
+                <div key={slot} className="space-y-2">
+                  <EquipmentSlotPicker
+                    slot={slot}
+                    label={label}
+                    description={
+                      slot === "thermostat"
+                        ? undefined
+                        : tonnage
+                          ? `Tonnage: ${tonnage}T target (±0.5T)`
+                          : undefined
+                    }
+                    candidates={candidates}
+                    selectedId={selected[slot]}
+                    onSelect={(id) => handleSelect(slot, id)}
+                    onClear={() => handleClear(slot)}
+                  />
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      type="button"
+                      onClick={() => handleSkip(slot)}
+                    >
+                      <SkipForward className="mr-1 h-4 w-4" />
+                      Skip — not needed
+                    </Button>
+                  </div>
+                </div>
               );
             })}
           </div>
@@ -190,8 +338,9 @@ export function EquipmentPickerDialog({
           <Button
             type="button"
             onClick={handleSave}
-            disabled={isPending || loading || !candidatesBySlot}
+            disabled={isPending || loading || !candidatesBySlot || !allResolved}
             className="bg-gradient-brand hover-lift"
+            title={!allResolved ? "Pick or skip every slot to continue" : undefined}
           >
             {isPending ? (
               <>
