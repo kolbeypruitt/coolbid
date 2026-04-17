@@ -11,6 +11,9 @@ import type { SystemType } from "@/types/catalog";
 import type { Database } from "@/types/database";
 import { renderContractorPreferencesPrompt } from "@/lib/contractor-preferences/render-prompt";
 import type { ContractorPreferences } from "@/types/contractor-preferences";
+import { anthropic } from "@/lib/anthropic";
+import { enrichBomWithAccessories } from "@/lib/hvac/accessory-picker";
+import { createAnthropicAccessoryPicker } from "@/lib/hvac/accessory-picker-llm";
 
 type BomRow = Database["public"]["Tables"]["estimate_bom_items"]["Row"];
 
@@ -84,11 +87,14 @@ export async function regenerateBom(estimateId: string): Promise<{ error?: strin
     preferences,
   );
 
+  const picker = createAnthropicAccessoryPicker(anthropic);
+  const enriched = await enrichBomWithAccessories(bom, activeCatalog, preferences, picker);
+
   // Replace BOM items (only wipe if we have new items to insert)
-  if (bom.items.length === 0) return { error: "BOM generation produced no items — catalog may be empty" };
+  if (enriched.items.length === 0) return { error: "BOM generation produced no items — catalog may be empty" };
 
   await supabase.from("estimate_bom_items").delete().eq("estimate_id", estimateId);
-  const bomRows = toBomInsertRows(bom.items, estimateId);
+  const bomRows = toBomInsertRows(enriched.items, estimateId);
   const { error: insertErr } = await supabase.from("estimate_bom_items").insert(bomRows);
   if (insertErr) return { error: insertErr.message };
 
