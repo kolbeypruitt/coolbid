@@ -223,4 +223,51 @@ describe("classifyVendorProduct", () => {
     );
     expect(r?.tonnage).toBe(3);
   });
+
+  // Locke (and similar vendors) file HVAC items under a category_leaf with
+  // null category_path. The path-based rules above miss them; the leaf
+  // fallback must catch the common HVAC leaf names so the accessory picker
+  // has candidates to work with.
+  describe("leaf-only fallback (null category_path)", () => {
+    const cases: ReadonlyArray<[string, string, string]> = [
+      ["register", "Bar Faced Registers", "Hart & Cooley 12x10 Supply Register"],
+      ["register", "Floor Registers", "TRUaire 4x12 Floor Register"],
+      ["register", "Sidewall & Ceiling Registers", "Sidewall Register"],
+      ["register", "Supply Registers", "Supply Register 6x12"],
+      ["register", "Deflection Registers", "Deflection Register"],
+      ["grille", "Filter Grilles", "24x30 Filter Grille"],
+      ["grille", "Stamped Face Grilles", "Stamped Face Grille"],
+      ["grille", "Eggcrate Grilles", "Eggcrate Return Grille"],
+      ["ductwork", "Duct Plenums", "Supply Plenum"],
+      ["ductwork", "Duct Dampers", "Volume Damper"],
+      ["ductwork", "Insulated Register Boxes", "Insulated Slant Top Register Box"],
+      ["installation", "Condensate Pump", "DiversiTech Condensate Pump"],
+      ["installation", "Foil Tapes", "Nashua 322 Foil Tape"],
+      ["installation", "HVAC Tapes", "HVAC Aluminum Tape"],
+      ["installation", "Duct Sealants & Mastic", "Hardcast Duct Mastic 1gal"],
+      ["installation", "Hanger Strapping", "Galvanized Hanger Strap 100ft"],
+      ["installation", "Tubular P-Traps", "3/4 PVC P-Trap"],
+      ["electrical", "Circuit Breakers", "Eaton CHF250 50A 2P"],
+      ["electrical", "Safety & Disconnect Switches", "60A Non-Fused Disconnect"],
+    ];
+    for (const [expected, leaf, name] of cases) {
+      it(`classifies "${leaf}" → ${expected}`, () => {
+        const r = classifyVendorProduct(
+          row({ name, category_path: null, category_leaf: leaf }),
+        );
+        expect(r?.equipment_type).toBe(expected);
+      });
+    }
+
+    it("skips 'Register Boxes'-style ambiguous leaves if they would mis-slot", () => {
+      const r = classifyVendorProduct(
+        row({
+          name: "Register Box",
+          category_path: null,
+          category_leaf: "Register Boxes",
+        }),
+      );
+      expect(r?.equipment_type).toBe("ductwork");
+    });
+  });
 });

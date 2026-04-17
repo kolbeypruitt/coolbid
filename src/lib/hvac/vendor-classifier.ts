@@ -121,6 +121,48 @@ function deriveEquipmentType(p: VendorProductRow): EquipmentType | null {
   if (path.includes("filter-air") || (leaf === "filters" && /\d+x\d+/.test(name)))
     return "installation";
 
+  // Name-primary fallback — when a vendor's category_path isn't something
+  // we've wired up, fall back to the product name with category_leaf as
+  // a secondary disambiguator. Names use standardized HVAC terminology
+  // across vendors ("condensate pump", "circuit breaker", etc.), while
+  // category_leaf labels diverge (Locke's "Tubular P-Traps" vs. Grainger's
+  // "Condensate Traps"). Using name as primary keeps this portable.
+  if (
+    /\bregisters?\b/.test(name) &&
+    !/register\s+box/.test(name) &&
+    !/register\s+boot/.test(name)
+  )
+    return "register";
+  if (/\bregisters?\b/.test(leaf) && !/box/.test(leaf)) return "register";
+  if (/\bgrilles?\b/.test(name) || /\bdiffusers?\b/.test(name)) return "grille";
+  if (/\bgrilles?\b/.test(leaf) || /\bdiffusers?\b/.test(leaf)) return "grille";
+  if (/\b(supply|return|duct)\s+plenum\b/.test(name) || /\bduct\s+plenums?\b/.test(leaf))
+    return "ductwork";
+  if (/\bregister\s+box(es)?\b/.test(name) || /register\s+boxes?/.test(leaf))
+    return "ductwork";
+  if (/\bvolume\s+damper\b/.test(name) || /\bduct\s+dampers?\b/.test(leaf))
+    return "ductwork";
+  if (/\bcondensate\s+pump\b/.test(name) || /\bcondensate\s+pumps?\b/.test(leaf))
+    return "installation";
+  if (/\bfoil\s+tape\b/.test(name) || /^(foil|hvac)\s+tapes?$/.test(leaf))
+    return "installation";
+  if (/\bduct\s+(mastic|sealant)\b/.test(name) || /\bduct\s+sealants?\b/.test(leaf))
+    return "installation";
+  if (/\bhanger\s+strap(ping)?\b/.test(name) || /\bhanger\s+strapping\b/.test(leaf))
+    return "installation";
+  // p-trap name match alone is noisy (fuse descriptions reference p-traps);
+  // require the leaf to also hint at plumbing/trap so we don't misclassify.
+  if (/\bp-?trap\b/.test(name) && /\btraps?\b/.test(leaf)) return "installation";
+  if (/\bcircuit\s+breaker\b/.test(name) || leaf === "circuit breakers")
+    return "electrical";
+  if (
+    /\bdisconnect\s+switch\b/.test(name) ||
+    /\bsafety\s+switch\b/.test(name) ||
+    /\b(safety|disconnect)\s+switch/.test(leaf) ||
+    leaf === "disconnect enclosures"
+  )
+    return "electrical";
+
   return null;
 }
 
