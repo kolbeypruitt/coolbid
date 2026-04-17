@@ -25,7 +25,7 @@ export type CandidatesDiagnostics = {
 };
 
 const BTU_PER_TON = 12000;
-const VENDOR_ROW_LIMIT = 500;
+const VENDOR_PER_SLOT_LIMIT = 100;
 
 /**
  * Narrow, fast query for changeout equipment candidates. Unlike the
@@ -66,26 +66,41 @@ export async function fetchChangeoutCandidates(
     ),
   );
 
-  const [{ data: userCat, error: userCatErr }, vendorResult] = await Promise.all([
-    supabase
-      .from('equipment_catalog')
-      .select('id, mpn, description, equipment_type, brand, tonnage, btu_capacity, unit_price')
-      .eq('user_id', user.id)
-      .in('equipment_type', slotList)
-      .order('usage_count', { ascending: false }),
-    vendorIds.length > 0
-      ? supabase
-          .from('vendor_products')
-          .select('id, name, mpn, brand, price, bom_slot, bom_specs')
-          .in('vendor_id', vendorIds)
-          .in('bom_slot', slotList)
-          .not('price', 'is', null)
-          .limit(VENDOR_ROW_LIMIT)
-      : Promise.resolve({ data: [], error: null }),
-  ]);
+  const userCatQuery = supabase
+    .from('equipment_catalog')
+    .select('id, mpn, description, equipment_type, brand, tonnage, btu_capacity, unit_price')
+    .eq('user_id', user.id)
+    .in('equipment_type', slotList)
+    .order('usage_count', { ascending: false });
 
-  if (userCatErr) return { error: `equipment_catalog: ${userCatErr.message}` };
-  if (vendorResult.error) return { error: `vendor_products: ${vendorResult.error.message}` };
+  // Per-slot vendor queries use .eq('bom_slot', x) so each hits the partial
+  // index `vendor_products_bom_slot_idx` cleanly. A single .in('bom_slot', ...)
+  // confuses the planner and can trigger sequential scans → statement timeout.
+  const vendorQueries =
+    vendorIds.length > 0
+      ? slotList.map((slot) =>
+          supabase
+            .from('vendor_products')
+            .select('id, name, mpn, brand, price, bom_slot, bom_specs')
+            .in('vendor_id', vendorIds)
+            .eq('bom_slot', slot)
+            .not('price', 'is', null)
+            .limit(VENDOR_PER_SLOT_LIMIT),
+        )
+      : [];
+
+  const [userCatResult, ...vendorResults] = await Promise.all([userCatQuery, ...vendorQueries]);
+
+  if (userCatResult.error) return { error: `equipment_catalog: ${userCatResult.error.message}` };
+  const userCat = userCatResult.data;
+  const vendorData: Array<{
+    id: string; name: string; mpn: string | null; brand: string | null;
+    price: number | null; bom_slot: string | null; bom_specs: Record<string, unknown> | null;
+  }> = [];
+  for (const r of vendorResults) {
+    if (r.error) return { error: `vendor_products: ${r.error.message}` };
+    for (const row of r.data ?? []) vendorData.push(row as never);
+  }
 
   const bySlot: CandidatesBySlot = Object.fromEntries(slotList.map((s) => [s, [] as ChangeoutCandidate[]]));
   const slotHistogram: Record<string, number> = {};
@@ -115,10 +130,7 @@ export async function fetchChangeoutCandidates(
     });
   }
 
-  for (const row of (vendorResult.data ?? []) as Array<{
-    id: string; name: string; mpn: string | null; brand: string | null;
-    price: number | null; bom_slot: string | null; bom_specs: Record<string, unknown> | null;
-  }>) {
+  for (const row of vendorData) {
     if (!row.bom_slot) continue;
     const slot = row.bom_slot;
     slotHistogram[slot] = (slotHistogram[slot] ?? 0) + 1;
@@ -144,7 +156,7 @@ export async function fetchChangeoutCandidates(
     bySlot,
     diagnostics: {
       userCatalogSize: userCat?.length ?? 0,
-      vendorRows: vendorResult.data?.length ?? 0,
+      vendorRows: vendorData.length,
       slotMatches,
       slotMatchesTonnage,
       priced,
