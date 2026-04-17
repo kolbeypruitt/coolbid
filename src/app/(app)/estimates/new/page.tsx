@@ -7,6 +7,7 @@ import { UploadStep } from "@/components/estimator/upload-step";
 import { PageSelectStep } from "@/components/estimator/page-select-step";
 import { AnalyzingStep } from "@/components/estimator/analyzing-step";
 import { RoomsStep } from "@/components/estimator/rooms-step";
+import { EquipmentStep } from "@/components/estimator/equipment-step";
 import { BomStep } from "@/components/estimator/bom-step";
 
 const STEPS = [
@@ -15,6 +16,7 @@ const STEPS = [
   { key: "select_pages", label: "Select Pages" },
   { key: "analyzing", label: "Analyzing" },
   { key: "rooms", label: "Rooms" },
+  { key: "equipment", label: "Equipment" },
   { key: "bom", label: "BOM" },
 ] as const;
 
@@ -51,6 +53,7 @@ export default function NewEstimatePage() {
       {step === "select_pages" && <PageSelectStep />}
       {step === "analyzing" && <AnalyzingStep />}
       {step === "rooms" && <RoomsStep />}
+      {step === "equipment" && <EquipmentStep />}
       {step === "bom" && <BomStep />}
     </div>
   );

@@ -12,8 +12,9 @@ import { loadBomCatalog } from "@/lib/estimates/load-bom-catalog";
 import { toBomInsertRows } from "@/lib/estimates/bom-rows";
 import { enrichBomViaAI } from "@/lib/estimates/enrich-bom-action";
 import type { ContractorPreferences } from "@/types/contractor-preferences";
+import type { BomSlot } from "@/lib/hvac/bom-slot-taxonomy";
 
-type EstimatorStep = "customer" | "upload" | "select_pages" | "analyzing" | "rooms" | "bom";
+type EstimatorStep = "customer" | "upload" | "select_pages" | "analyzing" | "rooms" | "equipment" | "bom";
 
 type PagePreview = {
   pageNum: number;
@@ -42,6 +43,7 @@ type EstimatorState = {
   analysisProgress: number;
   analysisResult: AnalysisResult | null;
   rooms: Room[];
+  selectedEquipment: Partial<Record<BomSlot, string>>;
   bom: BomResult | null;
   profitMargin: number;
   laborRate: number;
@@ -82,6 +84,8 @@ type EstimatorActions = {
   setError: (error: string | null) => void;
   setShowRFQ: (show: boolean) => void;
   setSelectedRoomIndex: (index: number | null) => void;
+  setSelectedEquipment: (slot: BomSlot, id: string) => void;
+  clearSelectedEquipment: (slot: BomSlot) => void;
   reset: () => void;
 };
 
@@ -124,7 +128,7 @@ const DEFAULT_ROOM: Room = {
   adjacent_rooms: [],
 };
 
-const STEP_ORDER: EstimatorStep[] = ["customer", "upload", "select_pages", "analyzing", "rooms", "bom"];
+const STEP_ORDER: EstimatorStep[] = ["customer", "upload", "select_pages", "analyzing", "rooms", "equipment", "bom"];
 
 // ── Room persistence helpers ─────────────────────────────────────────
 
@@ -178,6 +182,7 @@ function initialState(): EstimatorState {
     analysisProgress: 0,
     analysisResult: null,
     rooms: [],
+    selectedEquipment: {},
     bom: null,
     profitMargin: 35,
     laborRate: 85,
@@ -405,7 +410,7 @@ export const useEstimator = create<EstimatorState & EstimatorActions>((set, get)
   generateBom: async () => {
     if (bomGenerationInFlight) return;
     bomGenerationInFlight = true;
-    const { rooms, climateZone, systemType, analysisResult, knownUnits, hvacPerUnit, identicalUnits, estimateId } = get();
+    const { rooms, climateZone, systemType, analysisResult, knownUnits, hvacPerUnit, identicalUnits, estimateId, selectedEquipment } = get();
     try {
       const supabase = createClient();
       const {
@@ -437,6 +442,7 @@ export const useEstimator = create<EstimatorState & EstimatorActions>((set, get)
         analysisResult?.building,
         analysisResult?.hvac_notes,
         preferences,
+        selectedEquipment,
       );
 
       // For identical multi-unit buildings with per-unit HVAC, multiply
@@ -517,6 +523,18 @@ export const useEstimator = create<EstimatorState & EstimatorActions>((set, get)
   setShowRFQ: (show) => set({ showRFQ: show }),
 
   setSelectedRoomIndex: (index) => set({ selectedRoomIndex: index }),
+
+  setSelectedEquipment: (slot, id) =>
+    set((state) => ({
+      selectedEquipment: { ...state.selectedEquipment, [slot]: id },
+    })),
+
+  clearSelectedEquipment: (slot) =>
+    set((state) => {
+      const next = { ...state.selectedEquipment };
+      delete next[slot];
+      return { selectedEquipment: next };
+    }),
 
   reset: () => set(initialState()),
 }));

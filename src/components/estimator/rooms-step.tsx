@@ -87,7 +87,6 @@ export function RoomsStep() {
     updateRoom,
     removeRoom,
     addRoom,
-    generateBom,
     setStep,
     saveStatus,
     saveError,
@@ -161,12 +160,12 @@ export function RoomsStep() {
           </Button>
           <Button
             size="sm"
-            onClick={generateBom}
+            onClick={() => setStep("equipment")}
             disabled={rooms.length === 0 || saveStatus === "saving"}
             className="bg-gradient-brand hover-lift"
             title={saveStatus === "saving" ? "Saving edits…" : undefined}
           >
-            Generate Estimate →
+            Pick Equipment →
           </Button>
         </div>
       </div>
@@ -407,8 +406,8 @@ export function RoomsStep() {
         <Button variant="outline" onClick={() => setStep("select_pages")}>
           Back
         </Button>
-        <Button onClick={generateBom} disabled={rooms.length === 0} className="bg-gradient-brand hover-lift">
-          Generate Bill of Materials
+        <Button onClick={() => setStep("equipment")} disabled={rooms.length === 0} className="bg-gradient-brand hover-lift">
+          Pick Equipment
         </Button>
       </div>
     </div>

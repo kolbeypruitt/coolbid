@@ -11,6 +11,7 @@ import type { SystemType } from "@/types/catalog";
 import type { Database } from "@/types/database";
 import { renderContractorPreferencesPrompt } from "@/lib/contractor-preferences/render-prompt";
 import type { ContractorPreferences } from "@/types/contractor-preferences";
+import type { BomSlot } from "@/lib/hvac/bom-slot-taxonomy";
 import { anthropic } from "@/lib/anthropic";
 import { enrichBomWithAccessories } from "@/lib/hvac/accessory-picker";
 import { createAnthropicAccessoryPicker } from "@/lib/hvac/accessory-picker-llm";
@@ -34,7 +35,7 @@ export async function regenerateBom(estimateId: string): Promise<{ error?: strin
   ] = await Promise.all([
     supabase
       .from("estimates")
-      .select("climate_zone, system_type, profit_margin, labor_rate, labor_hours, status")
+      .select("climate_zone, system_type, profit_margin, labor_rate, labor_hours, status, selected_equipment")
       .eq("id", estimateId)
       .eq("user_id", user.id)
       .single(),
@@ -85,6 +86,7 @@ export async function regenerateBom(estimateId: string): Promise<{ error?: strin
     undefined,
     undefined,
     preferences,
+    (estimate.selected_equipment ?? {}) as Partial<Record<BomSlot, string>>,
   );
 
   const picker = createAnthropicAccessoryPicker(anthropic);

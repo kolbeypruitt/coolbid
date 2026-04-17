@@ -321,3 +321,151 @@ describe("generateBOM + enrichBomWithAccessories end-to-end", () => {
     expect(lineSlotAfter?.notes).toContain("3/8 x 7/8");
   });
 });
+
+describe("generateBOM with user-selected major equipment", () => {
+  it("uses the selected catalog item instead of auto-matching", () => {
+    const catalog: CatalogItem[] = [
+      {
+        id: "user-pick",
+        user_id: "",
+        supplier_id: null,
+        vendor_product_id: null,
+        mpn: "USER-AC",
+        description: "Contractor's preferred AC",
+        equipment_type: "ac_condenser",
+        system_type: "universal",
+        brand: "Trane",
+        tonnage: 3,
+        seer_rating: null,
+        btu_capacity: null,
+        stages: null,
+        refrigerant_type: null,
+        unit_price: 3500,
+        unit_of_measure: "ea",
+        source: "quote",
+        usage_count: 0,
+        last_quoted_date: null,
+        created_at: "",
+        updated_at: "",
+      },
+      {
+        id: "auto-match-goodman",
+        user_id: "",
+        supplier_id: null,
+        vendor_product_id: null,
+        mpn: "GSX160361",
+        description: "Goodman 3T",
+        equipment_type: "ac_condenser",
+        system_type: "universal",
+        brand: "Goodman",
+        tonnage: 3,
+        seer_rating: null,
+        btu_capacity: null,
+        stages: null,
+        refrigerant_type: null,
+        unit_price: 2000,
+        unit_of_measure: "ea",
+        source: "imported",
+        usage_count: 100,
+        last_quoted_date: null,
+        created_at: "",
+        updated_at: "",
+      },
+    ];
+    const bom = generateBOM(
+      [room(1500)],
+      "mixed",
+      "gas_ac",
+      catalog,
+      undefined,
+      undefined,
+      null,
+      { ac_condenser: "user-pick" },
+    );
+    const acRow = bom.items.find(
+      (i) => i.category === "Major Equipment" && i.name.includes("preferred AC"),
+    );
+    expect(acRow?.partId).toBe("user-pick");
+    expect(acRow?.brand).toBe("Trane");
+  });
+
+  it("falls back to auto-match when selectedEquipmentIds doesn't name a slot", () => {
+    const catalog: CatalogItem[] = [
+      {
+        id: "auto",
+        user_id: "",
+        supplier_id: null,
+        vendor_product_id: null,
+        mpn: "AUTO",
+        description: "Auto-matched",
+        equipment_type: "ac_condenser",
+        system_type: "universal",
+        brand: "Goodman",
+        tonnage: 3,
+        seer_rating: null,
+        btu_capacity: null,
+        stages: null,
+        refrigerant_type: null,
+        unit_price: 2000,
+        unit_of_measure: "ea",
+        source: "imported",
+        usage_count: 10,
+        last_quoted_date: null,
+        created_at: "",
+        updated_at: "",
+      },
+    ];
+    const bom = generateBOM(
+      [room(1500)],
+      "mixed",
+      "gas_ac",
+      catalog,
+      undefined,
+      undefined,
+      null,
+      {},
+    );
+    const acRow = bom.items.find((i) => i.bom_slot === "ac_condenser");
+    expect(acRow?.partId).toBe("auto");
+  });
+
+  it("falls back to auto-match when the selected id isn't in the catalog", () => {
+    const catalog: CatalogItem[] = [
+      {
+        id: "auto",
+        user_id: "",
+        supplier_id: null,
+        vendor_product_id: null,
+        mpn: "AUTO",
+        description: "Auto-matched",
+        equipment_type: "ac_condenser",
+        system_type: "universal",
+        brand: "Goodman",
+        tonnage: 3,
+        seer_rating: null,
+        btu_capacity: null,
+        stages: null,
+        refrigerant_type: null,
+        unit_price: 2000,
+        unit_of_measure: "ea",
+        source: "imported",
+        usage_count: 10,
+        last_quoted_date: null,
+        created_at: "",
+        updated_at: "",
+      },
+    ];
+    const bom = generateBOM(
+      [room(1500)],
+      "mixed",
+      "gas_ac",
+      catalog,
+      undefined,
+      undefined,
+      null,
+      { ac_condenser: "stale-id-no-longer-in-catalog" },
+    );
+    const acRow = bom.items.find((i) => i.bom_slot === "ac_condenser");
+    expect(acRow?.partId).toBe("auto");
+  });
+});
