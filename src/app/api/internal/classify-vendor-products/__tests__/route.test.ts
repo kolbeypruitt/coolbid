@@ -40,8 +40,11 @@ describe("POST /api/internal/classify-vendor-products", () => {
               select: () => ({
                 is: () => ({
                   is: () => ({
-                    limit: () =>
-                      Promise.resolve({ data: [], error: null }),
+                    or: () => ({
+                      limit: () => Promise.resolve({ data: [], error: null }),
+                      then: (fn: (v: { count: number }) => unknown) =>
+                        Promise.resolve({ count: 0 }).then(fn),
+                    }),
                   }),
                 }),
               }),

@@ -8,6 +8,7 @@ import {
   createAnthropicClassifier,
   CLASSIFIER_VERSION,
 } from "@/lib/hvac/vendor-classifier-llm";
+import { VENDOR_CATEGORY_FILTERS } from "@/lib/hvac/vendor-category-filters";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -26,10 +27,14 @@ export async function POST(req: Request) {
 
   const supabase = createAdminClient();
 
-  // Pick rows that have never been classified (bom_classified_at IS NULL).
-  // Taxonomy/prompt changes don't auto-trigger re-classification — that's
-  // intentional to keep rescans under operator control (cost, timing).
-  // For a targeted rescan, reset the affected rows via SQL first:
+  // Pick rows that have never been classified (bom_classified_at IS NULL)
+  // AND fall under an HVAC-relevant category. The category prefilter keeps
+  // us from wasting LLM calls on tools, plumbing, hydronics etc. that the
+  // BOM generator can't use anyway. Non-matching rows stay unclassified
+  // forever (harmless — they're never queried by loadBomCatalog).
+  //
+  // Taxonomy/prompt changes don't auto-trigger re-classification. For a
+  // targeted rescan, reset the affected rows via SQL first:
   //   UPDATE vendor_products SET bom_slot = NULL, bom_specs = NULL,
   //     bom_classified_at = NULL WHERE bom_slot IN (...);
   // Then rerun the backfill script.
@@ -40,6 +45,7 @@ export async function POST(req: Request) {
     )
     .is("bom_slot", null)
     .is("bom_classified_at", null)
+    .or(VENDOR_CATEGORY_FILTERS)
     .limit(BATCH_SIZE);
 
   if (error) {
@@ -78,7 +84,8 @@ export async function POST(req: Request) {
     .from("vendor_products")
     .select("id", { count: "exact", head: true })
     .is("bom_slot", null)
-    .is("bom_classified_at", null);
+    .is("bom_classified_at", null)
+    .or(VENDOR_CATEGORY_FILTERS);
 
   return NextResponse.json({ classified: written, remaining: remaining ?? 0 });
 }
