@@ -16,6 +16,29 @@ import type { BomSlot } from "@/lib/hvac/bom-slot-taxonomy";
 
 type EstimatorStep = "customer" | "upload" | "select_pages" | "analyzing" | "rooms" | "equipment" | "bom";
 
+export type EstimatorMode = 'new_build' | 'changeout';
+
+export type ChangeoutStep =
+  | 'customer'
+  | 'install_type'
+  | 'tonnage'
+  | 'equipment'
+  | 'review';
+
+export type ExistingSystemInfo = {
+  systemType?: SystemType;
+  tonnage?: number;
+  ageYears?: number;
+  notes?: string;
+};
+
+export type ChangeoutUpsells = {
+  thermostat: boolean;
+  surgeProtector: boolean;
+  condensatePump: boolean;
+  floatSwitch: boolean;
+};
+
 type PagePreview = {
   pageNum: number;
   previewUrl: string;
@@ -57,6 +80,11 @@ type EstimatorState = {
   error: string | null;
   showRFQ: boolean;
   selectedRoomIndex: number | null;
+  mode: EstimatorMode;
+  changeoutStep: ChangeoutStep;
+  tonnage: number | null;
+  existingSystem: ExistingSystemInfo | null;
+  upsells: ChangeoutUpsells;
 };
 
 type EstimatorActions = {
@@ -87,6 +115,14 @@ type EstimatorActions = {
   setSelectedEquipment: (slot: BomSlot, id: string) => void;
   clearSelectedEquipment: (slot: BomSlot) => void;
   reset: () => void;
+  setMode: (mode: EstimatorMode) => void;
+  setChangeoutStep: (step: ChangeoutStep) => void;
+  nextChangeoutStep: () => void;
+  prevChangeoutStep: () => void;
+  setTonnage: (tonnage: number | null) => void;
+  setExistingSystem: (info: ExistingSystemInfo | null) => void;
+  toggleUpsell: (key: keyof ChangeoutUpsells) => void;
+  createChangeoutDraft: () => Promise<string | null>;
 };
 
 // Coords are normalized 0–1 relative to the floorplan canvas. Spawn a
@@ -129,6 +165,7 @@ const DEFAULT_ROOM: Room = {
 };
 
 const STEP_ORDER: EstimatorStep[] = ["customer", "upload", "select_pages", "analyzing", "rooms", "equipment", "bom"];
+const CHANGEOUT_STEP_ORDER: ChangeoutStep[] = ['customer', 'install_type', 'tonnage', 'equipment', 'review'];
 
 // ── Room persistence helpers ─────────────────────────────────────────
 
@@ -196,6 +233,11 @@ function initialState(): EstimatorState {
     error: null,
     showRFQ: false,
     selectedRoomIndex: null,
+    mode: 'new_build',
+    changeoutStep: 'customer',
+    tonnage: null,
+    existingSystem: null,
+    upsells: { thermostat: false, surgeProtector: false, condensatePump: false, floatSwitch: false },
   };
 }
 
@@ -537,4 +579,74 @@ export const useEstimator = create<EstimatorState & EstimatorActions>((set, get)
     }),
 
   reset: () => set(initialState()),
+
+  setMode: (mode) => set({ mode }),
+
+  setChangeoutStep: (changeoutStep) => set({ changeoutStep }),
+
+  nextChangeoutStep: () => {
+    const current = get().changeoutStep;
+    const i = CHANGEOUT_STEP_ORDER.indexOf(current);
+    if (i >= 0 && i < CHANGEOUT_STEP_ORDER.length - 1) set({ changeoutStep: CHANGEOUT_STEP_ORDER[i + 1] });
+  },
+
+  prevChangeoutStep: () => {
+    const current = get().changeoutStep;
+    const i = CHANGEOUT_STEP_ORDER.indexOf(current);
+    if (i > 0) set({ changeoutStep: CHANGEOUT_STEP_ORDER[i - 1] });
+  },
+
+  setTonnage: (tonnage) => set({ tonnage }),
+
+  setExistingSystem: (existingSystem) => set({ existingSystem }),
+
+  toggleUpsell: (key) =>
+    set((state) => ({ upsells: { ...state.upsells, [key]: !state.upsells[key] } })),
+
+  createChangeoutDraft: async () => {
+    const state = get();
+    if (state.estimateId) return state.estimateId;
+
+    try {
+      const supabase = createClient();
+      const { data: { user }, error: authErr } = await supabase.auth.getUser();
+      if (authErr || !user) {
+        set({ error: "Not authenticated" });
+        return null;
+      }
+
+      const { data, error } = await supabase
+        .from("estimates")
+        .insert({
+          user_id: user.id,
+          estimate_type: 'changeout',
+          project_name: state.projectName.trim() || state.jobAddress.trim() || "New Changeout Estimate",
+          customer_name: state.customerName.trim(),
+          job_address: state.jobAddress.trim() || null,
+          customer_email: state.customerEmail.trim() || null,
+          customer_phone: state.customerPhone.trim() || null,
+          status: "draft",
+          system_type: state.systemType,
+          tonnage: state.tonnage,
+          existing_system: state.existingSystem,
+          profit_margin: state.profitMargin,
+          labor_rate: state.laborRate,
+          labor_hours: state.laborHours,
+        })
+        .select("id")
+        .single();
+
+      if (error || !data) {
+        set({ error: error?.message ?? "Failed to create changeout draft" });
+        return null;
+      }
+
+      const id = data.id as string;
+      set({ estimateId: id, error: null });
+      return id;
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : "Failed to create changeout draft" });
+      return null;
+    }
+  },
 }));
