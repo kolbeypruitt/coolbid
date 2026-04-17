@@ -13,7 +13,15 @@ import { VENDOR_CATEGORY_FILTERS } from "@/lib/hvac/vendor-category-filters";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const BATCH_SIZE = 25;
+// At batch_size=25 the LLM occasionally omitted 1–3 rows from its JSON
+// response, which the classifier then stamps as bom_slot=null —
+// permanently miscategorizing real equipment. Verified via live probe:
+// the same rows reclassify correctly at small batch sizes. 10 is a
+// mitigation, not a full fix: omissions can still happen. The proper fix
+// is for classifyVendorProductsBatch to distinguish "LLM classified as
+// null" from "LLM omitted" and leave omitted rows' bom_classified_at
+// unset so the next run retries them.
+const BATCH_SIZE = 10;
 
 export async function POST(req: Request) {
   const expected = process.env.INTERNAL_API_TOKEN?.trim();
