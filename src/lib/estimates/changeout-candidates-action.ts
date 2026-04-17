@@ -1,5 +1,6 @@
 'use server';
 import { createClient } from '@/lib/supabase/server';
+import { loadBomCatalog } from '@/lib/estimates/load-bom-catalog';
 import { SYSTEM_TYPE_EQUIPMENT } from '@/types/catalog';
 import type { SystemType, EquipmentType } from '@/types/catalog';
 
@@ -15,6 +16,8 @@ export type ChangeoutCandidate = {
 
 export type CandidatesBySlot = Record<string, ChangeoutCandidate[]>;
 
+const BTU_PER_TON = 12000;
+
 export async function fetchChangeoutCandidates(
   systemType: SystemType,
   tonnage: number,
@@ -23,31 +26,58 @@ export async function fetchChangeoutCandidates(
   if (!slots) return { error: `Unknown system type: ${systemType}` };
 
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from('vendor_products')
-    .select('id, name, mpn, brand, price, bom_slot, bom_specs')
-    .in('bom_slot', slots as unknown as string[])
-    .not('price', 'is', null);
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Not authenticated' };
 
-  if (error) return { error: error.message };
+  let catalog;
+  try {
+    catalog = await loadBomCatalog(supabase, user.id);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Failed to load catalog' };
+  }
 
   const bySlot: CandidatesBySlot = Object.fromEntries(slots.map((s) => [s, [] as ChangeoutCandidate[]]));
-  for (const row of data ?? []) {
-    const slot = row.bom_slot as string;
-    const specs = (row.bom_specs ?? {}) as { tonnage?: number };
-    // Gas furnace tonnage matching is loose — BTU sizing maps roughly.
-    const tonMatch = specs.tonnage == null || specs.tonnage === tonnage;
-    if (!tonMatch && slot !== 'gas_furnace') continue;
-    if (!bySlot[slot]) continue;
+  const slotSet = new Set<string>(slots);
+
+  for (const item of catalog) {
+    const slot = item.bom_slot ?? item.equipment_type;
+    if (!slotSet.has(slot)) continue;
+    if (!matchesTonnage(item, slot, tonnage)) continue;
+    if (item.unit_price == null) continue;
+
     bySlot[slot].push({
-      id: row.id,
-      name: row.name,
-      mpn: row.mpn,
-      brand: row.brand,
-      price: row.price,
+      id: item.id,
+      name: item.description,
+      mpn: item.mpn || null,
+      brand: item.brand || null,
+      price: item.unit_price,
       bom_slot: slot,
-      tonnage: specs.tonnage ?? null,
+      tonnage: item.tonnage,
     });
   }
+
   return { slots: [...slots], bySlot };
+}
+
+/**
+ * Gas furnaces don't have a tonnage column — they size by BTU. Treat a furnace
+ * as a match if its btu_capacity falls within a generous band around the
+ * requested tonnage. Everything else uses exact tonnage match, or passes
+ * through when tonnage is absent (accessories, air handlers with universal
+ * tonnage, etc.).
+ */
+function matchesTonnage(
+  item: { tonnage: number | null; btu_capacity: number | null; bom_specs?: Record<string, unknown> },
+  slot: string,
+  tonnage: number,
+): boolean {
+  if (slot === 'gas_furnace') {
+    if (item.btu_capacity == null) return true;
+    const targetBtu = tonnage * BTU_PER_TON;
+    return Math.abs(item.btu_capacity - targetBtu) <= BTU_PER_TON;
+  }
+  const specsTonnage = (item.bom_specs?.tonnage as number | undefined) ?? null;
+  const effectiveTonnage = item.tonnage ?? specsTonnage;
+  if (effectiveTonnage == null) return true;
+  return effectiveTonnage === tonnage;
 }
