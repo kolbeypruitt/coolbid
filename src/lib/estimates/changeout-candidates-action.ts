@@ -153,6 +153,22 @@ export async function fetchChangeoutCandidates(
     });
   }
 
+  console.log('[changeout-candidates]', {
+    systemType,
+    tonnage,
+    requestedSlots: slots,
+    vendorIds,
+    userCatalogSize: userCat?.length ?? 0,
+    vendorRows: vendorData.length,
+    slotHistogram,
+    slotMatches,
+    slotMatchesTonnage,
+    priced,
+    firstFew: Object.fromEntries(
+      Object.entries(bySlot).map(([k, v]) => [k, v.slice(0, 2)]),
+    ),
+  });
+
   return {
     slots: [...slots],
     bySlot,
