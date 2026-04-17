@@ -181,6 +181,7 @@ export function generateBOM(
   building?: BuildingInfo,
   hvacNotes?: HvacNotes,
   preferences?: ContractorPreferences | null,
+  selectedEquipmentIds?: Partial<Record<BomSlot, string>>,
 ): BomResult {
   const roomLoads = rooms.map((r) => calculateRoomLoad(r, climateZone));
 
@@ -222,17 +223,33 @@ export function generateBOM(
     const isThermostat = eqType === "thermostat";
     const qty = isThermostat ? zones : 1;
     const searchTonnage = isThermostat ? null : equipTonnage;
+    const slot = eqType as BomSlot;
+
+    // Prefer the contractor's explicit selection if one exists and the
+    // item is still in the catalog. Fall back to auto-matching.
+    const selectedId = selectedEquipmentIds?.[slot];
+    const selectedCatalogItem = selectedId
+      ? catalog.find((c) => c.id === selectedId)
+      : undefined;
+
+    if (selectedCatalogItem) {
+      items.push(
+        catalogToBomItem(selectedCatalogItem, qty, "User-selected equipment", slot),
+      );
+      continue;
+    }
+
     const found = findCatalogItem(
       catalog, eqType, searchTonnage, systemType,
       isThermostat ? tstatBrands : brands,
     );
     if (found) {
-      items.push(catalogToBomItem(found.item, qty, found.notes, eqType as BomSlot));
+      items.push(catalogToBomItem(found.item, qty, found.notes, slot));
     } else {
       const label = isThermostat
         ? (EQUIPMENT_TYPE_LABELS[eqType] ?? eqType)
         : `${equipTonnage}T ${EQUIPMENT_TYPE_LABELS[eqType] ?? eqType}`;
-      items.push(missingItem(eqType, label, qty, undefined, eqType as BomSlot));
+      items.push(missingItem(eqType, label, qty, undefined, slot));
     }
   }
 

@@ -34,6 +34,7 @@ function estimate(overrides: Partial<EstimateRow> = {}): EstimateRow {
     scope_of_work: null,
     accepted_at: null,
     declined_at: null,
+    selected_equipment: {},
     ...overrides,
   };
 }

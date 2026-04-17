@@ -120,6 +120,7 @@ export type Database = {
           scope_of_work: string | null;
           accepted_at: string | null;
           declined_at: string | null;
+          selected_equipment: Record<string, string>;
         };
         Insert: {
           id?: string;
@@ -147,6 +148,7 @@ export type Database = {
           scope_of_work?: string | null;
           accepted_at?: string | null;
           declined_at?: string | null;
+          selected_equipment?: Record<string, string>;
         };
         Update: Partial<Database["public"]["Tables"]["estimates"]["Insert"]>;
         Relationships: [];
