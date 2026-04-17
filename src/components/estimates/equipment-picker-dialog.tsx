@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Wrench, Loader2, AlertTriangle, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -23,12 +23,11 @@ import {
 } from "@/types/catalog";
 import type { BomSlot } from "@/lib/hvac/bom-slot-taxonomy";
 import { updateSelectedEquipment } from "@/lib/estimates/update-equipment";
+import { fetchEquipmentCandidates } from "@/lib/estimates/equipment-candidates-action";
 
 type Props = {
   estimateId: string;
   systemType: SystemType;
-  tonnage: number;
-  candidatesBySlot: Partial<Record<BomSlot, CatalogItem[]>>;
   initialSelected: Partial<Record<BomSlot, string>>;
 };
 
@@ -45,8 +44,6 @@ function specsFirst(items: CatalogItem[]): CatalogItem[] {
 export function EquipmentPickerDialog({
   estimateId,
   systemType,
-  tonnage,
-  candidatesBySlot,
   initialSelected,
 }: Props) {
   const router = useRouter();
@@ -55,13 +52,38 @@ export function EquipmentPickerDialog({
     useState<Partial<Record<BomSlot, string>>>(initialSelected);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [candidatesBySlot, setCandidatesBySlot] = useState<
+    Partial<Record<BomSlot, CatalogItem[]>> | null
+  >(null);
+  const [tonnage, setTonnage] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const requiredSlots = useMemo<BomSlot[]>(
     () => [...(SYSTEM_TYPE_EQUIPMENT[systemType] as BomSlot[]), "thermostat"],
     [systemType],
   );
 
+  // Fetch candidates the first time the dialog opens. Sequential paging
+  // through vendor_products takes several seconds, so we don't prefetch
+  // on the estimate page — only when the user actually asks for it.
+  useEffect(() => {
+    if (!open || candidatesBySlot !== null) return;
+    setLoading(true);
+    setError(null);
+    fetchEquipmentCandidates(estimateId)
+      .then((res) => {
+        if ("error" in res) setError(res.error);
+        else {
+          setCandidatesBySlot(res.candidatesBySlot);
+          setTonnage(res.tonnage);
+        }
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
+      .finally(() => setLoading(false));
+  }, [open, estimateId, candidatesBySlot]);
+
   const rankedBySlot = useMemo<Partial<Record<BomSlot, CatalogItem[]>>>(() => {
+    if (!candidatesBySlot) return {};
     const map: Partial<Record<BomSlot, CatalogItem[]>> = {};
     for (const slot of requiredSlots) {
       map[slot] = specsFirst(candidatesBySlot[slot] ?? []);
@@ -106,37 +128,48 @@ export function EquipmentPickerDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          {requiredSlots.map((slot) => {
-            const label = EQUIPMENT_TYPE_LABELS[slot as EquipmentType] ?? slot;
-            const isThermostat = slot === "thermostat";
-            const candidates = rankedBySlot[slot] ?? [];
-            return (
-              <EquipmentSlotPicker
-                key={slot}
-                slot={slot}
-                label={label}
-                description={
-                  isThermostat
-                    ? undefined
-                    : `Tonnage: ${tonnage}T target (±0.5T)`
-                }
-                candidates={candidates}
-                selectedId={selected[slot]}
-                onSelect={(id) =>
-                  setSelected((prev) => ({ ...prev, [slot]: id }))
-                }
-                onClear={() =>
-                  setSelected((prev) => {
-                    const next = { ...prev };
-                    delete next[slot];
-                    return next;
-                  })
-                }
-              />
-            );
-          })}
-        </div>
+        {loading && (
+          <div className="flex items-center gap-2 py-6 text-sm text-txt-secondary">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading candidates from your vendors…
+          </div>
+        )}
+
+        {!loading && candidatesBySlot && (
+          <div className="space-y-4 py-2">
+            {requiredSlots.map((slot) => {
+              const label = EQUIPMENT_TYPE_LABELS[slot as EquipmentType] ?? slot;
+              const isThermostat = slot === "thermostat";
+              const candidates = rankedBySlot[slot] ?? [];
+              return (
+                <EquipmentSlotPicker
+                  key={slot}
+                  slot={slot}
+                  label={label}
+                  description={
+                    isThermostat
+                      ? undefined
+                      : tonnage
+                        ? `Tonnage: ${tonnage}T target (±0.5T)`
+                        : undefined
+                  }
+                  candidates={candidates}
+                  selectedId={selected[slot]}
+                  onSelect={(id) =>
+                    setSelected((prev) => ({ ...prev, [slot]: id }))
+                  }
+                  onClear={() =>
+                    setSelected((prev) => {
+                      const next = { ...prev };
+                      delete next[slot];
+                      return next;
+                    })
+                  }
+                />
+              );
+            })}
+          </div>
+        )}
 
         {error && (
           <div className="flex items-start gap-2 rounded-md border border-error bg-error-bg px-3 py-2 text-sm text-error">
@@ -157,7 +190,7 @@ export function EquipmentPickerDialog({
           <Button
             type="button"
             onClick={handleSave}
-            disabled={isPending}
+            disabled={isPending || loading || !candidatesBySlot}
             className="bg-gradient-brand hover-lift"
           >
             {isPending ? (
