@@ -34,4 +34,8 @@ export const VENDOR_CATEGORY_FILTERS = [
   "category_leaf.ilike.%condensate pump%",
   "category_leaf.ilike.%hanger strap%",
   "category_leaf.ilike.%ducting%",
+  // Locke files split-system condensers, gas furnaces, packaged units,
+  // evap coils, heat strips and major-equipment accessories under this
+  // generic leaf. The LLM classifier filters out the non-equipment noise.
+  "category_leaf.ilike.%hvac supplies%",
 ].join(",");
