@@ -27,6 +27,11 @@ import { DeleteEstimateButton } from "@/components/estimates/delete-estimate-but
 import { FinancialsCard } from "@/components/estimates/financials-card";
 import { BomCategoryTable } from "@/components/estimates/bom-category-table";
 import { compareBomCategories } from "@/lib/hvac/bom-generator";
+import { EquipmentPickerDialog } from "@/components/estimates/equipment-picker-dialog";
+import { loadBomCatalog } from "@/lib/estimates/load-bom-catalog";
+import type { BomSlot } from "@/lib/hvac/bom-slot-taxonomy";
+import type { ContractorPreferences } from "@/types/contractor-preferences";
+import type { SystemType } from "@/types/catalog";
 import { EmptyBomCard } from "@/components/estimates/empty-bom-card";
 import { UnsavedShareBanner } from "@/components/estimates/unsaved-share-banner";
 import { FloorplanSchematic } from "@/components/estimates/floorplan-schematic";
@@ -87,9 +92,13 @@ export default async function EstimateDetailPage({
       .is("revoked_at", null)
       .maybeSingle(),
     user
-      ? supabase.from("profiles").select("company_name, company_phone, company_email").eq("id", user.id).single()
+      ? supabase.from("profiles").select("company_name, company_phone, company_email, contractor_preferences").eq("id", user.id).single()
       : Promise.resolve({ data: null }),
   ]);
+
+  const catalogForPicker = user ? await loadBomCatalog(supabase, user.id).catch(() => []) : [];
+  const preferences =
+    ((profileData as { contractor_preferences?: ContractorPreferences } | null)?.contractor_preferences) ?? null;
 
   if (!estimate) {
     notFound();
@@ -236,6 +245,18 @@ export default async function EstimateDetailPage({
           rfqConfig={rfqConfig}
           projectName={est.project_name}
           estimateId={est.id}
+          extraActions={
+            roomList.length > 0 && est.system_type ? (
+              <EquipmentPickerDialog
+                estimateId={est.id}
+                systemType={est.system_type as SystemType}
+                tonnage={Math.max(tonnage, 2)}
+                catalog={catalogForPicker}
+                preferences={preferences}
+                initialSelected={(est.selected_equipment ?? {}) as Partial<Record<BomSlot, string>>}
+              />
+            ) : null
+          }
         />
       )}
 

@@ -13,6 +13,7 @@ interface EstimateActionsProps {
   rfqConfig: RfqConfig;
   projectName: string;
   estimateId: string;
+  extraActions?: React.ReactNode;
 }
 
 export function EstimateActions({
@@ -20,6 +21,7 @@ export function EstimateActions({
   rfqConfig,
   projectName,
   estimateId,
+  extraActions,
 }: EstimateActionsProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -73,6 +75,7 @@ export function EstimateActions({
           <RefreshCw className={`mr-2 h-4 w-4 ${isPending ? "animate-spin" : ""}`} />
           {isPending ? "Regenerating…" : "Regenerate BOM"}
         </Button>
+        {extraActions}
       </div>
       {error && (
         <p className="text-sm text-destructive">{error}</p>
