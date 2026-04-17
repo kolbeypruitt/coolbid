@@ -53,3 +53,4 @@ next-env.d.ts
 
 # Raw brand asset extraction (shipped assets live in /public/brand)
 brand-source/
+.worktrees/
