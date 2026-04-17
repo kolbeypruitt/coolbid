@@ -230,6 +230,7 @@ describe("classifiedRowToCatalogItem", () => {
     expect(item?.equipment_type).toBe("ac_condenser");
     expect(item?.tonnage).toBe(3);
     expect(item?.brand).toBe("Goodman");
+    expect(item?.bom_specs).toEqual({ tonnage: 3, seer: 16, refrigerant: "r410a" });
   });
 
   it("returns null for rows where bom_slot is null", () => {
