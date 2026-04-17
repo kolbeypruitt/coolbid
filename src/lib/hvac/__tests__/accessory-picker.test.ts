@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   pickAccessories,
   enrichBomWithAccessories,
+  synthesizeBomSpecs,
   type AccessoryPickerClient,
 } from "../accessory-picker";
 import type { CatalogItem } from "@/types/catalog";
@@ -192,6 +193,54 @@ describe("enrichBomWithAccessories", () => {
     expect(linesetItem?.notes).toContain("sizes match");
   });
 
+  it("passes synthesized specs to the picker for equipment_catalog majors (no bom_specs)", async () => {
+    // Reproduces the R-454B coil + R-410A bulk refrigerant compatibility
+    // bug: user's major equipment is from equipment_catalog so it has no
+    // classifier-populated bom_specs. Synthesis from direct columns lets
+    // the picker still reason about compatibility.
+    const quotedCoil = catalogItem({
+      id: "user:coil",
+      equipment_type: "evap_coil",
+      description: "R-454B MP V-EVAP COIL 5T - ALU",
+      tonnage: 5,
+      refrigerant_type: "R-454B",
+      source: "quote",
+      // NOTE: no bom_specs — this is from the user's equipment_catalog
+    });
+
+    const bom = bomResult([
+      bomItem({
+        partId: "user:coil",
+        source: "quote",
+        bom_slot: "evap_coil",
+        name: "R-454B MP V-EVAP COIL 5T",
+        category: "Major Equipment",
+      }),
+      bomItem({
+        source: "missing",
+        bom_slot: "refrigerant",
+        name: "R-410A Refrigerant (25lb)",
+        category: "Refrigerant & Lines",
+        qty: 1,
+      }),
+    ]);
+
+    const fakeClient: AccessoryPickerClient = {
+      pick: vi.fn().mockResolvedValue({
+        refrigerant: { pick_id: null, reason: "coil is R-454B; no compatible refrigerant in catalog" },
+      }),
+    };
+
+    await enrichBomWithAccessories(bom, [quotedCoil], null, fakeClient);
+
+    const pickCall = (fakeClient.pick as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(pickCall.majorEquipment).toHaveLength(1);
+    expect(pickCall.majorEquipment[0].specs).toEqual({
+      tonnage: 5,
+      refrigerant: "r454b",
+    });
+  });
+
   it("leaves items untouched when no client is provided", async () => {
     const bom = bomResult([
       bomItem({ source: "missing", bom_slot: "line_set", name: "Line Set" }),
@@ -234,5 +283,66 @@ describe("enrichBomWithAccessories", () => {
     ]);
     const enriched = await enrichBomWithAccessories(bom, [], null, fakeClient);
     expect(enriched).toBe(bom);
+  });
+});
+
+describe("synthesizeBomSpecs (equipment_catalog fallback)", () => {
+  it("extracts tonnage + seer + refrigerant + stages for an ac_condenser", () => {
+    const specs = synthesizeBomSpecs(
+      catalogItem({
+        equipment_type: "ac_condenser",
+        tonnage: 5,
+        seer_rating: 18,
+        refrigerant_type: "R-410A",
+        stages: 2,
+      }),
+      "ac_condenser",
+    );
+    expect(specs).toEqual({
+      tonnage: 5,
+      seer: 18,
+      refrigerant: "r410a",
+      stages: 2,
+    });
+  });
+
+  it("normalizes R-454B variants to r454b", () => {
+    expect(
+      synthesizeBomSpecs(
+        catalogItem({ equipment_type: "evap_coil", tonnage: 5, refrigerant_type: "R-454B" }),
+        "evap_coil",
+      ),
+    ).toEqual({ tonnage: 5, refrigerant: "r454b" });
+
+    expect(
+      synthesizeBomSpecs(
+        catalogItem({ equipment_type: "evap_coil", tonnage: 3, refrigerant_type: "R454" }),
+        "evap_coil",
+      ),
+    ).toEqual({ tonnage: 3, refrigerant: "r454b" });
+  });
+
+  it("maps gas_furnace btu_capacity to btu_output", () => {
+    expect(
+      synthesizeBomSpecs(
+        catalogItem({ equipment_type: "gas_furnace", btu_capacity: 100000, stages: 1 }),
+        "gas_furnace",
+      ),
+    ).toEqual({ btu_output: 100000, stages: 1 });
+  });
+
+  it("skips null fields instead of emitting them", () => {
+    const specs = synthesizeBomSpecs(
+      catalogItem({ equipment_type: "ac_condenser", tonnage: 3, refrigerant_type: null }),
+      "ac_condenser",
+    );
+    expect(specs).toEqual({ tonnage: 3 });
+    expect(specs).not.toHaveProperty("refrigerant");
+  });
+
+  it("returns empty for slots with no derivable direct columns (thermostat)", () => {
+    expect(
+      synthesizeBomSpecs(catalogItem({ equipment_type: "thermostat" }), "thermostat"),
+    ).toEqual({});
   });
 });

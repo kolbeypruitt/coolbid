@@ -95,6 +95,62 @@ const ACCESSORY_SLOTS: ReadonlySet<BomSlot> = new Set(
 );
 
 /**
+ * Normalize refrigerant strings from equipment_catalog.refrigerant_type
+ * ("R-410A", "R410A", "R-454B", "R32") to the lowercase enum used in
+ * BOM_SPEC_SCHEMAS ("r410a", "r454b", "r32", "r22", "other").
+ */
+function normalizeRefrigerant(raw: string | null): string | undefined {
+  if (!raw) return undefined;
+  const s = raw.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (s.includes("410a")) return "r410a";
+  if (s.includes("454b") || s === "r454") return "r454b";
+  if (s === "r32" || s.endsWith("r32")) return "r32";
+  if (s.includes("r22")) return "r22";
+  return "other";
+}
+
+/**
+ * Synthesize a bom_specs-shaped object from equipment_catalog's direct
+ * columns so the accessory picker can reason about compatibility for
+ * user-quoted major equipment (which never went through the classifier).
+ * Returns only fields we can derive; the rest stay absent.
+ */
+export function synthesizeBomSpecs(
+  item: CatalogItem,
+  slot: BomSlot,
+): Record<string, unknown> {
+  const specs: Record<string, unknown> = {};
+  const refrigerant = normalizeRefrigerant(item.refrigerant_type);
+
+  switch (slot) {
+    case "ac_condenser":
+    case "heat_pump_condenser":
+      if (item.tonnage !== null) specs.tonnage = item.tonnage;
+      if (item.seer_rating !== null) specs.seer = item.seer_rating;
+      if (refrigerant) specs.refrigerant = refrigerant;
+      if (item.stages !== null) specs.stages = item.stages;
+      break;
+    case "air_handler":
+      if (item.tonnage !== null) specs.tonnage = item.tonnage;
+      break;
+    case "evap_coil":
+      if (item.tonnage !== null) specs.tonnage = item.tonnage;
+      if (refrigerant) specs.refrigerant = refrigerant;
+      break;
+    case "gas_furnace":
+      if (item.btu_capacity !== null) specs.btu_output = item.btu_capacity;
+      if (item.stages !== null) specs.stages = item.stages;
+      break;
+    default:
+      // heat_strips/thermostat and accessories don't have direct columns
+      // that map cleanly — leave empty and let the picker use the name.
+      break;
+  }
+
+  return specs;
+}
+
+/**
  * After generateBOM runs, ask the LLM to fill every `source === "missing"`
  * accessory slot with a compatible catalog pick. If `client` is undefined,
  * returns the BOM unchanged (used in dev + tests without the Anthropic
@@ -115,11 +171,15 @@ export async function enrichBomWithAccessories(
     if (!item.bom_slot || !MAJOR_SLOTS.has(item.bom_slot)) continue;
     if (item.source === "missing") continue;
     const catalogEntry = catalogById.get(item.partId);
-    majorEquipment.push({
-      slot: item.bom_slot,
-      name: item.name,
-      specs: (catalogEntry?.bom_specs as Record<string, unknown>) ?? {},
-    });
+    // Prefer classifier-populated bom_specs (vendor_products path). Fall
+    // back to synthesizing from equipment_catalog's direct columns so the
+    // picker can still reason about compatibility for user-quoted parts.
+    const specs =
+      (catalogEntry?.bom_specs as Record<string, unknown> | undefined) ??
+      (catalogEntry
+        ? synthesizeBomSpecs(catalogEntry, item.bom_slot)
+        : {});
+    majorEquipment.push({ slot: item.bom_slot, name: item.name, specs });
   }
 
   type Missing = { index: number; requirement: AccessoryRequirement };
