@@ -26,13 +26,17 @@ export async function POST(req: Request) {
 
   const supabase = createAdminClient();
 
+  // Pick unclassified rows OR rows classified by an older version. Bumping
+  // CLASSIFIER_VERSION in bom-slot-taxonomy.ts automatically re-surfaces
+  // older rows for re-classification on the next backfill run.
+  const staleFilter = `bom_classifier_v.is.null,bom_classifier_v.lt.${CLASSIFIER_VERSION}`;
+
   const { data: rows, error } = await supabase
     .from("vendor_products")
     .select(
       "id, vendor_id, sku, mpn, name, brand, image_url, short_description, category_root, category_path, category_leaf, detail_url, price, price_text, last_priced_at",
     )
-    .is("bom_slot", null)
-    .is("bom_classified_at", null)
+    .or(staleFilter)
     .limit(BATCH_SIZE);
 
   if (error) {
@@ -70,8 +74,7 @@ export async function POST(req: Request) {
   const { count: remaining } = await supabase
     .from("vendor_products")
     .select("id", { count: "exact", head: true })
-    .is("bom_slot", null)
-    .is("bom_classified_at", null);
+    .or(staleFilter);
 
   return NextResponse.json({ classified: written, remaining: remaining ?? 0 });
 }

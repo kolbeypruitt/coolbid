@@ -36,15 +36,14 @@ describe("POST /api/internal/classify-vendor-products", () => {
       createAdminClient: () => ({
         from: (table: string) => {
           if (table === "vendor_products") {
-            // First call: the SELECT limit query
-            // Second call: the count query
+            // v2 query shape: .or(staleFilter).limit(N) for the SELECT,
+            // and .or(staleFilter) for the count with head:true.
             return {
               select: () => ({
-                is: () => ({
-                  is: () => ({
-                    limit: () =>
-                      Promise.resolve({ data: [], error: null }),
-                  }),
+                or: () => ({
+                  limit: () => Promise.resolve({ data: [], error: null }),
+                  then: (fn: (v: { count: number }) => unknown) =>
+                    Promise.resolve({ count: 0 }).then(fn),
                 }),
               }),
               update: () => ({ eq: () => Promise.resolve({ error: null }) }),
@@ -58,7 +57,7 @@ describe("POST /api/internal/classify-vendor-products", () => {
     vi.doMock("@/lib/hvac/vendor-classifier-llm", () => ({
       classifyVendorProductsBatch: vi.fn().mockResolvedValue([]),
       createAnthropicClassifier: vi.fn(),
-      CLASSIFIER_VERSION: 1,
+      CLASSIFIER_VERSION: 2,
     }));
     const { POST } = await import("../route");
     const req = new Request("http://x/api/internal/classify-vendor-products", {

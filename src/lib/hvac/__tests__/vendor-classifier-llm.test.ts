@@ -58,14 +58,36 @@ describe("classifyVendorProductsBatch", () => {
   });
 
   it("drops an entry when bom_specs fails Zod validation", async () => {
+    // v2: tonnage is nullish, so we trip validation with an invalid refrigerant
+    // enum instead of a missing required field.
     const fakeClient: ClassifierClient = {
       classify: vi.fn().mockResolvedValue([
-        { id: "id-1", bom_slot: "ac_condenser", bom_specs: { seer: 16 } },
+        {
+          id: "id-1",
+          bom_slot: "ac_condenser",
+          bom_specs: { tonnage: 3, refrigerant: "r999-not-real" },
+        },
       ]),
     };
     const out = await classifyVendorProductsBatch([row({ id: "id-1" })], fakeClient);
     expect(out).toHaveLength(1);
     expect(out[0]).toEqual({ id: "id-1", bom_slot: null, bom_specs: null });
+  });
+
+  it("accepts an ac_condenser with null tonnage (v2: no hallucinated guessing)", async () => {
+    const fakeClient: ClassifierClient = {
+      classify: vi.fn().mockResolvedValue([
+        {
+          id: "id-1",
+          bom_slot: "ac_condenser",
+          bom_specs: { tonnage: null, refrigerant: "r410a" },
+        },
+      ]),
+    };
+    const out = await classifyVendorProductsBatch([row({ id: "id-1" })], fakeClient);
+    expect(out).toHaveLength(1);
+    expect(out[0].bom_slot).toBe("ac_condenser");
+    expect(out[0].bom_specs).toEqual({ tonnage: null, refrigerant: "r410a" });
   });
 
   it("drops an entry when bom_slot is not in the taxonomy", async () => {
