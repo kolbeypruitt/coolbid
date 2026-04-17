@@ -2,6 +2,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { SYSTEM_TYPE_EQUIPMENT } from '@/types/catalog';
 import type { SystemType, EquipmentType } from '@/types/catalog';
+import { matchesTonnage, isTonnageSizedSlot } from '@/lib/hvac/changeout-tonnage-match';
 
 export type ChangeoutCandidate = {
   id: string;
@@ -20,11 +21,11 @@ export type CandidatesDiagnostics = {
   vendorRows: number;
   slotMatches: number;
   slotMatchesTonnage: number;
+  slotUnsized: number;
   priced: number;
   slotHistogram: Record<string, number>;
 };
 
-const BTU_PER_TON = 12000;
 const VENDOR_PER_SLOT_LIMIT = 100;
 
 /**
@@ -89,7 +90,6 @@ export async function fetchChangeoutCandidates(
             .select('id, name, mpn, brand, price, bom_slot, bom_specs')
             .in('vendor_id', vendorIds)
             .eq('bom_slot', slot)
-            .not('price', 'is', null)
             .limit(VENDOR_PER_SLOT_LIMIT),
         )
       : [];
@@ -111,6 +111,7 @@ export async function fetchChangeoutCandidates(
   const slotHistogram: Record<string, number> = {};
   let slotMatches = 0;
   let slotMatchesTonnage = 0;
+  let slotUnsized = 0;
   let priced = 0;
 
   for (const row of (userCat ?? []) as Array<{
@@ -120,10 +121,12 @@ export async function fetchChangeoutCandidates(
     const slot = row.equipment_type;
     slotHistogram[slot] = (slotHistogram[slot] ?? 0) + 1;
     slotMatches++;
-    if (!matchesTonnage({ tonnage: row.tonnage, btu_capacity: row.btu_capacity }, slot, tonnage)) continue;
+    if (!matchesTonnage({ tonnage: row.tonnage, btu_capacity: row.btu_capacity }, slot, tonnage)) {
+      if (isTonnageSizedSlot(slot) && row.tonnage == null && row.btu_capacity == null) slotUnsized++;
+      continue;
+    }
     slotMatchesTonnage++;
-    if (row.unit_price == null) continue;
-    priced++;
+    if (row.unit_price != null) priced++;
     bySlot[slot].push({
       id: row.id,
       name: row.description,
@@ -141,10 +144,13 @@ export async function fetchChangeoutCandidates(
     slotHistogram[slot] = (slotHistogram[slot] ?? 0) + 1;
     slotMatches++;
     const specsTonnage = (row.bom_specs?.tonnage as number | undefined) ?? null;
-    if (!matchesTonnage({ tonnage: specsTonnage, btu_capacity: null }, slot, tonnage)) continue;
+    const specsBtu = (row.bom_specs?.btu_output as number | undefined) ?? null;
+    if (!matchesTonnage({ tonnage: specsTonnage, btu_capacity: specsBtu }, slot, tonnage)) {
+      if (isTonnageSizedSlot(slot) && specsTonnage == null && specsBtu == null) slotUnsized++;
+      continue;
+    }
     slotMatchesTonnage++;
-    if (row.price == null) continue;
-    priced++;
+    if (row.price != null) priced++;
     // Prefix vendor row IDs so they match classifiedRowToCatalogItem output,
     // which is what the finalize step's catalog lookup expects.
     bySlot[slot].push({
@@ -168,6 +174,7 @@ export async function fetchChangeoutCandidates(
     slotHistogram,
     slotMatches,
     slotMatchesTonnage,
+    slotUnsized,
     priced,
     firstFew: Object.fromEntries(
       Object.entries(bySlot).map(([k, v]) => [k, v.slice(0, 2)]),
@@ -182,24 +189,9 @@ export async function fetchChangeoutCandidates(
       vendorRows: vendorData.length,
       slotMatches,
       slotMatchesTonnage,
+      slotUnsized,
       priced,
       slotHistogram,
     },
   };
-}
-
-function matchesTonnage(
-  item: { tonnage: number | null; btu_capacity: number | null },
-  slot: string,
-  tonnage: number,
-): boolean {
-  if (slot === 'gas_furnace') {
-    if (item.btu_capacity == null) return true;
-    const targetBtu = tonnage * BTU_PER_TON;
-    return Math.abs(item.btu_capacity - targetBtu) <= BTU_PER_TON;
-  }
-  const majorSlots = new Set(['ac_condenser', 'heat_pump_condenser', 'evap_coil', 'air_handler']);
-  if (!majorSlots.has(slot)) return true;
-  if (item.tonnage == null) return true;
-  return item.tonnage === tonnage;
 }
