@@ -120,10 +120,10 @@ export function Step1Customer() {
                     type="button"
                     key={t.id}
                     onClick={() => setExistingSystem({ ...(existingSystem ?? {}), systemType: t.id })}
-                    className={`min-h-[40px] rounded-full border px-3 text-sm ${
+                    className={`min-h-[40px] rounded-full border px-3 text-sm transition ${
                       existingSystem?.systemType === t.id
-                        ? 'border-accent bg-accent/10 text-accent'
-                        : 'border-border bg-bg-card'
+                        ? 'border-accent-light bg-accent-glow-strong text-accent-light'
+                        : 'border-border bg-bg-card text-txt-primary hover:border-accent-light/50'
                     }`}
                   >
                     {t.label}
@@ -139,10 +139,10 @@ export function Step1Customer() {
                     type="button"
                     key={t}
                     onClick={() => setExistingSystem({ ...(existingSystem ?? {}), tonnage: t })}
-                    className={`min-h-[40px] min-w-[56px] rounded-full border px-3 text-sm ${
+                    className={`min-h-[40px] min-w-[56px] rounded-full border px-3 text-sm transition ${
                       existingSystem?.tonnage === t
-                        ? 'border-accent bg-accent/10 text-accent'
-                        : 'border-border bg-bg-card'
+                        ? 'border-accent-light bg-accent-glow-strong text-accent-light'
+                        : 'border-border bg-bg-card text-txt-primary hover:border-accent-light/50'
                     }`}
                   >
                     {t}

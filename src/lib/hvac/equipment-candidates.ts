@@ -16,12 +16,8 @@ const TONNAGE_TOLERANCE = 0.5;
 
 /**
  * Ranked list of compatible catalog candidates for a major-equipment slot.
- * Ranking: exact-tonnage match > priced (non-null unit_price) > brand-preference
- * match > usage_count desc > unit_price asc (nulls last).
- *
- * Priced-before-unpriced is load-bearing: vendor rows without a scraped price
- * drag down any estimate total you build on top of them, so if two candidates
- * are otherwise equal surface the one the user can actually bid with.
+ * Ranking: exact-tonnage match > brand-preference match > usage_count desc
+ * > unit_price asc (nulls last).
  */
 export function findEquipmentCandidates({
   catalog,
@@ -58,14 +54,11 @@ export function findEquipmentCandidates({
       targetTonnage !== null &&
       item.tonnage !== null &&
       Math.abs(item.tonnage - targetTonnage) < 0.01;
-    const hasPrice =
-      item.unit_price !== null && item.unit_price !== undefined && item.unit_price > 0;
-    return { item, brandMatch, tonnageExact, hasPrice };
+    return { item, brandMatch, tonnageExact };
   });
 
   scored.sort((a, b) => {
     if (a.tonnageExact !== b.tonnageExact) return a.tonnageExact ? -1 : 1;
-    if (a.hasPrice !== b.hasPrice) return a.hasPrice ? -1 : 1;
     if (a.brandMatch !== b.brandMatch) return a.brandMatch ? -1 : 1;
     if (a.item.usage_count !== b.item.usage_count) {
       return b.item.usage_count - a.item.usage_count;

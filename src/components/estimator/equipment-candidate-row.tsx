@@ -42,22 +42,24 @@ export function EquipmentCandidateRow({ item, selected, onSelect }: Props) {
       )}
     >
       <div className="flex-1 min-w-0">
-        <div className="flex items-start gap-2">
-          <span className="text-sm font-medium text-txt-primary break-words">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-sm font-medium text-txt-primary">
             {item.description || item.mpn || "Unnamed"}
           </span>
           {item.source === "quote" && (
-            <Badge className="bg-success-bg text-success border-none text-[10px] shrink-0">Quoted</Badge>
+            <Badge className="bg-success-bg text-success border-none text-[10px]">Quoted</Badge>
           )}
           {item.source === "imported" && (
-            <Badge className="bg-cool-blue-glow text-cool-blue-light border-none text-[10px] shrink-0">
+            <Badge className="bg-cool-blue-glow text-cool-blue-light border-none text-[10px]">
               Imported
             </Badge>
           )}
         </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-txt-tertiary">
-          {item.brand && <span>{item.brand}</span>}
-          {specs.length > 0 && <span>{specs.join(" · ")}</span>}
+        <div className="mt-0.5 flex items-center gap-2 text-xs text-txt-tertiary">
+          {item.brand && <span className="truncate">{item.brand}</span>}
+          {specs.length > 0 && (
+            <span className="truncate">{specs.join(" · ")}</span>
+          )}
           {item.mpn && <span className="font-mono text-[10px]">{item.mpn}</span>}
         </div>
       </div>

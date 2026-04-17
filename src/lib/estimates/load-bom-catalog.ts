@@ -10,12 +10,7 @@ import { VENDOR_CATEGORY_FILTERS } from "@/lib/hvac/vendor-category-filters";
 const VENDOR_SELECT =
   "id, vendor_id, sku, mpn, name, brand, image_url, short_description, category_root, category_path, category_leaf, detail_url, price, price_text, last_priced_at, vendor:vendors(id, slug, name)";
 
-// Supabase PostgREST silently caps each response at 1000 rows regardless
-// of the .limit() you set, so we page in 1000-row chunks until exhausted.
-// VENDOR_FETCH_LIMIT is the absolute ceiling so a misconfigured vendor
-// doesn't balloon memory.
-const VENDOR_PAGE_SIZE = 1000;
-const VENDOR_FETCH_LIMIT = 20000;
+const VENDOR_FETCH_LIMIT = 10000;
 
 /**
  * Returns the combined catalog used by BOM generation:
@@ -66,29 +61,18 @@ export async function loadBomCatalog(
 
   if (vendorIds.length === 0) return activeUserCat;
 
-  const allVendorRows: ClassifiedVendorRow[] = [];
-  for (
-    let offset = 0;
-    offset < VENDOR_FETCH_LIMIT;
-    offset += VENDOR_PAGE_SIZE
-  ) {
-    const end = offset + VENDOR_PAGE_SIZE - 1;
-    const { data, error } = await supabase
-      .from("vendor_products")
-      .select(VENDOR_SELECT + ", bom_slot, bom_specs")
-      .in("vendor_id", vendorIds)
-      .or(VENDOR_CATEGORY_FILTERS)
-      .order("id", { ascending: true })
-      .range(offset, end);
-    if (error) throw new Error(`vendor_products: ${error.message}`);
-    const page = (data ?? []) as unknown as ClassifiedVendorRow[];
-    allVendorRows.push(...page);
-    if (page.length < VENDOR_PAGE_SIZE) break;
-  }
+  const { data: vendorRows, error: vendorErr } = await supabase
+    .from("vendor_products")
+    .select(VENDOR_SELECT + ", bom_slot, bom_specs")
+    .in("vendor_id", vendorIds)
+    .or(VENDOR_CATEGORY_FILTERS)
+    .limit(VENDOR_FETCH_LIMIT);
+
+  if (vendorErr) throw new Error(`vendor_products: ${vendorErr.message}`);
 
   const classifiedItems: CatalogItem[] = [];
   const unclassifiedRows: VendorProductRow[] = [];
-  for (const row of allVendorRows) {
+  for (const row of (vendorRows ?? []) as unknown as ClassifiedVendorRow[]) {
     if (row.bom_slot) {
       const item = classifiedRowToCatalogItem(row);
       if (item) classifiedItems.push(item);

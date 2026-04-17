@@ -2,6 +2,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { SYSTEM_TYPE_EQUIPMENT } from '@/types/catalog';
 import type { SystemType, EquipmentType } from '@/types/catalog';
+import { matchesTonnage, isTonnageSizedSlot } from '@/lib/hvac/changeout-tonnage-match';
 
 export type ChangeoutCandidate = {
   id: string;
@@ -15,39 +16,182 @@ export type ChangeoutCandidate = {
 
 export type CandidatesBySlot = Record<string, ChangeoutCandidate[]>;
 
+export type CandidatesDiagnostics = {
+  userCatalogSize: number;
+  vendorRows: number;
+  slotMatches: number;
+  slotMatchesTonnage: number;
+  slotUnsized: number;
+  priced: number;
+  slotHistogram: Record<string, number>;
+};
+
+const VENDOR_PER_SLOT_LIMIT = 100;
+
+/**
+ * Narrow, fast query for changeout equipment candidates. Unlike the
+ * broader loadBomCatalog helper (which fetches up to 10k rows and
+ * runtime-classifies), this hits equipment_catalog + vendor_products
+ * with slot-specific filters so it completes within Supabase's
+ * statement timeout.
+ */
 export async function fetchChangeoutCandidates(
   systemType: SystemType,
   tonnage: number,
-): Promise<{ slots: EquipmentType[]; bySlot: CandidatesBySlot } | { error: string }> {
+): Promise<
+  | { slots: EquipmentType[]; bySlot: CandidatesBySlot; diagnostics: CandidatesDiagnostics }
+  | { error: string }
+> {
+  console.log('[changeout-candidates:enter]', { systemType, tonnage });
   const slots = SYSTEM_TYPE_EQUIPMENT[systemType];
   if (!slots) return { error: `Unknown system type: ${systemType}` };
 
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from('vendor_products')
-    .select('id, name, mpn, brand, price, bom_slot, bom_specs')
-    .in('bom_slot', slots as unknown as string[])
-    .not('price', 'is', null);
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    console.log('[changeout-candidates:not-authed]');
+    return { error: 'Not authenticated' };
+  }
+  console.log('[changeout-candidates:user]', user.id);
 
-  if (error) return { error: error.message };
+  const slotList = slots as unknown as string[];
 
-  const bySlot: CandidatesBySlot = Object.fromEntries(slots.map((s) => [s, [] as ChangeoutCandidate[]]));
-  for (const row of data ?? []) {
-    const slot = row.bom_slot as string;
-    const specs = (row.bom_specs ?? {}) as { tonnage?: number };
-    // Gas furnace tonnage matching is loose — BTU sizing maps roughly.
-    const tonMatch = specs.tonnage == null || specs.tonnage === tonnage;
-    if (!tonMatch && slot !== 'gas_furnace') continue;
-    if (!bySlot[slot]) continue;
+  const { data: supplierRows, error: supplierErr } = await supabase
+    .from('suppliers')
+    .select('vendor_id')
+    .eq('user_id', user.id)
+    .eq('is_active', true)
+    .not('vendor_id', 'is', null);
+
+  if (supplierErr) return { error: `suppliers: ${supplierErr.message}` };
+  const vendorIds = Array.from(
+    new Set(
+      ((supplierRows ?? []) as Array<{ vendor_id: string | null }>)
+        .map((r) => r.vendor_id)
+        .filter((v): v is string => Boolean(v)),
+    ),
+  );
+
+  const userCatQuery = supabase
+    .from('equipment_catalog')
+    .select('id, mpn, description, equipment_type, brand, tonnage, btu_capacity, unit_price')
+    .eq('user_id', user.id)
+    .in('equipment_type', slotList)
+    .order('usage_count', { ascending: false });
+
+  // Per-slot vendor queries use .eq('bom_slot', x) so each hits the partial
+  // index `vendor_products_bom_slot_idx` cleanly. A single .in('bom_slot', ...)
+  // confuses the planner and can trigger sequential scans → statement timeout.
+  const vendorQueries =
+    vendorIds.length > 0
+      ? slotList.map((slot) =>
+          supabase
+            .from('vendor_products')
+            .select('id, name, mpn, brand, price, bom_slot, bom_specs')
+            .in('vendor_id', vendorIds)
+            .eq('bom_slot', slot)
+            .limit(VENDOR_PER_SLOT_LIMIT),
+        )
+      : [];
+
+  const [userCatResult, ...vendorResults] = await Promise.all([userCatQuery, ...vendorQueries]);
+
+  if (userCatResult.error) return { error: `equipment_catalog: ${userCatResult.error.message}` };
+  const userCat = userCatResult.data;
+  const vendorData: Array<{
+    id: string; name: string; mpn: string | null; brand: string | null;
+    price: number | null; bom_slot: string | null; bom_specs: Record<string, unknown> | null;
+  }> = [];
+  for (const r of vendorResults) {
+    if (r.error) return { error: `vendor_products: ${r.error.message}` };
+    for (const row of r.data ?? []) vendorData.push(row as never);
+  }
+
+  const bySlot: CandidatesBySlot = Object.fromEntries(slotList.map((s) => [s, [] as ChangeoutCandidate[]]));
+  const slotHistogram: Record<string, number> = {};
+  let slotMatches = 0;
+  let slotMatchesTonnage = 0;
+  let slotUnsized = 0;
+  let priced = 0;
+
+  for (const row of (userCat ?? []) as Array<{
+    id: string; mpn: string; description: string; equipment_type: string; brand: string;
+    tonnage: number | null; btu_capacity: number | null; unit_price: number | null;
+  }>) {
+    const slot = row.equipment_type;
+    slotHistogram[slot] = (slotHistogram[slot] ?? 0) + 1;
+    slotMatches++;
+    if (!matchesTonnage({ tonnage: row.tonnage, btu_capacity: row.btu_capacity }, slot, tonnage)) {
+      if (isTonnageSizedSlot(slot) && row.tonnage == null && row.btu_capacity == null) slotUnsized++;
+      continue;
+    }
+    slotMatchesTonnage++;
+    if (row.unit_price != null) priced++;
     bySlot[slot].push({
       id: row.id,
+      name: row.description,
+      mpn: row.mpn || null,
+      brand: row.brand || null,
+      price: row.unit_price,
+      bom_slot: slot,
+      tonnage: row.tonnage,
+    });
+  }
+
+  for (const row of vendorData) {
+    if (!row.bom_slot) continue;
+    const slot = row.bom_slot;
+    slotHistogram[slot] = (slotHistogram[slot] ?? 0) + 1;
+    slotMatches++;
+    const specsTonnage = (row.bom_specs?.tonnage as number | undefined) ?? null;
+    const specsBtu = (row.bom_specs?.btu_output as number | undefined) ?? null;
+    if (!matchesTonnage({ tonnage: specsTonnage, btu_capacity: specsBtu }, slot, tonnage)) {
+      if (isTonnageSizedSlot(slot) && specsTonnage == null && specsBtu == null) slotUnsized++;
+      continue;
+    }
+    slotMatchesTonnage++;
+    if (row.price != null) priced++;
+    // Prefix vendor row IDs so they match classifiedRowToCatalogItem output,
+    // which is what the finalize step's catalog lookup expects.
+    bySlot[slot].push({
+      id: `vendor:${row.id}`,
       name: row.name,
       mpn: row.mpn,
       brand: row.brand,
       price: row.price,
       bom_slot: slot,
-      tonnage: specs.tonnage ?? null,
+      tonnage: specsTonnage,
     });
   }
-  return { slots: [...slots], bySlot };
+
+  console.log('[changeout-candidates]', {
+    systemType,
+    tonnage,
+    requestedSlots: slots,
+    vendorIds,
+    userCatalogSize: userCat?.length ?? 0,
+    vendorRows: vendorData.length,
+    slotHistogram,
+    slotMatches,
+    slotMatchesTonnage,
+    slotUnsized,
+    priced,
+    firstFew: Object.fromEntries(
+      Object.entries(bySlot).map(([k, v]) => [k, v.slice(0, 2)]),
+    ),
+  });
+
+  return {
+    slots: [...slots],
+    bySlot,
+    diagnostics: {
+      userCatalogSize: userCat?.length ?? 0,
+      vendorRows: vendorData.length,
+      slotMatches,
+      slotMatchesTonnage,
+      slotUnsized,
+      priced,
+      slotHistogram,
+    },
+  };
 }

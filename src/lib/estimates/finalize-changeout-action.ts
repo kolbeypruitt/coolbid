@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { generateChangeoutBom, type ChangeoutBomInput } from '@/lib/hvac/changeout-bom';
 import { enrichBomViaAI } from '@/lib/estimates/enrich-bom-action';
-import { loadBomCatalog } from '@/lib/estimates/load-bom-catalog';
+import { loadChangeoutCatalog, CHANGEOUT_FINALIZE_SLOTS } from '@/lib/estimates/changeout-catalog';
 import { toBomInsertRows } from '@/lib/estimates/bom-rows';
 import { calcTotals } from '@/lib/estimates/recalc';
 import type { ChangeoutUpsells } from '@/hooks/use-estimator';
@@ -46,7 +46,7 @@ export async function finalizeChangeout(
 
   let catalog;
   try {
-    catalog = await loadBomCatalog(supabase, user.id);
+    catalog = await loadChangeoutCatalog(supabase, user.id, CHANGEOUT_FINALIZE_SLOTS);
   } catch (err) {
     return { error: `Failed to load catalog: ${err instanceof Error ? err.message : 'unknown'}` };
   }

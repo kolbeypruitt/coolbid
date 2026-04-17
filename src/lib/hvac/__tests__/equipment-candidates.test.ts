@@ -138,21 +138,6 @@ describe("findEquipmentCandidates", () => {
     expect(out[0].id).toBe("simple");
   });
 
-  it("ranks priced items ahead of null-priced ones at the same tonnage", () => {
-    const catalog = [
-      item({ id: "free", equipment_type: "ac_condenser", tonnage: 3, unit_price: null }),
-      item({ id: "priced", equipment_type: "ac_condenser", tonnage: 3, unit_price: 2400 }),
-    ];
-    const out = findEquipmentCandidates({
-      catalog,
-      slot: "ac_condenser",
-      targetTonnage: 3,
-      systemType: "gas_ac",
-      preferences: null,
-    });
-    expect(out.map((c) => c.id)).toEqual(["priced", "free"]);
-  });
-
   it("limits results to the `limit` parameter", () => {
     const catalog = Array.from({ length: 20 }, (_, i) =>
       item({ id: `c${i}`, equipment_type: "ac_condenser", tonnage: 3 }),

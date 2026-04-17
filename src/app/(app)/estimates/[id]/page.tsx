@@ -27,9 +27,6 @@ import { DeleteEstimateButton } from "@/components/estimates/delete-estimate-but
 import { FinancialsCard } from "@/components/estimates/financials-card";
 import { BomCategoryTable } from "@/components/estimates/bom-category-table";
 import { compareBomCategories } from "@/lib/hvac/bom-generator";
-import { EquipmentPickerDialog } from "@/components/estimates/equipment-picker-dialog";
-import type { BomSlot } from "@/lib/hvac/bom-slot-taxonomy";
-import type { SystemType } from "@/types/catalog";
 import { EmptyBomCard } from "@/components/estimates/empty-bom-card";
 import { UnsavedShareBanner } from "@/components/estimates/unsaved-share-banner";
 import { FloorplanSchematic } from "@/components/estimates/floorplan-schematic";
@@ -239,15 +236,6 @@ export default async function EstimateDetailPage({
           rfqConfig={rfqConfig}
           projectName={est.project_name}
           estimateId={est.id}
-          extraActions={
-            roomList.length > 0 && est.system_type ? (
-              <EquipmentPickerDialog
-                estimateId={est.id}
-                systemType={est.system_type as SystemType}
-                initialSelected={(est.selected_equipment ?? {}) as Partial<Record<BomSlot, string>>}
-              />
-            ) : null
-          }
         />
       )}
 
