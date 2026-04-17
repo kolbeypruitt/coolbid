@@ -115,6 +115,13 @@ export default async function PublicSharePage({
             </div>
           </header>
 
+          {est.estimate_type === 'changeout' && est.existing_system && (
+            <section className="mt-6 rounded-lg border border-border bg-bg-card/50 p-4 text-sm text-txt-secondary">
+              <span className="text-txt-tertiary">Replacing:</span>{' '}
+              {describeExistingSystem(est.existing_system as { system_type?: string; tonnage?: number } | null)}
+            </section>
+          )}
+
           {/* Proposal meta */}
           <section className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <MetaRow label="Proposal for" value={est.customer_name || "—"} />
@@ -231,6 +238,23 @@ export default async function PublicSharePage({
       </div>
     </main>
   );
+}
+
+function describeExistingSystem(es: { system_type?: string; tonnage?: number } | null | undefined): string {
+  if (!es) return 'existing system';
+  const parts: string[] = [];
+  if (es.tonnage) parts.push(`${es.tonnage} ton`);
+  if (es.system_type) {
+    const labels: Record<string, string> = {
+      heat_pump: 'heat pump',
+      gas_ac: 'gas furnace + AC',
+      dual_fuel: 'dual-fuel system',
+      electric: 'air handler with heat strips',
+      ac_only: 'AC-only system',
+    };
+    parts.push(labels[es.system_type] ?? es.system_type);
+  }
+  return parts.length ? parts.join(' ') : 'existing system';
 }
 
 function MetaRow({ label, value }: { label: string; value: string }) {
