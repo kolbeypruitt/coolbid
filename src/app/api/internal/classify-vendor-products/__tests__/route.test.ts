@@ -36,8 +36,6 @@ describe("POST /api/internal/classify-vendor-products", () => {
       createAdminClient: () => ({
         from: (table: string) => {
           if (table === "vendor_products") {
-            // First call: the SELECT limit query
-            // Second call: the count query
             return {
               select: () => ({
                 is: () => ({
@@ -58,7 +56,7 @@ describe("POST /api/internal/classify-vendor-products", () => {
     vi.doMock("@/lib/hvac/vendor-classifier-llm", () => ({
       classifyVendorProductsBatch: vi.fn().mockResolvedValue([]),
       createAnthropicClassifier: vi.fn(),
-      CLASSIFIER_VERSION: 1,
+      CLASSIFIER_VERSION: 2,
     }));
     const { POST } = await import("../route");
     const req = new Request("http://x/api/internal/classify-vendor-products", {

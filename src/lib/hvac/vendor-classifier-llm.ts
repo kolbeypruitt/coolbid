@@ -63,8 +63,10 @@ Given a batch of product rows (name, brand, category path, scraped specification
 Rules:
 - Split-system accessories (TXV kits, line-set covers, etc.) are NOT condensers even when listed under Residential-Unitary/Split-Systems. Return null.
 - Packaged units (RTUs, PTACs, vertical units) are NOT in the slot list. Return null.
-- For ac_condenser / heat_pump_condenser / gas_furnace / air_handler / evap_coil: tonnage (or btu_output for furnaces) is REQUIRED. If you can't extract it, return null for that row.
-- Refrigerant field uses lowercase: r410a, r454b, r32, r22, other.
+- **NEVER GUESS SPECS.** If a field isn't explicitly stated in the product name, category, or short_description, omit it or set it to null. Do not infer tonnage from model numbers you don't recognize. Do not infer refrigerant from context. Report only what is stated.
+  - Example: "Cased Upflow/Downflow Evaporator Coil - CC Series Goodman Matches" has NO tonnage and NO refrigerant in the source text → {"bom_slot":"evap_coil","bom_specs":{}}
+  - Example: "3 Ton AC Condenser GSX160361 R-410A" HAS both → {"bom_slot":"ac_condenser","bom_specs":{"tonnage":3,"refrigerant":"r410a"}}
+- Refrigerant field uses lowercase: r410a, r454b, r32, r22, other. "R-32" → "r32". "R-454B" or "R-454" → "r454b".
 - Sizes like "3/8" or "7/8" are strings, not numbers (preserve fraction).
 - If scraped specs contradict the product name, trust the name + category_leaf.
 - Return every input id exactly once.`;

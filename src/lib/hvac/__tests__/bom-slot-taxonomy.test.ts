@@ -36,10 +36,21 @@ describe("bom-slot-taxonomy", () => {
     expect(result.success).toBe(true);
   });
 
-  it("validateBomSpecs rejects an ac_condenser missing tonnage", () => {
+  it("validateBomSpecs accepts an ac_condenser with null tonnage (unknown)", () => {
+    // v2: tonnage is nullish so the LLM can honestly report "unknown" instead
+    // of fabricating a number to satisfy required().
     const result = validateBomSpecs("ac_condenser", {
+      tonnage: null,
       seer: 16,
       refrigerant: "r410a",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("validateBomSpecs rejects an ac_condenser with zero tonnage", () => {
+    const result = validateBomSpecs("ac_condenser", {
+      tonnage: 0,
+      seer: 16,
     });
     expect(result.success).toBe(false);
   });

@@ -26,6 +26,13 @@ export async function POST(req: Request) {
 
   const supabase = createAdminClient();
 
+  // Pick rows that have never been classified (bom_classified_at IS NULL).
+  // Taxonomy/prompt changes don't auto-trigger re-classification — that's
+  // intentional to keep rescans under operator control (cost, timing).
+  // For a targeted rescan, reset the affected rows via SQL first:
+  //   UPDATE vendor_products SET bom_slot = NULL, bom_specs = NULL,
+  //     bom_classified_at = NULL WHERE bom_slot IN (...);
+  // Then rerun the backfill script.
   const { data: rows, error } = await supabase
     .from("vendor_products")
     .select(

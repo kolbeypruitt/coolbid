@@ -3,11 +3,15 @@ import type { EquipmentType } from "@/types/catalog";
 
 /**
  * Increment when the slot list or any per-slot spec schema changes in a way
- * that invalidates previously-classified rows. The classifier writes this
- * number into vendor_products.bom_classifier_v so we can selectively null
- * and re-classify affected rows.
+ * that invalidates previously-classified rows. The classifier endpoint
+ * re-picks rows whose stored version is below this value so the next
+ * backfill run re-classifies them.
+ *
+ * v2 (2026-04-16): made tonnage / btu_output nullish on major-equipment
+ * slots and tightened the prompt to forbid guessing. v1 data had
+ * hallucinated tonnage on coil rows whose names didn't state it.
  */
-export const CLASSIFIER_VERSION = 1;
+export const CLASSIFIER_VERSION = 2;
 
 /**
  * The full enum of BOM slots. Order is presentation-stable; grouped by how
@@ -66,8 +70,12 @@ export type BomSlot = (typeof BOM_SLOT_VALUES)[number];
 const REFRIGERANT = z.enum(["r410a", "r454b", "r32", "r22", "other"]);
 
 export const BOM_SPEC_SCHEMAS = {
+  // Major-equipment tonnage/btu_output are nullish so the LLM can honestly
+  // report "unknown" instead of fabricating a number to satisfy required()
+  // and passing bogus specs through. Matching code tolerates null tonnage
+  // and falls back to closest-match / any-match.
   ac_condenser: z.object({
-    tonnage: z.number().positive(),
+    tonnage: z.number().positive().nullish(),
     seer: z.number().positive().optional(),
     eer: z.number().positive().optional(),
     refrigerant: REFRIGERANT.optional(),
@@ -80,7 +88,7 @@ export const BOM_SPEC_SCHEMAS = {
     stages: z.number().int().positive().optional(),
   }),
   heat_pump_condenser: z.object({
-    tonnage: z.number().positive(),
+    tonnage: z.number().positive().nullish(),
     seer: z.number().positive().optional(),
     hspf: z.number().positive().optional(),
     refrigerant: REFRIGERANT.optional(),
@@ -93,7 +101,7 @@ export const BOM_SPEC_SCHEMAS = {
     stages: z.number().int().positive().optional(),
   }),
   gas_furnace: z.object({
-    btu_output: z.number().positive(),
+    btu_output: z.number().positive().nullish(),
     afue: z.number().positive().optional(),
     stages: z.number().int().positive().optional(),
     blower_cfm: z.number().positive().optional(),
@@ -102,14 +110,14 @@ export const BOM_SPEC_SCHEMAS = {
     voltage: z.number().positive().optional(),
   }),
   air_handler: z.object({
-    tonnage: z.number().positive(),
+    tonnage: z.number().positive().nullish(),
     cfm: z.number().positive().optional(),
     filter_size: z.string().optional(),
     voltage: z.number().positive().optional(),
     drain_size: z.string().optional(),
   }),
   evap_coil: z.object({
-    tonnage: z.number().positive(),
+    tonnage: z.number().positive().nullish(),
     refrigerant: REFRIGERANT.optional(),
     cabinet_width: z.number().positive().optional(),
     drain_size: z.string().optional(),
