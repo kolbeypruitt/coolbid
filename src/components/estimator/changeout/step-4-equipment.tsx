@@ -102,6 +102,11 @@ export function Step4Equipment() {
                       {p.brand ? `${p.brand} · ` : ''}{p.name}
                     </li>
                   ))}
+                  {tier.missingSlots.map((s) => (
+                    <li key={s} className="whitespace-normal break-words text-txt-tertiary italic">
+                      {humanizeSlot(s)} — filled after send
+                    </li>
+                  ))}
                 </ul>
               </button>
             </li>
@@ -122,6 +127,19 @@ export function Step4Equipment() {
       </div>
     </div>
   );
+}
+
+const SLOT_LABELS: Record<string, string> = {
+  ac_condenser: 'AC condenser',
+  heat_pump_condenser: 'Heat pump condenser',
+  gas_furnace: 'Gas furnace',
+  air_handler: 'Air handler',
+  evap_coil: 'Evap coil',
+  heat_strips: 'Heat strips',
+};
+
+function humanizeSlot(slot: string): string {
+  return SLOT_LABELS[slot] ?? slot.replace(/_/g, ' ');
 }
 
 function diagnosticHint(d: { catalogSize: number; slotMatches: number; slotMatchesTonnage: number; priced: number } | null): string | null {
