@@ -14,7 +14,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { EquipmentSlotPicker } from "@/components/estimator/equipment-slot-picker";
-import { findEquipmentCandidates } from "@/lib/hvac/equipment-candidates";
 import {
   SYSTEM_TYPE_EQUIPMENT,
   EQUIPMENT_TYPE_LABELS,
@@ -23,21 +22,18 @@ import {
   type SystemType,
 } from "@/types/catalog";
 import type { BomSlot } from "@/lib/hvac/bom-slot-taxonomy";
-import type { ContractorPreferences } from "@/types/contractor-preferences";
 import { updateSelectedEquipment } from "@/lib/estimates/update-equipment";
 
 type Props = {
   estimateId: string;
   systemType: SystemType;
   tonnage: number;
-  catalog: CatalogItem[];
-  preferences: ContractorPreferences | null;
+  candidatesBySlot: Partial<Record<BomSlot, CatalogItem[]>>;
   initialSelected: Partial<Record<BomSlot, string>>;
 };
 
 // Rank bom_specs-having items first so users trying to unlock accessory
-// matching can see the good options at the top. findEquipmentCandidates
-// already sorts by tonnage/brand/usage; we re-sort stably after.
+// matching can see the good options at the top.
 function specsFirst(items: CatalogItem[]): CatalogItem[] {
   return [...items].sort((a, b) => {
     const aHas = a.bom_specs && Object.keys(a.bom_specs).length > 0 ? 1 : 0;
@@ -50,8 +46,7 @@ export function EquipmentPickerDialog({
   estimateId,
   systemType,
   tonnage,
-  catalog,
-  preferences,
+  candidatesBySlot,
   initialSelected,
 }: Props) {
   const router = useRouter();
@@ -66,21 +61,13 @@ export function EquipmentPickerDialog({
     [systemType],
   );
 
-  const candidatesBySlot = useMemo<Partial<Record<BomSlot, CatalogItem[]>>>(() => {
+  const rankedBySlot = useMemo<Partial<Record<BomSlot, CatalogItem[]>>>(() => {
     const map: Partial<Record<BomSlot, CatalogItem[]>> = {};
     for (const slot of requiredSlots) {
-      const ranked = findEquipmentCandidates({
-        catalog,
-        slot,
-        targetTonnage: slot === "thermostat" ? null : tonnage,
-        systemType,
-        preferences,
-        limit: 25,
-      });
-      map[slot] = specsFirst(ranked);
+      map[slot] = specsFirst(candidatesBySlot[slot] ?? []);
     }
     return map;
-  }, [catalog, requiredSlots, tonnage, systemType, preferences]);
+  }, [candidatesBySlot, requiredSlots]);
 
   function handleSave() {
     setError(null);
@@ -123,7 +110,7 @@ export function EquipmentPickerDialog({
           {requiredSlots.map((slot) => {
             const label = EQUIPMENT_TYPE_LABELS[slot as EquipmentType] ?? slot;
             const isThermostat = slot === "thermostat";
-            const candidates = candidatesBySlot[slot] ?? [];
+            const candidates = rankedBySlot[slot] ?? [];
             return (
               <EquipmentSlotPicker
                 key={slot}
