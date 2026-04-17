@@ -55,6 +55,49 @@ function extractTonnage(
   return null;
 }
 
+/**
+ * Derive the exact BOM slot for a vendor product when the name/leaf is
+ * specific enough. Returns null when we can only commit to the coarser
+ * equipment_type (e.g., a generic "installation" item we can't sub-classify).
+ * The accessory picker uses this to narrow candidates past equipment_type.
+ */
+function deriveBomSlot(p: VendorProductRow): BomSlot | null {
+  const name = (p.name ?? "").toLowerCase();
+  const leaf = (p.category_leaf ?? "").toLowerCase();
+
+  if (/\bcondensate\s+pump\b/.test(name) || /\bcondensate\s+pumps?\b/.test(leaf))
+    return "condensate_pump";
+  if (/\bfoil\s+tape\b/.test(name) || /^(foil|hvac)\s+tapes?$/.test(leaf))
+    return "foil_tape";
+  if (/\bduct\s+(mastic|sealant)\b/.test(name) || /\bduct\s+sealants?\b/.test(leaf))
+    return "duct_mastic";
+  if (/\bhanger\s+strap(ping)?\b/.test(name) || /\bhanger\s+strapping\b/.test(leaf))
+    return "hanger_strap";
+  if (/\bp-?trap\b/.test(name) && /\btraps?\b/.test(leaf)) return "p_trap";
+  if (/\bcondenser\s+pad\b/.test(name) || /\bequipment\s+pad\b/.test(name))
+    return "condenser_pad";
+  if (/\bcircuit\s+breaker\b/.test(name) || leaf === "circuit breakers")
+    return "breaker";
+  if (
+    /\bdisconnect\s+switch\b/.test(name) ||
+    /\bsafety\s+switch\b/.test(name) ||
+    /\b(safety|disconnect)\s+switch/.test(leaf) ||
+    leaf === "disconnect enclosures"
+  )
+    return "disconnect";
+  if (/\bconduit\s+whip\b/.test(name)) return "conduit_whip";
+  if (/\b(supply|return|duct)\s+plenum\b/.test(name) || /\bduct\s+plenums?\b/.test(leaf)) {
+    if (/\breturn\b/.test(name)) return "return_plenum";
+    return "supply_plenum";
+  }
+  if (/\bflex(ible)?\s*duct\b/.test(name)) return "flex_duct";
+  if (/\bline\s+set\b/.test(name)) return "line_set";
+  if (/\brefrigerant\b/.test(name) && /\bcylinder\b|\blb\b|\bpound\b/.test(name))
+    return "refrigerant";
+
+  return null;
+}
+
 function deriveEquipmentType(p: VendorProductRow): EquipmentType | null {
   const path = (p.category_path ?? "").toLowerCase();
   const name = (p.name ?? "").toLowerCase();
@@ -178,6 +221,8 @@ export function classifyVendorProduct(p: VendorProductRow): CatalogItem | null {
     .filter(Boolean)
     .join(" — ");
 
+  const bom_slot = deriveBomSlot(p) ?? undefined;
+
   return {
     id: `vendor:${p.id}`,
     user_id: "",
@@ -195,6 +240,7 @@ export function classifyVendorProduct(p: VendorProductRow): CatalogItem | null {
     refrigerant_type: null,
     unit_price: p.price,
     unit_of_measure: "ea",
+    bom_slot,
     source: "imported",
     usage_count: 0,
     last_quoted_date: null,
@@ -259,6 +305,7 @@ export function classifiedRowToCatalogItem(
     unit_price: row.price,
     unit_of_measure: "ea",
     bom_specs: row.bom_specs ?? undefined,
+    bom_slot: slot,
     source: "imported",
     usage_count: 0,
     last_quoted_date: null,

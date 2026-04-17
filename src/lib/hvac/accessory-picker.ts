@@ -202,13 +202,21 @@ export async function enrichBomWithAccessories(
   const candidatesBySlot: Partial<Record<BomSlot, CatalogItem[]>> = {};
   for (const m of missing) {
     if (candidatesBySlot[m.requirement.slot]) continue;
-    // Include unclassified vendor rows too — the classifier hasn't processed
-    // everything (see CLASSIFIER_VERSION backfill). Sort classified first so
-    // the LLM sees the richest candidates at the top of the capped list.
+    // Sort order: exact bom_slot match first (classifier knew the slot),
+    // then equipment_type match with bom_specs (classifier knew the coarse
+    // bucket and extracted specs), then equipment_type match without specs.
+    // Without this, a coarse "installation" bucket mixes pumps + tape + pads
+    // + traps and the LLM punts to null because the top 20 are off-slot.
     const slotCandidates = catalog
       .filter((c) => c.id.startsWith("vendor:"))
       .filter((c) => SLOT_TO_EQUIPMENT_TYPE[m.requirement.slot] === c.equipment_type)
-      .sort((a, b) => (b.bom_specs ? 1 : 0) - (a.bom_specs ? 1 : 0))
+      .sort((a, b) => {
+        const slotMatch =
+          (b.bom_slot === m.requirement.slot ? 1 : 0) -
+          (a.bom_slot === m.requirement.slot ? 1 : 0);
+        if (slotMatch !== 0) return slotMatch;
+        return (b.bom_specs ? 1 : 0) - (a.bom_specs ? 1 : 0);
+      })
       .slice(0, 20);
     candidatesBySlot[m.requirement.slot] = slotCandidates;
   }

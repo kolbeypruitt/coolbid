@@ -274,6 +274,53 @@ describe("enrichBomWithAccessories", () => {
     expect(enriched.items[0].notes).toContain("no 3/4");
   });
 
+  it("prioritizes exact bom_slot matches over coarse equipment_type peers", async () => {
+    // All three share equipment_type="installation" but only one is
+    // actually a p-trap. Without slot-level prioritization, the LLM sees
+    // a mix of unrelated installation items and often picks null.
+    const pTrap = catalogItem({
+      id: "vendor:ptrap",
+      equipment_type: "installation",
+      bom_slot: "p_trap",
+      description: "3/4 PVC P-Trap",
+    });
+    const pump = catalogItem({
+      id: "vendor:pump",
+      equipment_type: "installation",
+      bom_slot: "condensate_pump",
+      description: "Condensate Pump 115V",
+      bom_specs: { flow_gph: 20 },
+    });
+    const unclassifiedTrap = catalogItem({
+      id: "vendor:unc-trap",
+      equipment_type: "installation",
+      description: "Sink Trap (generic)",
+    });
+
+    const bom = bomResult([
+      bomItem({ source: "missing", bom_slot: "p_trap", name: "P-Trap", qty: 1 }),
+    ]);
+
+    const fakeClient: AccessoryPickerClient = {
+      pick: vi.fn().mockResolvedValue({
+        p_trap: { pick_id: "vendor:ptrap", reason: "exact match" },
+      }),
+    };
+
+    await enrichBomWithAccessories(
+      bom,
+      [pump, unclassifiedTrap, pTrap],
+      null,
+      fakeClient,
+    );
+
+    const pickCall = (fakeClient.pick as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    const ids = pickCall.candidatesBySlot.p_trap.map((c: { id: string }) => c.id);
+    expect(ids[0]).toBe("vendor:ptrap");
+    expect(ids).toContain("vendor:pump");
+    expect(ids).toContain("vendor:unc-trap");
+  });
+
   it("includes unclassified vendor candidates and sorts classified first", async () => {
     // Runtime-classified vendor rows (no bom_specs) must still reach the
     // picker — otherwise accessory slots like flex_duct/line_set/p_trap

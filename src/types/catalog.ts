@@ -1,3 +1,5 @@
+import type { BomSlot } from "@/lib/hvac/bom-slot-taxonomy";
+
 export type SystemType = "heat_pump" | "gas_ac" | "electric" | "dual_fuel";
 
 export type EquipmentType =
@@ -90,6 +92,13 @@ export type CatalogItem = {
    * about compatibility. Transient — never persisted.
    */
   bom_specs?: Record<string, unknown>;
+  /**
+   * Exact BOM slot this item fills, when the LLM classifier or the runtime
+   * heuristic could identify it unambiguously (e.g. leaf "Condensate Pump"
+   * → "condensate_pump"). Lets the accessory picker narrow candidates past
+   * the coarser equipment_type bucket. Transient — never persisted.
+   */
+  bom_slot?: BomSlot;
   source: CatalogSource;
   usage_count: number;
   last_quoted_date: string | null;
