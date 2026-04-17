@@ -140,8 +140,10 @@ export async function fetchChangeoutCandidates(
     slotMatchesTonnage++;
     if (row.price == null) continue;
     priced++;
+    // Prefix vendor row IDs so they match classifiedRowToCatalogItem output,
+    // which is what the finalize step's catalog lookup expects.
     bySlot[slot].push({
-      id: row.id,
+      id: `vendor:${row.id}`,
       name: row.name,
       mpn: row.mpn,
       brand: row.brand,
