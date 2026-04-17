@@ -36,14 +36,13 @@ describe("POST /api/internal/classify-vendor-products", () => {
       createAdminClient: () => ({
         from: (table: string) => {
           if (table === "vendor_products") {
-            // v2 query shape: .or(staleFilter).limit(N) for the SELECT,
-            // and .or(staleFilter) for the count with head:true.
             return {
               select: () => ({
-                or: () => ({
-                  limit: () => Promise.resolve({ data: [], error: null }),
-                  then: (fn: (v: { count: number }) => unknown) =>
-                    Promise.resolve({ count: 0 }).then(fn),
+                is: () => ({
+                  is: () => ({
+                    limit: () =>
+                      Promise.resolve({ data: [], error: null }),
+                  }),
                 }),
               }),
               update: () => ({ eq: () => Promise.resolve({ error: null }) }),

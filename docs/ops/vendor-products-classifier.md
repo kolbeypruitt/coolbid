@@ -40,18 +40,44 @@ project's cron policy):
 
 Response is a no-op when there are zero unclassified rows (~50ms).
 
-## Re-classifying after taxonomy changes
+## Re-classifying after taxonomy or prompt changes
 
-1. Bump `CLASSIFIER_VERSION` in `src/lib/hvac/bom-slot-taxonomy.ts`.
-2. Null out older rows so the cron re-classifies them:
+Rescans are operator-controlled — bumping `CLASSIFIER_VERSION` alone does
+NOT trigger automatic re-classification. That's intentional (cost + timing
+should stay under your control).
 
-```sql
-update vendor_products
-  set bom_slot = null, bom_specs = null, bom_classified_at = null
-  where bom_classifier_v < <new version>;
-```
+Workflow:
 
-3. The backfill script (or the next cron hits) will re-classify them.
+1. Bump `CLASSIFIER_VERSION` in `src/lib/hvac/bom-slot-taxonomy.ts` (for
+   audit / future filtering). Optional but recommended.
+2. Reset only the rows you want re-classified. Examples:
+
+   **Full rescan (all classified rows):**
+   ```sql
+   update vendor_products
+     set bom_slot = null, bom_specs = null, bom_classified_at = null
+     where bom_classified_at is not null;
+   ```
+
+   **Just major equipment (cheap targeted rescan, ~2k rows, <$1):**
+   ```sql
+   update vendor_products
+     set bom_slot = null, bom_specs = null, bom_classified_at = null
+     where bom_slot in (
+       'ac_condenser', 'heat_pump_condenser',
+       'gas_furnace', 'air_handler', 'evap_coil'
+     );
+   ```
+
+   **By version (rows classified by an older version):**
+   ```sql
+   update vendor_products
+     set bom_slot = null, bom_specs = null, bom_classified_at = null
+     where bom_classifier_v < <target version>;
+   ```
+
+3. Re-run the backfill script. The endpoint picks up rows with
+   `bom_classified_at IS NULL`, so only the rows you reset get processed.
 
 ## Monitoring
 
