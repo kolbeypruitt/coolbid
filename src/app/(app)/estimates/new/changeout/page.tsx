@@ -1,3 +1,5 @@
+import { ChangeoutWizard } from '@/components/estimator/changeout/changeout-wizard';
+
 export default function ChangeoutEstimatePage() {
-  return <div>Changeout wizard coming soon</div>;
+  return <ChangeoutWizard />;
 }
