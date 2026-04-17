@@ -20,9 +20,13 @@ Compatibility rules (STRICT — never pick a candidate that violates these):
 - conduit_whip: size_inches must match the circuit (typically 3/4" for residential splits).
 - drain_line / p_trap: size_inches typically matches the coil/air_handler drain_size.
 
-Preference ordering (break ties in this order):
-1. Contractor brand preferences, if any match.
-2. Lower unit_price.
+Contractor preferences (honor when present):
+- preferences.supply_register_style: prefer registers whose description/specs match this style (e.g. "rectangular_4x12", "sidewall", "floor"). Skip candidates whose style clearly conflicts (e.g. a "Floor Register" when style is "sidewall").
+- preferences.return_grille_sizing: prefer grilles matching the preferred dimensions. "oversized_24x24" means W≥24 AND H≥24.
+- preferences.filter_size / preferences.filter_merv: filter picks MUST match the size; MERV matches when possible, else closest at or above.
+- preferences.equipment_brands / preferences.thermostat_brand: prefer matches, not required.
+
+When a spec can't be verified from provided data, pick the closest credible match in the candidate list rather than null — "null" is only correct when NO candidate could plausibly fit. Cite the match reason.
 
 Output JSON format (return exactly one object, no commentary):
 {
@@ -34,7 +38,7 @@ Output JSON format (return exactly one object, no commentary):
 Rules:
 - Every requirement slot must appear in the output exactly once.
 - pick_id MUST be a candidate_id from the provided list, or null if no candidate is compatible.
-- Use pick_id: null generously — fabricating an id the user can't resolve is worse than "missing".
+- Return null only when every candidate would violate a STRICT rule, or when the candidate list is empty. If no candidate is perfect but some are credible (dimensions close, refrigerant/style/amps match even if other specs are unknown), pick the best available and say so in the reason. Missing specs on a candidate are not a reason to return null.
 - Keep reasons concise (<= 120 chars). Cite the spec you matched on.`;
 
 export function createAnthropicAccessoryPicker(
