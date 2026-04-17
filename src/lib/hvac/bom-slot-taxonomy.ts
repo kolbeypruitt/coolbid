@@ -3,15 +3,19 @@ import type { EquipmentType } from "@/types/catalog";
 
 /**
  * Increment when the slot list or any per-slot spec schema changes in a way
- * that invalidates previously-classified rows. The classifier endpoint
- * re-picks rows whose stored version is below this value so the next
- * backfill run re-classifies them.
+ * that invalidates previously-classified rows. Version bumps do NOT auto-
+ * trigger rescan — operators opt in via targeted SQL reset + backfill run
+ * (see docs/ops/vendor-products-classifier.md).
  *
  * v2 (2026-04-16): made tonnage / btu_output nullish on major-equipment
- * slots and tightened the prompt to forbid guessing. v1 data had
- * hallucinated tonnage on coil rows whose names didn't state it.
+ * slots and tightened the prompt to forbid guessing.
+ *
+ * v3 (2026-04-17): added mpn to the classifier input and taught the
+ * prompt to decode Goodman 3-digit (036 → 3T) and Locke 2-digit
+ * (48 → 4T) tonnage codes. Closes a gap where rows with tonnage only
+ * in the MPN came back with null tonnage.
  */
-export const CLASSIFIER_VERSION = 2;
+export const CLASSIFIER_VERSION = 3;
 
 /**
  * The full enum of BOM slots. Order is presentation-stable; grouped by how
