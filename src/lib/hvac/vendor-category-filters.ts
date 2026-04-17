@@ -8,13 +8,11 @@
  * the taxonomy in `bom-slot-taxonomy.ts`.
  */
 export const VENDOR_CATEGORY_FILTERS = [
+  // Path-based filters (Johnstone-style — full HVAC-Equipment/... hierarchy)
   "category_path.ilike.%residential-unitary/%",
   "category_path.ilike.%specialty/heaters-furnaces%",
   "category_path.ilike.%thermostats%",
   "category_path.ilike.%ducting-sheet-metal%",
-  "category_leaf.ilike.registers",
-  "category_leaf.ilike.grilles",
-  "category_leaf.ilike.diffusers",
   "category_path.ilike.%refrigeration/refrigerant/%",
   "category_path.ilike.%installation-maintenance-supplies/line-sets%",
   "category_path.ilike.%electrical-installation-maintenance-supplies/%",
@@ -24,4 +22,16 @@ export const VENDOR_CATEGORY_FILTERS = [
   "category_path.ilike.%installation-maintenance-supplies/mounting-supplies%",
   "category_path.ilike.%installation-maintenance-supplies/adhesives%",
   "category_path.ilike.%filter-air%",
+
+  // Leaf-based filters (Locke-style — category_path is sometimes null but
+  // category_leaf identifies the product bucket). Also covers some Johnstone
+  // rows where the path didn't include the leaf slug.
+  "category_leaf.ilike.registers",
+  "category_leaf.ilike.grilles",
+  "category_leaf.ilike.diffusers",
+  "category_leaf.ilike.line sets",
+  "category_leaf.ilike.%p-trap%",
+  "category_leaf.ilike.%condensate pump%",
+  "category_leaf.ilike.%hanger strap%",
+  "category_leaf.ilike.%ducting%",
 ].join(",");
