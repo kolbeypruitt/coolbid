@@ -468,4 +468,32 @@ describe("generateBOM with user-selected major equipment", () => {
     const acRow = bom.items.find((i) => i.bom_slot === "ac_condenser");
     expect(acRow?.partId).toBe("auto");
   });
+
+  it("omits the sheet-metal trunk when duct_trunk_material preference is flex", () => {
+    const bomMetal = generateBOM(
+      [room(1500)],
+      "mixed",
+      "gas_ac",
+      [],
+      undefined,
+      undefined,
+      { duct_trunk_material: "sheet_metal" },
+    );
+    expect(
+      bomMetal.items.some((i) => i.bom_slot === "ductwork_trunk"),
+    ).toBe(true);
+
+    const bomFlex = generateBOM(
+      [room(1500)],
+      "mixed",
+      "gas_ac",
+      [],
+      undefined,
+      undefined,
+      { duct_trunk_material: "flex" },
+    );
+    expect(
+      bomFlex.items.some((i) => i.bom_slot === "ductwork_trunk"),
+    ).toBe(false);
+  });
 });

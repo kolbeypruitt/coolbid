@@ -278,14 +278,19 @@ export function generateBOM(
   // Ductwork
   const trunkLen = Math.ceil(condSqft / 35);
 
-  const [trunkModelKw, trunkDescKw] =
-    tonnage <= 3 ? ["0812", "8x12"] : tonnage <= 4 ? ["1014", "10x14"] : ["1216", "12x16"];
-  const trunk = findCatalogItemByKeyword(catalog, "ductwork", systemType, trunkModelKw, trunkDescKw, brands);
-  if (trunk) {
-    items.push(catalogToBomItem(trunk.item, trunkLen, trunk.notes, "ductwork_trunk"));
-  } else {
-    const trunkLabel = tonnage <= 3 ? "8\"x12\" Sheet Metal Trunk" : tonnage <= 4 ? "10\"x14\" Sheet Metal Trunk" : "12\"x16\" Sheet Metal Trunk";
-    items.push({ ...missingItem("ductwork", trunkLabel, trunkLen, undefined, "ductwork_trunk"), unit: "ft" });
+  // Skip sheet-metal trunk when the contractor installs flex-only systems —
+  // the flex runs below carry the total airflow instead of branching off a
+  // metal trunk. duct_board / other still get the trunk for now.
+  if (preferences?.duct_trunk_material !== "flex") {
+    const [trunkModelKw, trunkDescKw] =
+      tonnage <= 3 ? ["0812", "8x12"] : tonnage <= 4 ? ["1014", "10x14"] : ["1216", "12x16"];
+    const trunk = findCatalogItemByKeyword(catalog, "ductwork", systemType, trunkModelKw, trunkDescKw, brands);
+    if (trunk) {
+      items.push(catalogToBomItem(trunk.item, trunkLen, trunk.notes, "ductwork_trunk"));
+    } else {
+      const trunkLabel = tonnage <= 3 ? "8\"x12\" Sheet Metal Trunk" : tonnage <= 4 ? "10\"x14\" Sheet Metal Trunk" : "12\"x16\" Sheet Metal Trunk";
+      items.push({ ...missingItem("ductwork", trunkLabel, trunkLen, undefined, "ductwork_trunk"), unit: "ft" });
+    }
   }
 
   const flex8 = findCatalogItemByKeyword(catalog, "ductwork", systemType, "FD08", "8\" round flex", brands);
