@@ -115,6 +115,28 @@ function getCategoryFromType(type: EquipmentType): string {
   return map[type] ?? "Other";
 }
 
+// Major Equipment leads so the anchor of the job (condenser/furnace/coil)
+// is the first thing anyone scanning the estimate sees. Unknown categories
+// fall alphabetically to the end via the indexOf-miss fallback.
+export const BOM_CATEGORY_ORDER: readonly string[] = [
+  "Major Equipment",
+  "Controls",
+  "Ductwork",
+  "Registers & Grilles",
+  "Refrigerant & Lines",
+  "Electrical",
+  "Installation",
+];
+
+const CATEGORY_RANK = new Map(BOM_CATEGORY_ORDER.map((c, i) => [c, i]));
+
+export function compareBomCategories(a: string, b: string): number {
+  const aRank = CATEGORY_RANK.get(a) ?? BOM_CATEGORY_ORDER.length;
+  const bRank = CATEGORY_RANK.get(b) ?? BOM_CATEGORY_ORDER.length;
+  if (aRank !== bRank) return aRank - bRank;
+  return a.localeCompare(b);
+}
+
 function catalogToBomItem(
   item: CatalogItem,
   qty: number,

@@ -26,6 +26,7 @@ import { EstimateActions } from "@/components/estimates/estimate-actions";
 import { DeleteEstimateButton } from "@/components/estimates/delete-estimate-button";
 import { FinancialsCard } from "@/components/estimates/financials-card";
 import { BomCategoryTable } from "@/components/estimates/bom-category-table";
+import { compareBomCategories } from "@/lib/hvac/bom-generator";
 import { EmptyBomCard } from "@/components/estimates/empty-bom-card";
 import { UnsavedShareBanner } from "@/components/estimates/unsaved-share-banner";
 import { FloorplanSchematic } from "@/components/estimates/floorplan-schematic";
@@ -304,15 +305,17 @@ export default async function EstimateDetailPage({
       )}
 
       {/* BOM Tables grouped by category — editable */}
-      {Object.entries(bomByCategory).map(([category, items]) => (
-        <BomCategoryTable
-          key={category}
-          estimateId={est.id}
-          category={category}
-          items={items}
-          status={est.status}
-        />
-      ))}
+      {Object.entries(bomByCategory)
+        .sort(([a], [b]) => compareBomCategories(a, b))
+        .map(([category, items]) => (
+          <BomCategoryTable
+            key={category}
+            estimateId={est.id}
+            category={category}
+            items={items}
+            status={est.status}
+          />
+        ))}
     </div>
   );
 }

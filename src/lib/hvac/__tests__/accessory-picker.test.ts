@@ -274,6 +274,48 @@ describe("enrichBomWithAccessories", () => {
     expect(enriched.items[0].notes).toContain("no 3/4");
   });
 
+  it("includes unclassified vendor candidates and sorts classified first", async () => {
+    // Runtime-classified vendor rows (no bom_specs) must still reach the
+    // picker — otherwise accessory slots like flex_duct/line_set/p_trap
+    // return empty candidate lists whenever the LLM classifier hasn't
+    // processed those rows yet.
+    const classified = catalogItem({
+      id: "vendor:classified-trap",
+      equipment_type: "installation",
+      description: "3/4 PVC P-Trap",
+      bom_specs: { size_inches: 0.75, material: "pvc" },
+    });
+    const unclassified = catalogItem({
+      id: "vendor:runtime-trap",
+      equipment_type: "installation",
+      description: "1/2 PVC P-Trap",
+      // no bom_specs — came from classifyVendorProducts fallback
+    });
+
+    const bom = bomResult([
+      bomItem({ source: "missing", bom_slot: "p_trap", name: "P-Trap", qty: 1 }),
+    ]);
+
+    const fakeClient: AccessoryPickerClient = {
+      pick: vi.fn().mockResolvedValue({
+        p_trap: { pick_id: "vendor:classified-trap", reason: "matches 3/4 drain" },
+      }),
+    };
+
+    await enrichBomWithAccessories(
+      bom,
+      [unclassified, classified],
+      null,
+      fakeClient,
+    );
+
+    const pickCall = (fakeClient.pick as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    const candidates = pickCall.candidatesBySlot.p_trap;
+    expect(candidates).toHaveLength(2);
+    expect(candidates[0].id).toBe("vendor:classified-trap");
+    expect(candidates[1].id).toBe("vendor:runtime-trap");
+  });
+
   it("swallows LLM errors and returns the original BOM", async () => {
     const fakeClient: AccessoryPickerClient = {
       pick: vi.fn().mockRejectedValue(new Error("timeout")),

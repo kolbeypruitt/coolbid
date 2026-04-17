@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { BomItem } from "@/types/hvac";
 import { toBomInsertRows } from "@/lib/estimates/bom-rows";
+import { compareBomCategories } from "@/lib/hvac/bom-generator";
 import { SourceBadge } from "@/components/ui/source-badge";
 import { FloorplanSchematic } from "@/components/estimates/floorplan-schematic";
 import { generateFloorplanLayout } from "@/lib/hvac/floorplan-layout";
@@ -69,10 +70,12 @@ export function BomStep() {
     if (!byCategory.has(item.category)) byCategory.set(item.category, []);
     byCategory.get(item.category)!.push(item);
   }
-  const categories = Array.from(byCategory.entries()).map(([category, items]) => ({
-    category,
-    items,
-  }));
+  const categories = Array.from(byCategory.entries())
+    .sort(([a], [b]) => compareBomCategories(a, b))
+    .map(([category, items]) => ({
+      category,
+      items,
+    }));
 
   function handleCopyRFQ() {
     const text = generateRFQText(bom!, {

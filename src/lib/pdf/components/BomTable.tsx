@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet } from "@react-pdf/renderer";
 import { PDF_COLORS, PDF_FONT_SIZES } from "../tokens";
+import { compareBomCategories } from "@/lib/hvac/bom-generator";
 import type { Database } from "@/types/database";
 
 type BomRow = Database["public"]["Tables"]["estimate_bom_items"]["Row"];
@@ -69,24 +70,26 @@ export function BomTable({ items }: { items: BomRow[] }) {
 
   return (
     <View style={styles.container}>
-      {Array.from(grouped.entries()).map(([category, rows]) => (
-        <View key={category} style={styles.category}>
-          <Text style={styles.categoryTitle}>
-            {CATEGORY_LABELS[category] ?? category}
-          </Text>
-          {rows.map((row) => (
-            <View key={row.id} style={styles.row}>
-              <Text style={styles.description}>{row.description}</Text>
-              <Text style={styles.qty}>
-                {row.quantity} {row.unit}
-              </Text>
-              <Text style={styles.lineTotal}>
-                {formatCurrency(row.total_cost)}
-              </Text>
-            </View>
-          ))}
-        </View>
-      ))}
+      {Array.from(grouped.entries())
+        .sort(([a], [b]) => compareBomCategories(a, b))
+        .map(([category, rows]) => (
+          <View key={category} style={styles.category}>
+            <Text style={styles.categoryTitle}>
+              {CATEGORY_LABELS[category] ?? category}
+            </Text>
+            {rows.map((row) => (
+              <View key={row.id} style={styles.row}>
+                <Text style={styles.description}>{row.description}</Text>
+                <Text style={styles.qty}>
+                  {row.quantity} {row.unit}
+                </Text>
+                <Text style={styles.lineTotal}>
+                  {formatCurrency(row.total_cost)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ))}
     </View>
   );
 }
