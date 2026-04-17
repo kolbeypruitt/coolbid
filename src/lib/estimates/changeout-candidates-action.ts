@@ -16,12 +16,22 @@ export type ChangeoutCandidate = {
 
 export type CandidatesBySlot = Record<string, ChangeoutCandidate[]>;
 
+export type CandidatesDiagnostics = {
+  catalogSize: number;
+  slotMatches: number;
+  slotMatchesTonnage: number;
+  priced: number;
+};
+
 const BTU_PER_TON = 12000;
 
 export async function fetchChangeoutCandidates(
   systemType: SystemType,
   tonnage: number,
-): Promise<{ slots: EquipmentType[]; bySlot: CandidatesBySlot } | { error: string }> {
+): Promise<
+  | { slots: EquipmentType[]; bySlot: CandidatesBySlot; diagnostics: CandidatesDiagnostics }
+  | { error: string }
+> {
   const slots = SYSTEM_TYPE_EQUIPMENT[systemType];
   if (!slots) return { error: `Unknown system type: ${systemType}` };
 
@@ -38,12 +48,18 @@ export async function fetchChangeoutCandidates(
 
   const bySlot: CandidatesBySlot = Object.fromEntries(slots.map((s) => [s, [] as ChangeoutCandidate[]]));
   const slotSet = new Set<string>(slots);
+  let slotMatches = 0;
+  let slotMatchesTonnage = 0;
+  let priced = 0;
 
   for (const item of catalog) {
     const slot = item.bom_slot ?? item.equipment_type;
     if (!slotSet.has(slot)) continue;
+    slotMatches++;
     if (!matchesTonnage(item, slot, tonnage)) continue;
+    slotMatchesTonnage++;
     if (item.unit_price == null) continue;
+    priced++;
 
     bySlot[slot].push({
       id: item.id,
@@ -56,16 +72,13 @@ export async function fetchChangeoutCandidates(
     });
   }
 
-  return { slots: [...slots], bySlot };
+  return {
+    slots: [...slots],
+    bySlot,
+    diagnostics: { catalogSize: catalog.length, slotMatches, slotMatchesTonnage, priced },
+  };
 }
 
-/**
- * Gas furnaces don't have a tonnage column — they size by BTU. Treat a furnace
- * as a match if its btu_capacity falls within a generous band around the
- * requested tonnage. Everything else uses exact tonnage match, or passes
- * through when tonnage is absent (accessories, air handlers with universal
- * tonnage, etc.).
- */
 function matchesTonnage(
   item: { tonnage: number | null; btu_capacity: number | null; bom_specs?: Record<string, unknown> },
   slot: string,
@@ -76,6 +89,9 @@ function matchesTonnage(
     const targetBtu = tonnage * BTU_PER_TON;
     return Math.abs(item.btu_capacity - targetBtu) <= BTU_PER_TON;
   }
+  // Accessories and other items don't carry tonnage; only filter major equipment.
+  const majorSlots = new Set(['ac_condenser', 'heat_pump_condenser', 'evap_coil', 'air_handler']);
+  if (!majorSlots.has(slot)) return true;
   const specsTonnage = (item.bom_specs?.tonnage as number | undefined) ?? null;
   const effectiveTonnage = item.tonnage ?? specsTonnage;
   if (effectiveTonnage == null) return true;

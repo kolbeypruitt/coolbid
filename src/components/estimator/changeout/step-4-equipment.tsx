@@ -10,9 +10,10 @@ export function Step4Equipment() {
     systemType, tonnage, selectedEquipment, setSelectedEquipment,
     nextChangeoutStep, prevChangeoutStep,
   } = useEstimator();
+  type Diagnostics = { catalogSize: number; slotMatches: number; slotMatchesTonnage: number; priced: number };
   type FetchState =
     | { status: 'loading' }
-    | { status: 'ready'; tiers: EquipmentTier[]; slots: string[] }
+    | { status: 'ready'; tiers: EquipmentTier[]; slots: string[]; diagnostics: Diagnostics }
     | { status: 'error'; message: string };
   const [state, setState] = useState<FetchState>({ status: 'loading' });
 
@@ -30,6 +31,7 @@ export function Step4Equipment() {
         status: 'ready',
         slots,
         tiers: computeTiers(slots, res.bySlot as CandidatesBySlot),
+        diagnostics: res.diagnostics,
       });
     });
     return () => { cancelled = true; };
@@ -39,6 +41,7 @@ export function Step4Equipment() {
   const loadError = state.status === 'error' ? state.message : null;
   const tiers = state.status === 'ready' ? state.tiers : [];
   const slots = state.status === 'ready' ? state.slots : [];
+  const diagnostics = state.status === 'ready' ? state.diagnostics : null;
 
   const activeTierId = slots.length > 0 && slots.every((s) => selectedEquipment[s as BomSlot])
     ? tiers.findIndex((t) => t.picks.every((p) => selectedEquipment[p.bom_slot as BomSlot] === p.id))
@@ -54,9 +57,11 @@ export function Step4Equipment() {
   if (loadError) return <p className="text-sm text-danger">Could not load equipment: {loadError}</p>;
 
   if (tiers.length === 0) {
+    const hint = diagnosticHint(diagnostics);
     return (
       <div className="flex flex-col gap-4">
         <p className="text-sm">No matches in your catalog for this system + tonnage.</p>
+        {hint && <p className="text-xs text-txt-secondary">{hint}</p>}
         <div className="flex gap-2">
           <button onClick={prevChangeoutStep} className="min-h-[48px] rounded-lg border border-border px-4 text-sm">
             Change tonnage
@@ -117,4 +122,13 @@ export function Step4Equipment() {
       </div>
     </div>
   );
+}
+
+function diagnosticHint(d: { catalogSize: number; slotMatches: number; slotMatchesTonnage: number; priced: number } | null): string | null {
+  if (!d) return null;
+  if (d.catalogSize === 0) return 'Your equipment catalog is empty. Add a supplier catalog or classify vendor products first.';
+  if (d.slotMatches === 0) return `Catalog has ${d.catalogSize} items but none classified as the required equipment (condenser, coil, air handler, etc.). Run the classifier or import supplier quotes.`;
+  if (d.slotMatchesTonnage === 0) return `Catalog has ${d.slotMatches} item(s) for this system type but none at the selected tonnage. Try a different tonnage.`;
+  if (d.priced === 0) return `${d.slotMatchesTonnage} item(s) match but have no price. Import pricing or edit the catalog items.`;
+  return null;
 }
