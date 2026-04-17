@@ -31,6 +31,13 @@ export type BomItem = {
   partId: string; name: string; category: string; qty: number; unit: string;
   price: number | null; supplier: string; sku: string; notes: string; source: "starter" | "quote" | "manual" | "imported" | "missing";
   brand: string;
+  /**
+   * Phase 3 slot tag. Set by bom-generator.ts when creating items so the
+   * accessory enrichment step can pair "missing" items with the right
+   * classified candidates. Transient — stripped before DB insert by
+   * toBomInsertRows in src/lib/estimates/bom-rows.ts.
+   */
+  bom_slot?: import("@/lib/hvac/bom-slot-taxonomy").BomSlot;
 };
 
 export type BomSummary = {

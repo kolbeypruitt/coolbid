@@ -83,6 +83,13 @@ export type CatalogItem = {
   refrigerant_type: string | null;
   unit_price: number | null;
   unit_of_measure: string;
+  /**
+   * When this CatalogItem was produced by the LLM classifier adapter
+   * (classifiedRowToCatalogItem), holds the canonical slot-specific specs
+   * the LLM extracted. Used by the Phase 3 accessory picker to reason
+   * about compatibility. Transient — never persisted.
+   */
+  bom_specs?: Record<string, unknown>;
   source: CatalogSource;
   usage_count: number;
   last_quoted_date: string | null;

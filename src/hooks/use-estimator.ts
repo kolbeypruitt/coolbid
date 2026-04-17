@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import { renderContractorPreferencesPrompt } from "@/lib/contractor-preferences/render-prompt";
 import { loadBomCatalog } from "@/lib/estimates/load-bom-catalog";
 import { toBomInsertRows } from "@/lib/estimates/bom-rows";
+import { enrichBomViaAI } from "@/lib/estimates/enrich-bom-action";
 import type { ContractorPreferences } from "@/types/contractor-preferences";
 
 type EstimatorStep = "customer" | "upload" | "select_pages" | "analyzing" | "rooms" | "bom";
@@ -453,6 +454,14 @@ export const useEstimator = create<EstimatorState & EstimatorActions>((set, get)
           zones: bom.summary.zones * multiplier,
         };
       }
+
+      // Phase 3: fill "missing" accessory slots via Haiku before we commit.
+      // Runs as a server action so the Anthropic SDK + API key never reach
+      // the browser bundle. Enrichment is best-effort — errors server-side
+      // are swallowed and the original BOM returned unchanged.
+      const enriched = await enrichBomViaAI(bom, activeCatalog, preferences);
+      bom.items = enriched.items;
+      bom.summary = enriched.summary;
 
       set({ bom, step: "bom" });
 

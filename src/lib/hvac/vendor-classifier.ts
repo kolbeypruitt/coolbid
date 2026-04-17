@@ -216,6 +216,7 @@ export function classifiedRowToCatalogItem(
     refrigerant_type: null,
     unit_price: row.price,
     unit_of_measure: "ea",
+    bom_specs: row.bom_specs ?? undefined,
     source: "imported",
     usage_count: 0,
     last_quoted_date: null,
