@@ -66,8 +66,10 @@ export function Step5Review() {
               key={u.key}
               type="button"
               onClick={() => toggleUpsell(u.key)}
-              className={`min-h-[40px] rounded-full border px-3 text-sm ${
-                upsells[u.key] ? 'border-accent bg-accent/20 text-txt-primary' : 'border-border bg-bg-card text-txt-primary'
+              className={`min-h-[40px] rounded-full border px-3 text-sm transition ${
+                upsells[u.key]
+                  ? 'border-accent-light bg-accent-glow-strong text-accent-light'
+                  : 'border-border bg-bg-card text-txt-primary hover:border-accent-light/50'
               }`}
               aria-pressed={upsells[u.key]}
             >
