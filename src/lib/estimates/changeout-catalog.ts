@@ -43,6 +43,11 @@ export async function loadChangeoutCatalog(
     .in('equipment_type', slots as unknown as string[])
     .order('usage_count', { ascending: false });
 
+  // No price filter here — the step-4 picker lets contractors pick
+  // unpriced vendor items (they show as "No price"), and finalize needs
+  // to recover that exact row by id to render the user's real selection
+  // instead of a generic placeholder. Unpriced rows are excluded from
+  // AI accessory enrichment downstream.
   const vendorQueries =
     vendorIds.length > 0
       ? slots.map((slot) =>
@@ -51,7 +56,6 @@ export async function loadChangeoutCatalog(
             .select('id, vendor_id, sku, mpn, name, brand, short_description, price, bom_slot, bom_specs')
             .in('vendor_id', vendorIds)
             .eq('bom_slot', slot)
-            .not('price', 'is', null)
             .limit(VENDOR_PER_SLOT_LIMIT),
         )
       : [];

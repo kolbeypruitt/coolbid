@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Loader2, RefreshCw, AlertTriangle, ArrowRight } from 'lucide-react';
-import { useEstimator } from '@/hooks/use-estimator';
+import { useEstimator, type ChangeoutUpsells } from '@/hooks/use-estimator';
 import { finalizeChangeout } from '@/lib/estimates/finalize-changeout-action';
 import { createClient } from '@/lib/supabase/client';
 import { compareBomCategories } from '@/lib/hvac/bom-generator';
@@ -67,13 +67,18 @@ export function Step5Review() {
   const runFinalize = useCallback(() => {
     if (!estimateId || !tonnage) return;
     setLoadError(null);
+    // Snapshot upsells *at run time* so we can detect toggles that
+    // landed after finalize started — without the snapshot compare the
+    // in-flight run can complete with stale upsells and leave the BOM
+    // out of sync with the UI.
+    const upsellsAtRun: ChangeoutUpsells = { ...upsells };
     startFinalizing(async () => {
       const res = await finalizeChangeout({
         estimateId,
         systemType,
         tonnage,
         selectedEquipment: selectedEquipment as Record<string, string>,
-        upsells,
+        upsells: upsellsAtRun,
       });
       if ('error' in res) {
         setLoadError(res.error);
@@ -81,7 +86,11 @@ export function Step5Review() {
       }
       await loadEstimateAndBom(estimateId);
       setHasGenerated(true);
-      setStale(false);
+      const currentUpsells = useEstimator.getState().upsells;
+      const upsellsDrifted = (
+        Object.keys(upsellsAtRun) as Array<keyof ChangeoutUpsells>
+      ).some((k) => upsellsAtRun[k] !== currentUpsells[k]);
+      setStale(upsellsDrifted);
     });
   }, [estimateId, tonnage, systemType, selectedEquipment, upsells, loadEstimateAndBom]);
 
@@ -112,7 +121,10 @@ export function Step5Review() {
 
   function handleToggleUpsell(key: (typeof UPSELLS)[number]['key']) {
     toggleUpsell(key);
-    if (hasGenerated) setStale(true);
+    // Mark stale regardless of hasGenerated — if the user toggles while
+    // the initial finalize is in-flight, that run is already baking an
+    // outdated upsells set, so we need Refresh to be the path forward.
+    setStale(true);
   }
 
   const laborCost =

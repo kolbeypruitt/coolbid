@@ -210,6 +210,10 @@ export async function enrichBomWithAccessories(
     const slotCandidates = catalog
       .filter((c) => c.id.startsWith("vendor:"))
       .filter((c) => SLOT_TO_EQUIPMENT_TYPE[m.requirement.slot] === c.equipment_type)
+      // Accessories must be priced so the estimate total is meaningful.
+      // Unpriced rows are still loaded globally (so a user's direct pick
+      // can be recovered), but shouldn't be offered to the LLM picker.
+      .filter((c) => c.unit_price != null)
       .sort((a, b) => {
         const slotMatch =
           (b.bom_slot === m.requirement.slot ? 1 : 0) -
