@@ -1,11 +1,11 @@
 'use client';
 import { useCallback, useEffect, useState, useTransition } from 'react';
-import { Check, Loader2, Share2, RefreshCw, AlertTriangle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Check, Loader2, RefreshCw, AlertTriangle, ArrowRight } from 'lucide-react';
 import { useEstimator } from '@/hooks/use-estimator';
 import { finalizeChangeout } from '@/lib/estimates/finalize-changeout-action';
 import { createClient } from '@/lib/supabase/client';
 import { compareBomCategories } from '@/lib/hvac/bom-generator';
-import { ShareDialog } from '@/components/estimates/share-dialog';
 import type { Database } from '@/types/database';
 
 type EstimateRow = Database['public']['Tables']['estimates']['Row'];
@@ -19,6 +19,7 @@ const UPSELLS = [
 ] as const;
 
 export function Step5Review() {
+  const router = useRouter();
   const {
     estimateId,
     systemType,
@@ -36,7 +37,6 @@ export function Step5Review() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [hasGenerated, setHasGenerated] = useState(false);
   const [stale, setStale] = useState(false);
-  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     if (!estimateId) createChangeoutDraft();
@@ -137,9 +137,9 @@ export function Step5Review() {
   return (
     <div className="flex flex-1 flex-col gap-4">
       <header>
-        <h2 className="text-xl font-semibold">Review & send</h2>
+        <h2 className="text-xl font-semibold">Review BOM</h2>
         <p className="text-sm text-txt-secondary">
-          Confirm upsells, review the BOM, then share with the homeowner.
+          Confirm upsells and review the bill of materials. You&apos;ll share it with the homeowner from the estimate page.
         </p>
       </header>
 
@@ -287,36 +287,14 @@ export function Step5Review() {
         </button>
         <button
           type="button"
-          onClick={() => setShareOpen(true)}
+          onClick={() => estimateId && router.push(`/estimates/${estimateId}`)}
           disabled={!estimate || bom.length === 0 || finalizing || stale}
           className="inline-flex min-h-[48px] flex-[2] items-center justify-center gap-2 rounded-lg bg-gradient-brand px-6 text-base font-semibold text-white disabled:opacity-50"
         >
-          <Share2 className="h-4 w-4" />
-          Share with homeowner
+          Done — View Estimate
+          <ArrowRight className="h-4 w-4" />
         </button>
       </div>
-
-      {estimate && (
-        <ShareDialog
-          estimateId={estimate.id}
-          initial={{
-            display_mode: estimate.display_mode,
-            valid_until: estimate.valid_until,
-            scope_of_work: estimate.scope_of_work,
-            note_to_customer: estimate.note_to_customer,
-            customer_email: estimate.customer_email,
-          }}
-          hasUnpricedItems={hasUnpricedItems}
-          open={shareOpen}
-          onOpenChange={setShareOpen}
-        />
-      )}
-
-      {estimateId && (
-        <a href={`/estimates/${estimateId}`} className="text-center text-sm text-txt-secondary underline">
-          Edit details first
-        </a>
-      )}
     </div>
   );
 }

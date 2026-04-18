@@ -95,8 +95,8 @@ export async function POST(
   // field wasn't touched.
   const recipientEmail =
     body.customer_email !== undefined
-      ? body.customer_email.trim() || null
-      : estimate.customer_email?.trim() || null;
+      ? (body.customer_email?.trim() || null)
+      : (estimate.customer_email?.trim() || null);
   let emailed = false;
   let emailError: string | null = null;
   if (recipientEmail) {
@@ -107,7 +107,7 @@ export async function POST(
         .eq("id", user.id)
         .single();
       const resend = getResend();
-      const { error } = await resend.emails.send({
+      const { data: sent, error } = await resend.emails.send({
         from: FROM_EMAIL,
         to: recipientEmail,
         replyTo: profile?.company_email?.trim() || user.email || undefined,
@@ -125,13 +125,19 @@ export async function POST(
         }),
       });
       if (error) {
-        emailError = "Email service rejected the message";
+        // Surface Resend's actual message (e.g. "domain not verified",
+        // "invalid `to` field") so the contractor can act on it instead
+        // of guessing.
+        emailError =
+          (error as { message?: string })?.message ?? "Email rejected";
         console.error("Estimate share email send failed:", error);
       } else {
         emailed = true;
+        console.log("Estimate share email sent:", sent?.id ?? "no id");
       }
     } catch (err) {
-      emailError = "Email service unavailable";
+      emailError =
+        err instanceof Error ? err.message : "Email service unavailable";
       console.error("Estimate share email threw:", err);
     }
   }
