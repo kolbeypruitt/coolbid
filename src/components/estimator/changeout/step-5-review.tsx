@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, useTransition } from 'react';
+import { Check } from 'lucide-react';
 import { useEstimator } from '@/hooks/use-estimator';
 import { finalizeChangeout } from '@/lib/estimates/finalize-changeout-action';
 
@@ -66,11 +67,14 @@ export function Step5Review() {
               key={u.key}
               type="button"
               onClick={() => toggleUpsell(u.key)}
-              className={`min-h-[40px] rounded-full border px-3 text-sm ${
-                upsells[u.key] ? 'border-accent bg-accent/20 text-txt-primary' : 'border-border bg-bg-card text-txt-primary'
+              className={`inline-flex min-h-[40px] items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-colors ${
+                upsells[u.key]
+                  ? 'border-accent-light bg-accent-glow text-accent-light'
+                  : 'border-border bg-bg-card text-txt-secondary hover:bg-bg-card-hover hover:text-txt-primary'
               }`}
               aria-pressed={upsells[u.key]}
             >
+              {upsells[u.key] && <Check className="h-4 w-4" />}
               {u.label}
             </button>
           ))}
