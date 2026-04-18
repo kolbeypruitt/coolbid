@@ -39,7 +39,16 @@ export function ShareDialog({
 }: ShareDialogProps) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<{ url: string; expires_at: string } | null>(null);
+  const [result, setResult] = useState<
+    | {
+        url: string;
+        expires_at: string;
+        emailed: boolean;
+        email_error: string | null;
+        recipient_email: string | null;
+      }
+    | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -58,6 +67,8 @@ export function ShareDialog({
     note_to_customer: initial.note_to_customer ?? "",
     customer_email: initial.customer_email ?? "",
   });
+
+  const willEmail = Boolean(form.customer_email.trim());
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -79,7 +90,13 @@ export function ShareDialog({
     setSubmitting(false);
 
     const json = (await res.json()) as
-      | { url: string; expires_at: string }
+      | {
+          url: string;
+          expires_at: string;
+          emailed?: boolean;
+          email_error?: string | null;
+          recipient_email?: string | null;
+        }
       | { error: string };
 
     if (!res.ok || "error" in json) {
@@ -87,7 +104,13 @@ export function ShareDialog({
       return;
     }
 
-    setResult({ url: json.url, expires_at: json.expires_at });
+    setResult({
+      url: json.url,
+      expires_at: json.expires_at,
+      emailed: json.emailed ?? false,
+      email_error: json.email_error ?? null,
+      recipient_email: json.recipient_email ?? null,
+    });
     router.refresh();
   }
 
@@ -118,10 +141,15 @@ export function ShareDialog({
       <Dialog open={open} onOpenChange={handleClose}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Link ready</DialogTitle>
+            <DialogTitle>
+              {result.emailed ? "Estimate emailed" : "Share link ready"}
+            </DialogTitle>
             <DialogDescription>
-              Copy this link and send it to {initial.customer_email || "the homeowner"}.
-              The link expires {new Date(result.expires_at).toLocaleDateString()}.
+              {result.emailed
+                ? `Sent to ${result.recipient_email}. You can also copy the link below. Expires ${new Date(result.expires_at).toLocaleDateString()}.`
+                : result.email_error
+                  ? `Generated a share link, but the email to ${result.recipient_email ?? "the homeowner"} didn't go through (${result.email_error}). Copy the link below and send it manually. Expires ${new Date(result.expires_at).toLocaleDateString()}.`
+                  : `Copy this link and send it to ${initial.customer_email || "the homeowner"}. Expires ${new Date(result.expires_at).toLocaleDateString()}.`}
             </DialogDescription>
           </DialogHeader>
 
@@ -174,7 +202,9 @@ export function ShareDialog({
         <DialogHeader>
           <DialogTitle>Share with the homeowner</DialogTitle>
           <DialogDescription>
-            Generates a link you can text or email. You can revoke it anytime.
+            {willEmail
+              ? "We'll email the estimate to the address below and give you a share link you can text as well. You can revoke it anytime."
+              : "Generates a share link you can text or copy. Add an email to also send it directly. You can revoke anytime."}
           </DialogDescription>
         </DialogHeader>
 
@@ -284,8 +314,10 @@ export function ShareDialog({
               {submitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Generating...
+                  {willEmail ? "Sending..." : "Generating..."}
                 </>
+              ) : willEmail ? (
+                "Email estimate"
               ) : (
                 "Generate share link"
               )}

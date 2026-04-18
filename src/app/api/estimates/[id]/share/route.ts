@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createOrReplaceShare, revokeShare } from "@/lib/share/lifecycle";
 import { generateScopeOfWork } from "@/lib/share/scope-of-work";
+import { getResend, FROM_EMAIL } from "@/lib/resend";
+import { EstimateShareEmail } from "@/lib/emails/estimate-share";
 import type { Database } from "@/types/database";
 
 type EstimateUpdate =
@@ -84,11 +86,63 @@ export async function POST(
 
   const appUrl =
     process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://coolbid.app";
+  const shareUrl = `${appUrl}/q/${share.token}`;
+
+  // Email the homeowner when we have an address. If the dialog sent an
+  // explicit `customer_email` (even empty), honor that — an empty string
+  // means the contractor cleared the field and shouldn't trigger a send
+  // against the DB value. Fall back to the stored email only when the
+  // field wasn't touched.
+  const recipientEmail =
+    body.customer_email !== undefined
+      ? body.customer_email.trim() || null
+      : estimate.customer_email?.trim() || null;
+  let emailed = false;
+  let emailError: string | null = null;
+  if (recipientEmail) {
+    try {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("company_name, company_email")
+        .eq("id", user.id)
+        .single();
+      const resend = getResend();
+      const { error } = await resend.emails.send({
+        from: FROM_EMAIL,
+        to: recipientEmail,
+        replyTo: profile?.company_email?.trim() || user.email || undefined,
+        subject: `Your HVAC estimate — ${estimate.project_name}`,
+        react: EstimateShareEmail({
+          customerName: estimate.customer_name ?? "",
+          projectName: estimate.project_name,
+          companyName: profile?.company_name ?? "",
+          totalPrice: estimate.total_price,
+          shareUrl,
+          validUntil:
+            (updates.valid_until ?? estimate.valid_until) ?? null,
+          noteToCustomer:
+            (updates.note_to_customer ?? estimate.note_to_customer) ?? null,
+        }),
+      });
+      if (error) {
+        emailError = "Email service rejected the message";
+        console.error("Estimate share email send failed:", error);
+      } else {
+        emailed = true;
+      }
+    } catch (err) {
+      emailError = "Email service unavailable";
+      console.error("Estimate share email threw:", err);
+    }
+  }
 
   return NextResponse.json({
     token: share.token,
-    url: `${appUrl}/q/${share.token}`,
+    url: shareUrl,
     expires_at: share.expires_at,
+    emailed,
+    email_error: emailError,
+    recipient_email: recipientEmail,
   });
 }
 
