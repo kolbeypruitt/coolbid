@@ -1,13 +1,14 @@
 import type { BomItem, BomResult } from '@/types/hvac';
 import type { CatalogItem, SystemType } from '@/types/catalog';
 import type { BomSlot } from '@/lib/hvac/bom-slot-taxonomy';
-import type { ChangeoutUpsells } from '@/hooks/use-estimator';
+import type { ChangeoutUpsells, ChangeoutAccessories } from '@/hooks/use-estimator';
 
 export type ChangeoutBomInput = {
   systemType: SystemType;
   tonnage: number;
   selectedEquipment: Partial<Record<string, string>>;
   upsells: ChangeoutUpsells;
+  accessories: ChangeoutAccessories;
   catalog: CatalogItem[];
   laborRate: number;
   laborHours: number;
@@ -80,11 +81,19 @@ export function generateChangeoutBom(input: ChangeoutBomInput): BomResult {
     }
   }
 
-  // Emitted as missing so the AI enrichment step can fill pricing
-  items.push(missingLine('condenser_pad', 'Equipment pad'));
-  items.push(missingLine('disconnect', 'Disconnect + whip'));
-  items.push(missingLine('drain_line', 'Drain kit'));
-  if (REFRIGERANT_SYSTEMS.has(input.systemType)) {
+  // Emitted as missing so the AI enrichment step can fill pricing.
+  // Each accessory is gated on the contractor's toggle — default on,
+  // but easy to drop when the existing install already covers them.
+  if (input.accessories.condenserPad) {
+    items.push(missingLine('condenser_pad', 'Equipment pad'));
+  }
+  if (input.accessories.disconnect) {
+    items.push(missingLine('disconnect', 'Disconnect + whip'));
+  }
+  if (input.accessories.drainKit) {
+    items.push(missingLine('drain_line', 'Drain kit'));
+  }
+  if (input.accessories.lineSet && REFRIGERANT_SYSTEMS.has(input.systemType)) {
     items.push(missingLine('line_set', 'Refrigerant line set'));
   }
 

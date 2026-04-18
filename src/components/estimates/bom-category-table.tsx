@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { MoreHorizontal, Trash2, ArrowLeftRight, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { formatRoomType } from "@/lib/utils";
+import { formatBomSlot } from "@/lib/hvac/bom-slot-taxonomy";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -175,7 +175,7 @@ export function BomCategoryTable({
       <Card className="bg-gradient-card border-border">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-txt-primary">
-            {formatRoomType(category)}
+            {formatBomSlot(category)}
           </CardTitle>
           <Button
             variant="ghost"
@@ -217,9 +217,9 @@ export function BomCategoryTable({
                     key={item.id}
                     className="border-b border-border hover:bg-[rgba(6,182,212,0.03)] transition-colors"
                   >
-                    <TableCell className="text-sm text-txt-primary font-medium py-2">
-                      <div className="flex items-center gap-2">
-                        {item.description}
+                    <TableCell className="text-sm text-txt-primary font-medium py-2 whitespace-normal break-words min-w-[220px] max-w-[520px]">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="break-words">{item.description}</span>
                         <SourceBadge source={item.source} />
                       </div>
                     </TableCell>

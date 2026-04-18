@@ -67,6 +67,47 @@ export const BOM_SLOT_VALUES = [
 
 export type BomSlot = (typeof BOM_SLOT_VALUES)[number];
 
+/**
+ * Human-readable labels for each BOM slot. Used wherever raw slot names
+ * leak into the UI (wizard step headers, BOM preview category headers,
+ * etc.) so contractors don't see snake_case.
+ */
+const SLOT_LABELS: Record<BomSlot, string> = {
+  ac_condenser: "AC condenser",
+  heat_pump_condenser: "Heat pump condenser",
+  gas_furnace: "Gas furnace",
+  air_handler: "Air handler",
+  evap_coil: "Evap coil",
+  heat_strips: "Heat strips",
+  thermostat: "Thermostat",
+  ductwork_trunk: "Ductwork trunk",
+  flex_duct: "Flex duct",
+  supply_plenum: "Supply plenum",
+  return_plenum: "Return plenum",
+  supply_register: "Supply register",
+  return_grille: "Return grille",
+  line_set: "Line set",
+  refrigerant: "Refrigerant",
+  disconnect: "Disconnect",
+  conduit_whip: "Conduit whip",
+  breaker: "Breaker",
+  condensate_pump: "Condensate pump",
+  p_trap: "P-trap",
+  drain_line: "Drain line",
+  filter: "Filter",
+  duct_mastic: "Duct mastic",
+  foil_tape: "Foil tape",
+  condenser_pad: "Condenser pad",
+  hanger_strap: "Hanger strap",
+};
+
+export function formatBomSlot(slot: string): string {
+  return (
+    SLOT_LABELS[slot as BomSlot] ??
+    slot.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+  );
+}
+
 const REFRIGERANT = z.enum(["r410a", "r454b", "r32", "r22", "other"]);
 
 export const BOM_SPEC_SCHEMAS = {

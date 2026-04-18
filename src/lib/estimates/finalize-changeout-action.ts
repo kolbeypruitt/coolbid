@@ -6,7 +6,7 @@ import { enrichBomViaAI } from '@/lib/estimates/enrich-bom-action';
 import { loadChangeoutCatalog, CHANGEOUT_FINALIZE_SLOTS } from '@/lib/estimates/changeout-catalog';
 import { toBomInsertRows } from '@/lib/estimates/bom-rows';
 import { calcTotals } from '@/lib/estimates/recalc';
-import type { ChangeoutUpsells } from '@/hooks/use-estimator';
+import type { ChangeoutUpsells, ChangeoutAccessories } from '@/hooks/use-estimator';
 import type { SystemType } from '@/types/catalog';
 import type { ContractorPreferences } from '@/types/contractor-preferences';
 import type { Database } from '@/types/database';
@@ -19,6 +19,7 @@ export type FinalizeChangeoutInput = {
   tonnage: number;
   selectedEquipment: Record<string, string>;
   upsells: ChangeoutUpsells;
+  accessories: ChangeoutAccessories;
 };
 
 export async function finalizeChangeout(
@@ -59,6 +60,7 @@ export async function finalizeChangeout(
     tonnage: input.tonnage,
     selectedEquipment: input.selectedEquipment,
     upsells: input.upsells,
+    accessories: input.accessories,
     catalog,
     laborRate: estimate.labor_rate,
     laborHours: estimate.labor_hours,

@@ -39,6 +39,16 @@ export type ChangeoutUpsells = {
   floatSwitch: boolean;
 };
 
+// Accessories that are *usually* part of a changeout but can be turned off
+// (e.g., existing pad is reused, no drain run, customer already has line
+// set in place). Default on to match historical behavior.
+export type ChangeoutAccessories = {
+  condenserPad: boolean;
+  disconnect: boolean;
+  drainKit: boolean;
+  lineSet: boolean;
+};
+
 type PagePreview = {
   pageNum: number;
   previewUrl: string;
@@ -85,6 +95,7 @@ type EstimatorState = {
   tonnage: number | null;
   existingSystem: ExistingSystemInfo | null;
   upsells: ChangeoutUpsells;
+  accessories: ChangeoutAccessories;
 };
 
 type EstimatorActions = {
@@ -122,6 +133,7 @@ type EstimatorActions = {
   setTonnage: (tonnage: number | null) => void;
   setExistingSystem: (info: ExistingSystemInfo | null) => void;
   toggleUpsell: (key: keyof ChangeoutUpsells) => void;
+  toggleAccessory: (key: keyof ChangeoutAccessories) => void;
   createChangeoutDraft: () => Promise<string | null>;
 };
 
@@ -238,6 +250,7 @@ function initialState(): EstimatorState {
     tonnage: null,
     existingSystem: null,
     upsells: { thermostat: false, surgeProtector: false, condensatePump: false, floatSwitch: false },
+    accessories: { condenserPad: true, disconnect: true, drainKit: true, lineSet: true },
   };
 }
 
@@ -602,6 +615,11 @@ export const useEstimator = create<EstimatorState & EstimatorActions>((set, get)
 
   toggleUpsell: (key) =>
     set((state) => ({ upsells: { ...state.upsells, [key]: !state.upsells[key] } })),
+
+  toggleAccessory: (key) =>
+    set((state) => ({
+      accessories: { ...state.accessories, [key]: !state.accessories[key] },
+    })),
 
   createChangeoutDraft: async () => {
     const state = get();

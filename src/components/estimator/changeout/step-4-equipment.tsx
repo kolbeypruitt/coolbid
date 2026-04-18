@@ -7,7 +7,7 @@ import {
   type CandidatesBySlot,
   type ChangeoutCandidate,
 } from '@/lib/estimates/changeout-candidates-action';
-import type { BomSlot } from '@/lib/hvac/bom-slot-taxonomy';
+import { formatBomSlot, type BomSlot } from '@/lib/hvac/bom-slot-taxonomy';
 
 type Diagnostics = {
   userCatalogSize: number;
@@ -287,17 +287,8 @@ function SlotSection({ slot, candidates, pickedId, open, onToggle, onPick }: Slo
   );
 }
 
-const SLOT_LABELS: Record<string, string> = {
-  ac_condenser: 'AC condenser',
-  heat_pump_condenser: 'Heat pump condenser',
-  gas_furnace: 'Gas furnace',
-  air_handler: 'Air handler',
-  evap_coil: 'Evap coil',
-  heat_strips: 'Heat strips',
-};
-
 function humanizeSlot(slot: string): string {
-  return SLOT_LABELS[slot] ?? slot.replace(/_/g, ' ');
+  return formatBomSlot(slot);
 }
 
 function formatPrice(price: number | null): string {

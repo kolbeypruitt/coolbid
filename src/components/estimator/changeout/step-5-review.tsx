@@ -2,21 +2,29 @@
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Loader2, RefreshCw, AlertTriangle, ArrowRight } from 'lucide-react';
-import { useEstimator, type ChangeoutUpsells } from '@/hooks/use-estimator';
+import { useEstimator, type ChangeoutUpsells, type ChangeoutAccessories } from '@/hooks/use-estimator';
 import { finalizeChangeout } from '@/lib/estimates/finalize-changeout-action';
 import { createClient } from '@/lib/supabase/client';
 import { compareBomCategories } from '@/lib/hvac/bom-generator';
+import { formatBomSlot } from '@/lib/hvac/bom-slot-taxonomy';
 import type { Database } from '@/types/database';
 
 type EstimateRow = Database['public']['Tables']['estimates']['Row'];
 type BomRow = Database['public']['Tables']['estimate_bom_items']['Row'];
 
-const UPSELLS = [
+const UPSELLS: ReadonlyArray<{ key: keyof ChangeoutUpsells; label: string }> = [
   { key: 'thermostat', label: 'Smart thermostat' },
   { key: 'surgeProtector', label: 'Surge protector' },
   { key: 'condensatePump', label: 'Condensate pump' },
   { key: 'floatSwitch', label: 'Float switch' },
-] as const;
+];
+
+const ACCESSORIES: ReadonlyArray<{ key: keyof ChangeoutAccessories; label: string }> = [
+  { key: 'condenserPad', label: 'Equipment pad' },
+  { key: 'disconnect', label: 'Disconnect + whip' },
+  { key: 'drainKit', label: 'Drain kit' },
+  { key: 'lineSet', label: 'Refrigerant line set' },
+];
 
 export function Step5Review() {
   const router = useRouter();
@@ -26,7 +34,9 @@ export function Step5Review() {
     tonnage,
     selectedEquipment,
     upsells,
+    accessories,
     toggleUpsell,
+    toggleAccessory,
     prevChangeoutStep,
     createChangeoutDraft,
   } = useEstimator();
@@ -67,11 +77,12 @@ export function Step5Review() {
   const runFinalize = useCallback(() => {
     if (!estimateId || !tonnage) return;
     setLoadError(null);
-    // Snapshot upsells *at run time* so we can detect toggles that
-    // landed after finalize started — without the snapshot compare the
-    // in-flight run can complete with stale upsells and leave the BOM
+    // Snapshot upsells/accessories at run time so we can detect toggles
+    // that landed after finalize started — without the compare, the
+    // in-flight run can complete with stale toggles and leave the BOM
     // out of sync with the UI.
     const upsellsAtRun: ChangeoutUpsells = { ...upsells };
+    const accessoriesAtRun: ChangeoutAccessories = { ...accessories };
     startFinalizing(async () => {
       const res = await finalizeChangeout({
         estimateId,
@@ -79,6 +90,7 @@ export function Step5Review() {
         tonnage,
         selectedEquipment: selectedEquipment as Record<string, string>,
         upsells: upsellsAtRun,
+        accessories: accessoriesAtRun,
       });
       if ('error' in res) {
         setLoadError(res.error);
@@ -86,13 +98,17 @@ export function Step5Review() {
       }
       await loadEstimateAndBom(estimateId);
       setHasGenerated(true);
-      const currentUpsells = useEstimator.getState().upsells;
-      const upsellsDrifted = (
-        Object.keys(upsellsAtRun) as Array<keyof ChangeoutUpsells>
-      ).some((k) => upsellsAtRun[k] !== currentUpsells[k]);
-      setStale(upsellsDrifted);
+      const state = useEstimator.getState();
+      const drifted =
+        (Object.keys(upsellsAtRun) as Array<keyof ChangeoutUpsells>).some(
+          (k) => upsellsAtRun[k] !== state.upsells[k],
+        ) ||
+        (Object.keys(accessoriesAtRun) as Array<keyof ChangeoutAccessories>).some(
+          (k) => accessoriesAtRun[k] !== state.accessories[k],
+        );
+      setStale(drifted);
     });
-  }, [estimateId, tonnage, systemType, selectedEquipment, upsells, loadEstimateAndBom]);
+  }, [estimateId, tonnage, systemType, selectedEquipment, upsells, accessories, loadEstimateAndBom]);
 
   // Auto-generate the BOM the first time we land on this step. If a prior
   // session already finalized, reuse the saved BOM instead of re-running
@@ -119,11 +135,16 @@ export function Step5Review() {
     return () => { cancelled = true; };
   }, [hasGenerated, estimateId, tonnage, finalizing, runFinalize, loadEstimateAndBom]);
 
-  function handleToggleUpsell(key: (typeof UPSELLS)[number]['key']) {
+  function handleToggleUpsell(key: keyof ChangeoutUpsells) {
     toggleUpsell(key);
     // Mark stale regardless of hasGenerated — if the user toggles while
     // the initial finalize is in-flight, that run is already baking an
-    // outdated upsells set, so we need Refresh to be the path forward.
+    // outdated toggle set, so Refresh is the path forward.
+    setStale(true);
+  }
+
+  function handleToggleAccessory(key: keyof ChangeoutAccessories) {
+    toggleAccessory(key);
     setStale(true);
   }
 
@@ -156,28 +177,57 @@ export function Step5Review() {
       </header>
 
       <section className="rounded-xl border border-border bg-bg-card p-4">
-        <h3 className="text-sm font-semibold">Upsells</h3>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {UPSELLS.map((u) => (
-            <button
-              key={u.key}
-              type="button"
-              onClick={() => handleToggleUpsell(u.key)}
-              className={`inline-flex min-h-[40px] items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-colors ${
-                upsells[u.key]
-                  ? 'border-accent-light bg-accent-glow text-accent-light'
-                  : 'border-border bg-bg-card text-txt-secondary hover:bg-bg-card-hover hover:text-txt-primary'
-              }`}
-              aria-pressed={upsells[u.key]}
-            >
-              {upsells[u.key] && <Check className="h-4 w-4" />}
-              {u.label}
-            </button>
-          ))}
+        <div>
+          <h3 className="text-sm font-semibold">Accessories</h3>
+          <p className="text-xs text-txt-tertiary">
+            Usually included. Turn off anything the existing install already covers.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {ACCESSORIES.map((a) => (
+              <button
+                key={a.key}
+                type="button"
+                onClick={() => handleToggleAccessory(a.key)}
+                className={`inline-flex min-h-[40px] items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-colors ${
+                  accessories[a.key]
+                    ? 'border-accent-light bg-accent-glow text-accent-light'
+                    : 'border-border bg-bg-card text-txt-secondary hover:bg-bg-card-hover hover:text-txt-primary'
+                }`}
+                aria-pressed={accessories[a.key]}
+              >
+                {accessories[a.key] && <Check className="h-4 w-4" />}
+                {a.label}
+              </button>
+            ))}
+          </div>
         </div>
+
+        <div className="mt-4">
+          <h3 className="text-sm font-semibold">Upsells</h3>
+          <p className="text-xs text-txt-tertiary">Optional add-ons — off by default.</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {UPSELLS.map((u) => (
+              <button
+                key={u.key}
+                type="button"
+                onClick={() => handleToggleUpsell(u.key)}
+                className={`inline-flex min-h-[40px] items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-colors ${
+                  upsells[u.key]
+                    ? 'border-accent-light bg-accent-glow text-accent-light'
+                    : 'border-border bg-bg-card text-txt-secondary hover:bg-bg-card-hover hover:text-txt-primary'
+                }`}
+                aria-pressed={upsells[u.key]}
+              >
+                {upsells[u.key] && <Check className="h-4 w-4" />}
+                {u.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {stale && (
           <div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-warning bg-warning-bg px-3 py-2 text-sm text-warning">
-            <span>Upsells changed — refresh the BOM to reflect them.</span>
+            <span>Inclusions changed — refresh the BOM to reflect them.</span>
             <button
               type="button"
               onClick={runFinalize}
@@ -231,7 +281,7 @@ export function Step5Review() {
               {categories.map(([category, items]) => (
                 <div key={category}>
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-txt-tertiary">
-                    {category}
+                    {formatBomSlot(category)}
                   </p>
                   <ul className="mt-1 divide-y divide-border">
                     {items.map((item) => (

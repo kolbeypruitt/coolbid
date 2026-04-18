@@ -35,6 +35,7 @@ const baseInput: ChangeoutBomInput = {
   tonnage: 3,
   selectedEquipment: { ac_condenser: 'ac1', gas_furnace: 'gf1', evap_coil: 'ec1' },
   upsells: { thermostat: false, surgeProtector: false, condensatePump: false, floatSwitch: false },
+  accessories: { condenserPad: true, disconnect: true, drainKit: true, lineSet: true },
   catalog: [cat('ac1', 'ac_condenser', 2000), cat('gf1', 'gas_furnace', 1500), cat('ec1', 'evap_coil', 500)],
   laborRate: 85,
   laborHours: 6,
@@ -61,11 +62,42 @@ describe('generateChangeoutBom', () => {
     expect(slots).not.toContain('line_set');
   });
 
+  it('skips the line set when system is electric even with lineSet toggled on', () => {
+    const result = generateChangeoutBom({
+      ...baseInput,
+      systemType: 'electric',
+      accessories: { ...baseInput.accessories, lineSet: true },
+    });
+    const slots = result.items.map((i) => i.bom_slot);
+    expect(slots).not.toContain('line_set');
+  });
+
+  it('skips the line set on a refrigerant system when lineSet is toggled off', () => {
+    const result = generateChangeoutBom({
+      ...baseInput,
+      accessories: { ...baseInput.accessories, lineSet: false },
+    });
+    const slots = result.items.map((i) => i.bom_slot);
+    expect(slots).not.toContain('line_set');
+  });
+
   it('adds the thermostat upsell only when toggled', () => {
     const off = generateChangeoutBom(baseInput);
     expect(off.items.find((i) => i.bom_slot === 'thermostat')).toBeUndefined();
     const on = generateChangeoutBom({ ...baseInput, upsells: { ...baseInput.upsells, thermostat: true } });
     expect(on.items.find((i) => i.bom_slot === 'thermostat')).toBeDefined();
+  });
+
+  it('skips accessory lines when their toggle is off', () => {
+    const result = generateChangeoutBom({
+      ...baseInput,
+      accessories: { condenserPad: false, disconnect: false, drainKit: true, lineSet: true },
+    });
+    const slots = result.items.map((i) => i.bom_slot);
+    expect(slots).not.toContain('condenser_pad');
+    expect(slots).not.toContain('disconnect');
+    expect(slots).toContain('drain_line');
+    expect(slots).toContain('line_set');
   });
 
   it('reports tonnage in the summary', () => {
