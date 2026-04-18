@@ -359,8 +359,7 @@ function TrustStrip() {
     <section className="border-y border-border bg-bg-secondary/40 py-10">
       <div className="mx-auto max-w-6xl px-6">
         <p className="text-center text-[11px] font-semibold uppercase tracking-[0.2em] text-txt-tertiary">
-          Built on real jobsite data from Greenfield Heating &amp; Air · Agra,
-          OK
+          Built on real jobsite data from a working HVAC contractor
         </p>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-x-10 gap-y-4 text-sm text-txt-secondary">
           {[
@@ -658,7 +657,7 @@ function FAQ() {
     },
     {
       q: "Who built this?",
-      a: "A contractor and a software engineer who got tired of typing estimates into spreadsheets after dinner. coolbid is built on real jobs at Greenfield Heating & Air in Agra, OK.",
+      a: "A contractor and a software engineer who got tired of typing estimates into spreadsheets after dinner. coolbid is built on real jobs from a working HVAC company in Oklahoma.",
     },
   ];
   return (
